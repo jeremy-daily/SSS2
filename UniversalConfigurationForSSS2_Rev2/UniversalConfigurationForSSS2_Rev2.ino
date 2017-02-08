@@ -13,7 +13,7 @@
 
 //softwareVersion
 char softwareVersion[200] = "SSS2*Rev2*0.4*ec644a7e5406124655f49ae9d5e27038f4b450b5"; //Hash of the previous git commit
-char componentID[200] = "SYNER*SSS2-R02*0000*UNIVERSAL"; //Add the serial number for hard coded values.
+char componentID[200] = "SYNER*SSS2-R02*0012*UNIVERSAL"; //Add the serial number for hard coded values.
 
 byte sourceAddress = 0xFA; 
 
@@ -56,41 +56,40 @@ uint8_t bitPositions[8] = { ~0b00000001,
 /* End Definitions for Digital Potentiometer Terminal Connections  */
 /*******************************************************************/
 
+uint8_t DM13_00_Count = 0;
+uint8_t DM13_FF_Count = 0;
+uint8_t potWiperSettings[16] ={16,32,48,64,80,96,112,128,144,160,176,192,208,224,240,255};
+uint8_t potTCONSettings[16] ={7,7,7,7,7,7,7,7,7,7,7,0,7,7,7,7};
+uint16_t DAC2value[8] = {500,1000,1500,2000,2500,3000,3500,4000};
+uint8_t pwm1value = 50;
+uint8_t pwm2value = 100;
+uint8_t pwm3value = 150;
+uint8_t pwm4value = 222; //Set this for Bendix
+uint8_t HVoutAdjValue = 168;
+uint8_t terminationSettings = 0xFF; //0b11111111;
+uint8_t connectionSettings = 0b000000000 ;
+uint8_t HS1state = 0;
+uint8_t HS2state = 0;
+uint8_t LS1state = 0;
+uint8_t LS2state = 1; //Needed for Bendix 
+uint16_t DAC3value[8] {500,1000,1500,2000,2500,3000,3500,4000}; 
 
 //Variables that get loaded from contents in the EEPROM
 const uint16_t potWiperSettingsAddress = 0;
-uint8_t potWiperSettings[16] ={16,32,48,64,80,96,112,128,144,160,176,192,208,224,240,255};
 const uint16_t potTCONSettingsAddress = 16;
-uint8_t potTCONSettings[16] ={7,7,7,7,7,7,7,7,7,7,0,0,7,7,7,7};
 const uint16_t DAC2valueAddress = 32;
-uint16_t DAC2value[8] = {500,1000,1500,2000,2500,3000,3500,4000};
 const uint16_t pwm1valueAddress = 48;
-uint8_t pwm1value = 50;
 const uint16_t pwm2valueAddress = 49;
-uint8_t pwm2value = 100;
 const uint16_t pwm3valueAddress = 50;
-uint8_t pwm3value = 150;
 const uint16_t pwm4valueAddress = 51;
-uint8_t pwm4value = 200;
 const uint16_t HVoutAdjAddress = 52;
-uint8_t HVoutAdjValue = 168;
 const uint16_t terminationSettingsAddress = 54;
-uint8_t terminationSettings = 0xFF; //0b11111111;
 const uint16_t connectionSettingsAddress = 55;
-uint8_t connectionSettings = 0b000000000 ;
 const uint16_t HS1Address = 56;
-uint8_t HS1state = 0;
 const uint16_t HS2Address = 57;
-uint8_t HS2state = 1;
 const uint16_t LS1Address = 58;
-uint8_t LS1state = 0;
 const uint16_t LS2Address = 59;
-uint8_t LS2state = 1;
 const uint16_t DAC3valueAddress = 61;
-uint16_t DAC3value[8] {500,1000,1500,2000,2500,3000,3500,4000}; 
-
-
-
 const uint16_t componentIDAddress = 1000;
 
 const uint16_t programmedForAddress = 1200;
@@ -100,7 +99,7 @@ const uint16_t programmedByAddress = 1400;
 char programmedBy[200] = "J. DAILY";
 
 const uint16_t programmedDateAddress = 1600;
-char programDate[200] = "01 Jan 2016";
+char programDate[200] = "02 Feb 2017";
 
 const uint16_t softwareVersionAddress = 1800;
 
@@ -110,18 +109,6 @@ char programNotes[1000] = "Notes: ";
 const uint16_t vehicleIdentificationNumAddress = 3000;
 char vehicleIdentificationNum[20] = "A Fake VIN";
 
-//const uint16_t number_of_CAN_msgsAddress = 256;
-//uint8_t number_of_CAN_msgs = 1;
-//
-//struct CANTXmessage {
-//  uint8_t  period_index = 2; //in milliseconds
-//  uint8_t  channel = 0; //0=CAN0, 1=CAN1, or 2=CAN2
-//  uint8_t DLC = 8;
-//  uint32_t ID = 0x18FEF117; //assume extended, unless less than 0x7FF
-//  uint8_t dataField[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-//};
-//
-//struct CANTXmessage CANTXmessages[256];
 
 
 /****************************************************************/
@@ -984,7 +971,7 @@ void setSetting(uint8_t settingNum, int settingValue) {
     MCP41HV_SetWiper(CShvadjPin, HVoutAdjValue);
   }
   else if (settingNum >= 50 && settingNum <= 65) {
-    if (settingNum == 60 && settingValue == 7){
+    if (settingNum == 60){
       HS2state = 0;
       digitalWrite(IH2, HS2state);
     }
@@ -1156,40 +1143,17 @@ void  adjustError() {
 /*                         Begin Function Calls for Knob Buttons                            */
 
 void myClickFunction() {
-  //ADJUST_MODE_ON = false;
   turnOffAdjustMode();
-//  if (SAFE_TO_ADJUST) {
-//    ADJUST_MODE_ON = !ADJUST_MODE_ON;
-//    if (ADJUST_MODE_ON) turnOnAdjustMode();
-//    else turnOffAdjustMode();
-//  }
-//  else {
-//    ADJUST_MODE_ON = false;
-//    Serial.println(F("Double Click to Inititate Adjustment by the knob"));
-//  }
 }
-void myDoubleClickFunction() {
+void myDoubleClickFunction() {}
 
-//  SAFE_TO_ADJUST = !SAFE_TO_ADJUST;
-//  if (SAFE_TO_ADJUST) {
-//    Serial.println(F("Adjustments by knob are enabled. Click to toggle modes. Double click to lock."));
-//  }
-//  else
-//  {
-//    Serial.println(F("Adjustments by knob are locked. Double click to enable."));
-//    
-//  }
-//  ADJUST_MODE_ON = false;
-//  knobLowLimit = 1;
-//  knobHighLimit = numSettings - 1;
-//  knob.write(currentSetting);
-  
-}
 void longPressStart() {
   ignitionCtlState = !ignitionCtlState;
   digitalWrite(ignitionCtlPin, ignitionCtlState);
   digitalWrite(greenLEDpin, ignitionCtlState);
-  CANTX_500ms_timer = 490;
+  CANTX_5000ms_timer = 4950;
+  DM13_00_Count = 0;
+  DM13_FF_Count = 0;
 }
 
 void longPress() {} //Do nothing at this time.
@@ -1637,9 +1601,9 @@ void startStopCAN(){
   else if (signalNumber == 27) send18FEF021 = !send18FEF021;
   else if (signalNumber == 28) send18FEF028 = !send18FEF028;
   else if (signalNumber == 29) send18FEF031 = !send18FEF031;
-  else if (signalNumber == 30) send18DF00F9 = !send18DF00F9;
-  else if (signalNumber == 31) send18DFFFF9 = !send18DFFFF9;
-  else if (signalNumber == 32) send0CF00203 = !send0CF00203;
+  else if (signalNumber == 30) {send18DF00F9 = !send18DF00F9; DM13_00_Count = 0;}
+  else if (signalNumber == 31) {send18DFFFF9 = !send18DFFFF9; DM13_FF_Count = 0;}
+  else if (signalNumber == 32) send0CF00203 = !send0CF00203; 
   else if (signalNumber == 33) send18F00503 = !send18F00503;
   
   
@@ -2369,6 +2333,26 @@ void loop() {
          index_ff0903 += 1;
          if (index_ff0903 >= 2) index_ff0903 = 0;
        }  
+
+
+        //signal 30
+       if (send18DF00F9 && DM13_00_Count < 8){
+         memcpy(txmsg.buf,DF00F9,8);
+         txmsg.id = 0x18DF00F9; //ACM
+         Can0.write(txmsg);
+         Serial.print("Send DM13_00 ");
+         DM13_00_Count++;
+         Serial.println(DM13_00_Count);;
+         
+       }
+       if (send18DFFFF9  && DM13_FF_Count < 8){
+         memcpy(txmsg.buf,DFFFF9,8);
+         txmsg.id = 0x18DFFFF9; //ACM
+         Can0.write(txmsg);
+         DM13_FF_Count++;
+         Serial.print("Send DM13_FF ");
+         Serial.println(DM13_FF_Count);
+       }
      }
      
      if (CANTX_100ms_timer >= 100){
@@ -2437,17 +2421,7 @@ void loop() {
      }
      if (CANTX_500ms_timer >= 500){
        CANTX_500ms_timer = 0; 
-       //signal 30
-       if (send18DF00F9){
-         memcpy(txmsg.buf,DF00F9,8);
-         txmsg.id = 0x18DF00F9; //ACM
-         Can0.write(txmsg);
-       }
-       if (send18DFFFF9){
-         memcpy(txmsg.buf,DFFFF9,8);
-         txmsg.id = 0x18DFFFF9; //ACM
-         Can0.write(txmsg);
-       }
+      
        
      }
      if (CANTX_1000ms_timer >= 1000){
@@ -2499,6 +2473,25 @@ void loop() {
      
      if (CANTX_5000ms_timer >= 5000){
        CANTX_5000ms_timer = 0; 
+       txmsg.buf[0]=0xFF;
+       txmsg.buf[1]=0xFF;
+       txmsg.buf[2]=0xFF;
+       txmsg.buf[3]=0x0F;
+       txmsg.buf[4]=0xFF;
+       txmsg.buf[5]=0xFF;
+       txmsg.buf[6]=0xFF;
+       txmsg.buf[7]=0xFF;
+        //signal 30
+       if (send18DF00F9 && DM13_00_Count == 8){
+         txmsg.id = 0x18DF00F9; //DM13 Hold
+         Can0.write(txmsg);
+         Serial.println(DM13_00_Count);
+       }
+       if (send18DFFFF9  && DM13_FF_Count == 8){
+         txmsg.id = 0x18DFFFF9; //ACM
+         Can0.write(txmsg);
+         Serial.println(DM13_FF_Count);
+       }
        
      }
      if (CANTX_10000ms_timer >= 10000){
