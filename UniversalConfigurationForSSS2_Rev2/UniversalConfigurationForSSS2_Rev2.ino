@@ -12,7 +12,7 @@
 */
 
 //softwareVersion
-char softwareVersion[200] = "SSS2*Rev2*0.4*ec644a7e5406124655f49ae9d5e27038f4b450b5"; //Hash of the previous git commit
+char softwareVersion[200] = "SSS2*Rev2*0.4*4e64cfd6774c7860cc72cf1815123305500aee6b"; //Hash of the previous git commit
 char componentID[200] = "SYNER*SSS2-R02*0012*UNIVERSAL"; //Add the serial number for hard coded values.
 
 byte sourceAddress = 0xFA; 
@@ -58,7 +58,7 @@ uint8_t bitPositions[8] = { ~0b00000001,
 
 uint8_t DM13_00_Count = 0;
 uint8_t DM13_FF_Count = 0;
-uint8_t potWiperSettings[16] ={16,32,48,64,80,96,112,128,144,160,176,192,208,224,240,255};
+uint8_t potWiperSettings[16] ={56,56,56,56,56,56,56,56,56,56,56,56,56,56,56,56,};
 uint8_t potTCONSettings[16] ={7,7,7,7,7,7,7,7,7,7,7,0,7,7,7,7};
 uint16_t DAC2value[8] = {500,1000,1500,2000,2500,3000,3500,4000};
 uint8_t pwm1value = 50;
@@ -1832,6 +1832,36 @@ void sendMessage(){
 /*                 End Function calls for User input data                             */
 /**************************************************************************************/
 
+void sendComponentInfo()
+{
+       char id[29];
+       strncpy(id,componentID,29);
+       
+       Serial.print("Received Request for Component ID. Sending  ");
+       for (int i = 0; i<28;i++) Serial.print(id[i]);
+       Serial.println();
+       
+       byte transport0[8] = {32,28,0,4,0xFF,0xEB,0xFE,0};
+       byte transport1[8] = {1,id[0],id[1],id[2],id[3],id[4],id[5],id[6]};
+       byte transport2[8] = {2,id[7],id[8],id[9],id[10],id[11],id[12],id[13]};
+       byte transport3[8] = {3,id[14],id[15],id[16],id[17],id[18],id[19],id[20]};
+       byte transport4[8] = {4,id[21],id[22],id[23],id[24],id[25],id[26],id[27]};
+       txmsg.id = 0x1CECFFFA;
+       txmsg.len = 8;
+       memcpy(txmsg.buf,transport0,8);
+       Can0.write(txmsg);
+       delay(3);
+       txmsg.id = 0x1CEBFFFA;
+       memcpy(txmsg.buf,transport1,8);
+       Can0.write(txmsg);
+       memcpy(txmsg.buf,transport2,8);
+       Can0.write(txmsg);
+       memcpy(txmsg.buf,transport3,8);
+       Can0.write(txmsg);
+       memcpy(txmsg.buf,transport4,8);
+       Can0.write(txmsg);
+       
+}       
 void parseJ1939(CAN_message_t &rxmsg ){
   uint32_t ID = rxmsg.id;
   uint8_t DLC = rxmsg.len;
@@ -1862,7 +1892,8 @@ void parseJ1939(CAN_message_t &rxmsg ){
     //request message
     if (rxmsg.buf[0] == 0xEB && rxmsg.buf[1] == 0xFE){
       //Component ID 
-      sendJ1939(0,6,0xFEEB,0xFF,sourceAddress,strlen(componentID),componentID);
+      sendComponentInfo();
+      //sendJ1939(0,6,0xFEEB,0xFF,sourceAddress,strlen(componentID),componentID);
     }
   }
   else if (PGN == 0xEB00){
