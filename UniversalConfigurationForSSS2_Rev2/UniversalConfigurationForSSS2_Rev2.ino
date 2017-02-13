@@ -58,21 +58,21 @@ uint8_t bitPositions[8] = { ~0b00000001,
 
 uint8_t DM13_00_Count = 0;
 uint8_t DM13_FF_Count = 0;
-uint8_t potWiperSettings[16] ={56,56,56,56,56,56,56,56,56,56,56,56,56,56,56,56,};
-uint8_t potTCONSettings[16] ={7,7,7,7,7,7,7,7,7,7,7,0,7,7,7,7};
-uint16_t DAC2value[8] = {500,1000,1500,2000,2500,3000,3500,4000};
-uint8_t pwm1value = 50;
+uint8_t potWiperSettings[16] ={21,22,22,56,56,0,10,56,56,0,56,56,56,56,56,56};
+uint8_t potTCONSettings[16] ={3,3,3,7,7,3,3,7,7,3,0,0,7,7,7,0};
+uint16_t DAC2value[8] = {0,0,0,0,512,512,0,0};
+uint8_t pwm1value = 0;
 uint8_t pwm2value = 100;
-uint8_t pwm3value = 150;
+uint8_t pwm3value = 19;
 uint8_t pwm4value = 222; //Set this for Bendix
 uint8_t HVoutAdjValue = 168;
 uint8_t terminationSettings = 0xFF; //0b11111111;
-uint8_t connectionSettings = 0b000000000 ;
+uint8_t connectionSettings = 0b10101110;
 uint8_t HS1state = 0;
 uint8_t HS2state = 0;
 uint8_t LS1state = 0;
 uint8_t LS2state = 1; //Needed for Bendix 
-uint16_t DAC3value[8] {500,1000,1500,2000,2500,3000,3500,4000}; 
+uint16_t DAC3value[8] {0,0,0,0,4095,4095,4095,4095}; 
 
 //Variables that get loaded from contents in the EEPROM
 const uint16_t potWiperSettingsAddress = 0;
@@ -708,25 +708,25 @@ void connectionString(boolean switchState) {
 void terminalString(uint8_t setting) {
   switch (setting) {
     case TCON_B_ONLY:
-      strcpy(displayBuffer, "TCON_B_ONLY");
+      strcpy(displayBuffer, " 1 (TCON_B_ONLY)");
       break;
     case TCON_WIPER_ONLY:
-      strcpy(displayBuffer, "TCON_WIPER_ONLY");
+      strcpy(displayBuffer, "2 (TCON_WIPER_ONLY)");
       break;
     case TCON_WIPER_AND_B:
-      strcpy(displayBuffer, "TCON_WIPER_AND_B");
+      strcpy(displayBuffer, "3 (TCON_WIPER_AND_B)");
       break;
     case TCON_A_ONLY:
-      strcpy(displayBuffer, "TCON_A_ONLY");
+      strcpy(displayBuffer, "4 (TCON_A_ONLY)");
       break;
     case TCON_A_AND_B :
-      strcpy(displayBuffer, "TCON_A_AND_B ");
+      strcpy(displayBuffer, "5 (TCON_A_AND_B)");
       break;
     case TCON_WIPER_AND_A :
-      strcpy(displayBuffer, "TCON_WIPER_AND_A ");
+      strcpy(displayBuffer, "6 (TCON_WIPER_AND_A)");
       break;
     case TCON_CONNECT_ALL:
-      strcpy(displayBuffer, "TCON_CONNECT_ALL");
+      strcpy(displayBuffer, "7 (TCON_CONNECT_ALL)");
       break;
     default:
       strcpy(displayBuffer, "Nothing connected");
