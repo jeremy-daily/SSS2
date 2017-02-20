@@ -12,8 +12,8 @@
 */
 
 //softwareVersion
-char softwareVersion[200] = "SSS2*Rev2*0.4*4e64cfd6774c7860cc72cf1815123305500aee6b"; //Hash of the previous git commit
-char componentID[200] = "SYNER*SSS2-R02*0012*UNIVERSAL"; //Add the serial number for hard coded values.
+char softwareVersion[200] = "SSS2*Rev2*0.4*52dc93b18b1bd434c839e8e529d19ac4b70ab945"; //Hash of the previous git commit
+char componentID[200] = "SYNER*SSS2-R02*0009*UNIVERSAL"; //Add the serial number for hard coded values.
 
 byte sourceAddress = 0xFA; 
 
@@ -23,6 +23,7 @@ byte sourceAddress = 0xFA;
 #include <EEPROM.h>
 #include "OneButton.h"
 #include <FlexCAN.h>
+
 
 /**********************************************************************/
 /*  Begin Definitions for Digital Potentiometer Terminal Connections  */
