@@ -15,8 +15,18 @@
 
 Adafruit_MCP23017 ConfigExpander; //U21
 Adafruit_MCP23017 PotExpander; //U33
+#define DEBUG_ON  1
+#define DEBUG_OFF 0
 
+/**********************************************************************/
+/*   Definitions for i2C addresses for the SSS2 Chips                 */
 
+uint8_t pot28TCONSetting = 7;
+uint8_t pot29TCONSetting = 7;
+uint8_t pot30TCONSetting = 7;
+uint8_t pot28WiperSetting = 75;
+uint8_t pot29WiperSetting = 150;
+uint8_t pot30WiperSetting = 225;
 uint8_t potWiperSettings[16] ={21,22,22,56,56,0,10,56,56,0,56,56,56,56,56,255};
 uint8_t potTCONSettings[16] ={3,3,3,7,7,3,3,7,7,3,0,0,7,7,7,0};
 uint16_t DAC2value[8] = {0,0,0,0,512,512,0,0};
@@ -112,11 +122,16 @@ void setPinModes(){
     
 }
 
-
-
+/**********************************************************************/
+/*   Definitions for i2C addresses for the SSS2 Chips                 */
 //i2C Device Addresses
 const uint8_t Vout2address = 0x49;
-const uint8_t Vout3address = 0x4B;
+const uint8_t U34addr = 0x3C;
+const uint8_t U36addr = 0x3F;
+const uint8_t U37addr = 0x3D;
+const uint8_t U24addr = 0x3E;
+
+
 
 /****************************************************************/
 /*                         Boolean Variables                    */
@@ -131,8 +146,8 @@ bool LIN1Switch         = false;
 bool LIN2Switch         = true;
 bool P10or19Switch      = false;
 bool P15or18Switch      = false;
-bool U1though8Enable    = true;
-bool U9though16Enable   = true;
+bool U1though8Enable    = false;
+bool U9though16Enable   = false;
 bool CAN1Switch         = true;
 bool CAN2Switch         = false;
 bool U1U2P0ASwitch      = true;
@@ -178,6 +193,42 @@ int knobJump = 1;
 
 
 
+
+void connectionString(boolean switchState) {
+  //memset(displayBuffer,0,sizeof(displayBuffer));
+  Serial.print(switchState);
+  if (switchState) strcpy(displayBuffer, " Connected");
+  else strcpy(displayBuffer, " Open");
+}
+
+void terminalString(uint8_t setting) {
+  switch (setting) {
+    case TCON_B_ONLY:
+      strcpy(displayBuffer, " 1 (TCON_B_ONLY)");
+      break;
+    case TCON_WIPER_ONLY:
+      strcpy(displayBuffer, "2 (TCON_WIPER_ONLY)");
+      break;
+    case TCON_WIPER_AND_B:
+      strcpy(displayBuffer, "3 (TCON_WIPER_AND_B)");
+      break;
+    case TCON_A_ONLY:
+      strcpy(displayBuffer, "4 (TCON_A_ONLY)");
+      break;
+    case TCON_A_AND_B :
+      strcpy(displayBuffer, "5 (TCON_A_AND_B)");
+      break;
+    case TCON_WIPER_AND_A :
+      strcpy(displayBuffer, "6 (TCON_WIPER_AND_A)");
+      break;
+    case TCON_CONNECT_ALL:
+      strcpy(displayBuffer, "7 (TCON_CONNECT_ALL)");
+      break;
+    default:
+      strcpy(displayBuffer, "Nothing connected");
+      break;
+  }
+}
 
 
 /**********************************************************************/
@@ -241,6 +292,153 @@ void getConfigSwitches(uint16_t configSwitchSettings) {
   U15U16P0ASwitch   = (configSwitchSettings & 0b1000000000000000) >> 15;
 }
 
+//set up a display buffer
+char displayBuffer[100];
+
+void connectionString(boolean switchState) {
+  //memset(displayBuffer,0,sizeof(displayBuffer));
+  Serial.print(switchState);
+  if (switchState) strcpy(displayBuffer, " Connected");
+  else strcpy(displayBuffer, " Open");
+}
+
+/****************************************************************/
+/*   Begin Function Calls for Digital Potentiometer             */
+  
+uint8_t MCP41HVExtender_SetTerminals(uint8_t pin, uint8_t TCON_Value) {
+  PotExpander.writeGPIOAB(~(1 << pin));
+  delay(1);
+  SPI.transfer(0x40); //Write to TCON Register
+  SPI.transfer(TCON_Value + 8);
+  SPI.transfer(0x4C); //Read Command
+  uint8_t result = SPI.transfer(0xFF); //Read Terminal Connection (TCON) Register
+  PotExpander.writeGPIOAB(0xFF);
+  return result & 0x0F;
+}
+
+
+
+uint8_t MCP41HVExtender_SetWiper(uint8_t pin, uint8_t potValue)
+{
+  PotExpander.writeGPIOAB(~(1 << pin));
+  delay(1);
+  SPI.transfer(0x00); //Write to wiper Register
+  SPI.transfer(potValue);
+  SPI.transfer(0x0C); //Read command
+  uint8_t result = SPI.transfer(0xFF); //Read Wiper Register
+  PotExpander.writeGPIOAB(0xFF);
+  return result;
+} 
+
+uint8_t MCP41HVI2C_SetTerminals(uint8_t addr, uint8_t TCON_Value) {
+  
+  Wire.beginTransmission(addr); 
+  Wire.write(byte(0x40));            // sends instruction byte  
+  Wire.write(0xF8 | TCON_Value);             // sends potentiometer value byte  
+  Wire.endTransmission();
+
+  Wire.requestFrom(addr,2);    // request 6 bytes from slave device #8
+  uint8_t result = Wire.read(); //Read Wiper Register
+  result = Wire.read(); //Read Wiper Register
+  return result & 0x07;
+}
+
+uint8_t MCP41HVI2C_SetWiper(uint8_t addr, uint8_t potValue)
+{
+  Wire.beginTransmission(addr); 
+  Wire.write(byte(0x00));            // sends instruction byte  
+  Wire.write(potValue);             // sends potentiometer value byte  
+  Wire.endTransmission();
+
+  Wire.requestFrom(addr,2);    // request 6 bytes from slave device #8
+  uint8_t result = Wire.read(); //Read Wiper Register, first byt is all 0
+  result = Wire.read(); //Read Wiper Register
+  return result;
+} 
+
+/*   End Function Calls for Digital Potentiometer               */
+/****************************************************************/
+
+/****************************************************************/
+/*   Begin Function Calls for DAC                               */
+
+void initializeDACs(uint8_t address) {
+  Serial.print("Setting DAC Internal Reference register with address of 0x");
+  Serial.println(address, HEX);
+  Wire.beginTransmission(address);   // Slave address
+  Wire.write(0b10000000);
+  Wire.write(0x00);
+  Wire.write(0x10);
+  Wire.endTransmission();
+
+  Wire.beginTransmission(address);   // Slave address
+  Wire.write(0b10000000);
+  Wire.endTransmission();
+
+  Wire.requestFrom(address, 2);
+  char highC = Wire.read();
+  char lowC = Wire.read();
+  Serial.print("Internal Reference Register: ");
+  Serial.println(lowC);         // print the character
+
+  Serial.println("Setting LDAC register.");
+  Wire.beginTransmission(address);   // Slave address
+  Wire.write(0b01100000);
+  Wire.write(0xFF);
+  Wire.write(0xFF);
+  Wire.endTransmission();
+
+  Wire.beginTransmission(address);   // Slave address
+  Wire.write(0b01100000);
+  Wire.endTransmission();
+
+  Wire.requestFrom(address, 2);
+  highC = Wire.read();
+  lowC = Wire.read();
+  Serial.print("LDAC Register: ");
+  Serial.println(lowC, HEX);        // print the character
+
+  Serial.println("Setting DAC Power Down register to On.");
+  Wire.beginTransmission(address);   // Slave address
+  Wire.write(0b01000000);
+  Wire.write(0b00011111);
+  Wire.write(0xFF);
+  Wire.endTransmission();
+
+  Wire.beginTransmission(address);   // Slave address
+  Wire.write(0b01000000);
+  Wire.endTransmission();
+
+  Wire.requestFrom(address, 2);
+  highC = Wire.read();
+  lowC = Wire.read();
+  Serial.print("Power Register: ");
+  Serial.println(lowC, BIN);        // print the character
+
+  Serial.print(F("Done with DAC at address 0x"));
+  Serial.println(address, HEX);
+}
+
+uint16_t setDAC(uint16_t setting, uint8_t DACchannel, uint8_t address) {
+  Wire.beginTransmission(address);   // Slave address
+  Wire.write(0b00100000 + DACchannel);
+  Wire.write((setting & 0x0FF0) >> 4);
+  Wire.write((setting & 0x000F) << 4);
+  Wire.endTransmission();
+
+  Wire.beginTransmission(address);   // Slave address
+  Wire.write(0b00010000 + DACchannel);
+  Wire.endTransmission();
+
+  Wire.requestFrom(address, 2);
+  uint8_t highC = Wire.read();
+  uint8_t lowC =  Wire.read();
+  uint16_t result = (highC << 4) + (lowC >> 4);
+  return result;
+}
+
+/*   End Function Calls for DAC                              */
+/****************************************************************/
 
 /********************************************************************/
 /*               Begin Define Settings                              */
@@ -250,7 +448,7 @@ void getConfigSwitches(uint16_t configSwitchSettings) {
  */
 
 
-#define numSettings  80
+#define numSettings  81
 char settingNames[numSettings][40] = {
   "Nothing Selected", //0
   "Digital Potentiometer  1 Wiper", //1
@@ -333,8 +531,8 @@ char settingNames[numSettings][40] = {
   "PWM4 Connect",
   "LIN to Shield Connect", //U21 GPA0
   "LIN to Port 16 Connect", //U21 GPA1
-  "U28 (U1-U8)  P0A Enable"
-  "U31 (U9-U16) P0A Enable" //74
+  "U28 (U1-U8)  P0A Enable",
+  "U31 (U9-U16) P0A Enable", //74
   
   "Digital Potentiometer 28 Wiper", //75
   "Digital Potentiometer 29 Wiper",
@@ -342,7 +540,7 @@ char settingNames[numSettings][40] = {
   
   "Dig. Pot. 28 Terminal Connect",
   "Dig. Pot. 29 Terminal Connect",
-  "Dig. Pot. 30 Terminal Connect", //80
+  "Dig. Pot. 30 Terminal Connect" //80
 };
 
 char settingPins[numSettings][40] = {
@@ -509,289 +707,460 @@ void setLimits(uint8_t settingNum) {
   Serial.println(knobHighLimit);
 }
 
-void listSetting(uint8_t settingNum) {
-  Serial.print(settingNum);
-  Serial.print(", ");
-  Serial.print(settingNames[settingNum]);
-  Serial.print(", ");
-  Serial.print(settingPins[settingNum]);
-  Serial.print(" = ");
-  if (settingNum > 0 && settingNum <= 16)  Serial.println(potWiperSettings[settingNum - 1]);
-  else if (settingNum > 16 && settingNum <= 24) Serial.println(DAC2value[settingNum - 17]);
-  else if (settingNum > 24 && settingNum <= 32) Serial.println(DAC3value[settingNum - 25]);
-  else if (settingNum == 33) Serial.println(pwm1value);
-  else if (settingNum == 34) Serial.println(pwm2value);
-  else if (settingNum == 35) Serial.println(pwm3value);
-  else if (settingNum == 36) Serial.println(pwm4value);
-  else if (settingNum == 37) {
-    connectionString(U1andU2POA);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 38) {
-    connectionString(U3andU4POA);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 39) {
-    connectionString(U5andU6POA);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 40) {
-    connectionString(U7andU8POA);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 41) {
-    connectionString(CAN0term);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 42) {
-    connectionString(CAN1term);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 43) {
-    connectionString(CAN2term);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 44) {
-    connectionString(LINmaster);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 45) {
-    connectionString(HS1state);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 46) {
-    connectionString(HS2state);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 47) {
-    connectionString(LS1state);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 48) {
-    connectionString(LS2state);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 49) Serial.println(HVoutAdjValue);
-  else if (settingNum >= 50 && settingNum <= 65) {
-    terminalString(potTCONSettings[settingNum - 50]);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 66) {
-    connectionString(PWM1Connect);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 67) {
-    connectionString(PWM2Connect);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 68) {
-    connectionString(Vout3CConnect);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 69) {
-    connectionString(Vout3DConnect);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 70) {
-    connectionString(LINSHLDConnect);
-    Serial.println(displayBuffer);
-  }
-  else if (settingNum == 71) {
-    connectionString(LIN16Connect);
-    Serial.println(displayBuffer);
-  }
-  else Serial.println();
-}
-
-uint16_t getSetting(uint8_t settingNum) {
-  if      (settingNum > 0 && settingNum <= 16)  return potWiperSettings[settingNum - 1];
-  else if (settingNum > 16 && settingNum <= 24) return DAC2value[settingNum - 17];
-  else if (settingNum > 24 && settingNum <= 32) return DAC3value[settingNum - 25];
-  else if (settingNum == 33) return pwm1value;
-  else if (settingNum == 34) return pwm2value;
-  else if (settingNum == 35) return pwm3value;
-  else if (settingNum == 36) return pwm4value;
-  else if (settingNum == 37) return U1andU2POA;
-  else if (settingNum == 38) return U3andU4POA;
-  else if (settingNum == 39) return U5andU6POA;
-  else if (settingNum == 40) return U7andU8POA;
-  else if (settingNum == 41) return CAN0term;
-  else if (settingNum == 42) return CAN1term;
-  else if (settingNum == 43) return CAN2term;
-  else if (settingNum == 44) return LINmaster;
-  else if (settingNum == 45) return HS1state;
-  else if (settingNum == 46) return HS2state;
-  else if (settingNum == 47) return LS1state;
-  else if (settingNum == 48) return LS2state;
-  else if (settingNum == 49) return HVoutAdjValue;
-  else if (settingNum >  49 && settingNum <= 65) return potTCONSettings[settingNum - 50];
-  else if (settingNum == 66) return PWM1Connect;
-  else if (settingNum == 67) return PWM2Connect;
-  else if (settingNum == 68) return Vout3CConnect;
-  else if (settingNum == 69) return Vout3DConnect;
-  else if (settingNum == 70) return LINSHLDConnect;
-  else if (settingNum == 71) return LIN16Connect;
+int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   
-  else Serial.println();
-}
-
-
-void setSetting(uint8_t settingNum, int settingValue) {
-  if (settingNum > 0 && settingNum <= 16) {
-    potWiperSettings[settingNum - 1] = settingValue;
-    MCP41HVExtender_SetWiper(settingNum - 1, potWiperSettings[settingNum - 1]);
-    if (settingNum == 11) {
-      //HS2state = false;
-      digitalWrite(IH2, HS2state); //turn off the NFET to +12 on HVOut2
+  if (debugDisplay){
+    Serial.print(settingNum);
+    Serial.print(", ");
+    Serial.print(settingNames[settingNum]);
+    Serial.print(", ");
+    Serial.print(settingPins[settingNum]);
+    Serial.print(" = ");
+  }
+  if (settingNum > 0 && settingNum <= 16){
+    if (settingValue > -1) potWiperSettings[settingNum - 1] = settingValue; 
+    uint8_t position = MCP41HVExtender_SetWiper(settingNum - 1, 
+                                                potWiperSettings[settingNum - 1]);
+    if (debugDisplay) {
+        Serial.print(position);
+        Serial.print(", ");
+        Serial.println(potWiperSettings[settingNum - 1]);
     }
-    else if (settingNum == 12) {
-      //LS2state = false;
-      digitalWrite(IL2, LS2state); //turn off the NFET to Ground
-    }
+    return position;
   }
   else if (settingNum > 16 && settingNum <= 24) {
-    DAC2value[settingNum - 17] = settingValue;
+    if (settingValue > -1) DAC2value[settingNum - 17] = settingValue;
     setDAC(DAC2value[settingNum - 17], settingNum - 17, Vout2address);
+    if (debugDisplay) Serial.println(DAC2value[settingNum - 17]); 
+    return DAC2value[settingNum - 17];
   }
-  else if (settingNum > 24 && settingNum <= 32) {
-    DAC3value[settingNum - 25] = settingValue;
-    setDAC(DAC3value[settingNum - 25], settingNum - 25, Vout3address);
+  else if (settingNum == 25){
+    if (settingValue > -1) U1U2P0ASwitch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(U1U2P0ASwitch);
+        connectionString(U1U2P0ASwitch);
+        Serial.print(displayBuffer);
+    }
+    return U1U2P0ASwitch;
   }
-  else if (settingNum == 33) {
-    pwm1value = uint8_t(settingValue);
-    LS1state = false;
-    digitalWrite(IL1, LS1state); //turn off the NFET to ground in the H Bridge on port 17
-    analogWrite(pwm1, pwm1value);
+  else if (settingNum == 26){
+    if (settingValue > -1) U3U4P0ASwitch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(U3U4P0ASwitch);
+        connectionString(U3U4P0ASwitch);
+        Serial.print(displayBuffer);
+    }
+    return U3U4P0ASwitch;
   }
-  else if (settingNum == 34) {
-    pwm2value = uint8_t(settingValue);
-    HS1state = false;
-    digitalWrite(IL1, HS1state); //turn off the NFET to ground in the H Bridge on port 17
-    analogWrite(pwm2, pwm2value);
+  else if (settingNum == 27){
+    if (settingValue > -1) U5U6P0ASwitch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(U5U6P0ASwitch);
+        connectionString(U5U6P0ASwitch);
+        Serial.print(displayBuffer);
+    }
+    return U5U6P0ASwitch;
   }
-  else if (settingNum == 35) {
-    pwm3value = uint8_t(settingValue);
-    analogWrite(pwm3, pwm3value);
+  else if (settingNum == 28){
+    if (settingValue > -1) U7U8P0ASwitch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(U7U8P0ASwitch);
+        connectionString(U7U8P0ASwitch);
+        Serial.print(displayBuffer);
+    }
+    return U7U8P0ASwitch;
+  } 
+  else if (settingNum == 29){
+    if (settingValue > -1) U9U10P0ASwitch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(U9U10P0ASwitch);
+        connectionString(U9U10P0ASwitch);
+        Serial.print(displayBuffer);
+    }
+    return U9U10P0ASwitch;
+  }  
+  else if (settingNum == 30){
+    if (settingValue > -1) U11U12P0ASwitch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(U11U12P0ASwitch);
+        connectionString(U11U12P0ASwitch);
+        Serial.print(displayBuffer);
+    }
+    return U11U12P0ASwitch;
+  }  
+  else if (settingNum == 31){
+    if (settingValue > -1) U13U14P0ASwitch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(U13U14P0ASwitch);
+        connectionString(U13U14P0ASwitch);
+        Serial.print(displayBuffer);
+    }
+    return U13U14P0ASwitch;
+  }   
+  else if (settingNum == 32){
+    if (settingValue > -1) U15U16P0ASwitch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(U15U16P0ASwitch);
+        connectionString(U15U16P0ASwitch);
+        Serial.print(displayBuffer);
+    }
+    return U15U16P0ASwitch;
   }
-  else if (settingNum == 36) {
-    pwm4value = uint8_t(settingValue);
-    
-    analogWrite(pwm4, pwm4value);
+  else if (settingNum == 33){
+    if (settingValue > -1) pwm1value = uint8_t(settingValue);
+    analogWrite(PWM1Pin,pwm1value);
+    if (debugDisplay) Serial.print(pwm1value);
+    return pwm1value;
   }
-  else if (settingNum == 37) {
-    U1andU2POA = boolean(settingValue);
+  else if (settingNum == 34){
+    if (settingValue > -1) pwm2value = uint8_t(settingValue);
+    analogWrite(PWM2Pin,pwm2value);
+    if (debugDisplay) Serial.print(pwm2value);
+    return pwm1value;
+  }
+  else if (settingNum == 35){
+    if (settingValue > -1) pwm3value = uint8_t(settingValue);
+    analogWrite(PWM3Pin,pwm3value);
+    if (debugDisplay) Serial.print(pwm3value);
+    return pwm3value;
+  }
+  else if (settingNum == 36){
+    if (settingValue > -1) pwm4value = uint8_t(settingValue);
+    analogWrite(PWM3Pin,pwm4value);
+    if (debugDisplay) Serial.print(pwm4value);
+    return pwm4value;
+  }
+  else if (settingNum == 37){
+    if (settingValue > -1) P10or19Switch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(P10or19Switch);
+        connectionString(U15U16P0ASwitch);
+        Serial.print(displayBuffer);
+    }
+    return P10or19Switch;
+  }
+  else if (settingNum == 38){
+    if (settingValue > -1) P15or18Switch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(P15or18Switch);
+        connectionString(P15or18Switch);
+        Serial.print(displayBuffer);
+    }
+    return P15or18Switch;
+  } 
+  else if (settingNum == 39){
+    if (settingValue > -1) CAN1Switch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(CAN1Switch);
+        connectionString(CAN1Switch);
+        Serial.print(displayBuffer);
+    }
+    return CAN1Switch;
+  }  
+  else if (settingNum == 40){
+    if (settingValue > -1) CAN2Switch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(CAN2Switch);
+        connectionString(CAN2Switch);
+        Serial.print(displayBuffer);
+    }
+    return CAN2Switch;
+  }
+  else if (settingNum == 41){
+    if (settingValue > -1) CAN0term = boolean(settingValue);
     setTerminationSwitches();
-  }
-  else if (settingNum == 38) {
-    U3andU4POA = boolean(settingValue);
-    setTerminationSwitches();
-  }
-  else if (settingNum == 39) {
-    U5andU6POA = boolean(settingValue);
-    setTerminationSwitches();
-  }
-  else if (settingNum == 40) {
-    U7andU8POA = boolean(settingValue);
-    setTerminationSwitches();
-  }
-  else if (settingNum == 41) {
-    CAN0term = boolean(settingValue);
-    setTerminationSwitches();
-  }
+    if (debugDisplay) {
+        Serial.print(CAN0term);
+        connectionString(CAN0term);
+        Serial.print(displayBuffer);
+    }
+    return CAN0term;
+  } 
   else if (settingNum == 42) {
-    CAN1term = boolean(settingValue);
+    if (settingValue > -1) CAN1term = boolean(settingValue);
     setTerminationSwitches();
-  }
-  else if (settingNum == 43) {
-    CAN2term = boolean(settingValue);
+    if (debugDisplay) {
+        Serial.print(CAN1term);
+        connectionString(CAN1term);
+        Serial.print(displayBuffer);
+    }
+    return CAN1term;
+  } 
+  else if (settingNum == 43){
+    if (settingValue > -1) CAN2term = boolean(settingValue);
     setTerminationSwitches();
-  }
+    if (debugDisplay) {
+        Serial.print(CAN2term);
+        connectionString(CAN2term);
+        Serial.print(displayBuffer);
+    }
+    return CAN2term;
+  }  
   else if (settingNum == 44) {
-    LINmaster = boolean(settingValue);
+    if (settingValue > -1) LINmaster = boolean(settingValue);
     setTerminationSwitches();
-  }
-  else if (settingNum == 45) {
-    HS1state = uint8_t(settingValue);
-    if (HS2state){
-      PWM1Connect = false;
-      setConnectionSwitches();
+    if (debugDisplay) {
+        Serial.print(LINmaster);
+        connectionString(LINmaster);
+        Serial.print(displayBuffer);
     }
-    digitalWrite(IH1,HS1state);
-  }
-  else if (settingNum == 46) { //These share pins
-    HS2state = uint8_t(settingValue);
-    if (HS2state){
-      potTCONSettings[10] = 0;
-      MCP41HVExtender_SetTerminals(10, potTCONSettings[10]); //Port 11
+    return LINmaster;
+  }  
+  else if (settingNum == 45)  {
+    if (settingValue > -1) HS1state = boolean(settingValue);
+    if (HS1state){
+      PWM3Out = false;
+      setTerminationSwitches();
     }
-    
-    digitalWrite(IH2, HS2state);
+    else
+    digitalWrite(IH1Pin,HS1state);
+    if (debugDisplay) {
+        Serial.print(HS1state);
+        connectionString(HS1state);
+        Serial.print(displayBuffer);
+    }
+    return HS1state;
+  }  
+  else if (settingNum == 46) {
+    if (settingValue > -1) HS2state = boolean(settingValue);
+    if (HS2state) MCP41HVExtender_SetTerminals(11, 0); //Turn off all terminals on Pot 11
+    else MCP41HVExtender_SetTerminals(11, potTCONSettings[10]); //Reset all terminals on Pot 11
+    digitalWrite(IH2Pin,HS2state);
+    if (debugDisplay) {
+        Serial.print(HS2state);
+        connectionString(HS2state);
+        Serial.print(displayBuffer);
+    }
+    return HS2state;
   }
-  else if (settingNum == 47) {
-    pwm1value = 0;
-    analogWrite(pwm1, pwm1value);
-    LS1state = uint8_t(settingValue);
-    digitalWrite(IL1, LS1state);
+  else if (settingNum == 47){
+    if (settingValue > -1) IL1State = boolean(settingValue);
+    if (IL1State) MCP41HVExtender_SetTerminals(12, 0); //Turn off all terminals on Pot 12
+    else MCP41HVExtender_SetTerminals(12, potTCONSettings[11]); //Reset all terminals 
+    digitalWrite(IL1Pin,IL1State);
+    if (debugDisplay) {
+        Serial.print(IL1State);
+        connectionString(IL1State);
+        Serial.print(displayBuffer);
+    }
+    return IL1State;
   }
   else if (settingNum == 48) {
-    LS2state = uint8_t(settingValue);
-    if (LS2state){
-      potTCONSettings[11] = 0;
-      MCP41HVExtender_SetTerminals(11, potTCONSettings[11]);
+    if (settingValue > -1) IL2State = boolean(settingValue);
+    if (IL2State) MCP41HVExtender_SetTerminals(12, 0); //Turn off all terminals on Pot 12
+    else MCP41HVExtender_SetTerminals(12, potTCONSettings[11]); //Reset all terminals 
+    digitalWrite(IL2Pin,IL2State);
+    if (debugDisplay) {
+        Serial.print(IL2State);
+        connectionString(IL2State);
+        Serial.print(displayBuffer);
     }
-    digitalWrite(IL2, LS2state);
+    return IL2State;
   }
   else if (settingNum == 49) {
-    HVoutAdjValue = uint8_t(settingValue);
-    uint8_t CShvadjPin = 57;
-    MCP41HV_SetWiper(CShvadjPin, HVoutAdjValue);
-  }
-  else if (settingNum >= 50 && settingNum <= 65) {
-    if (settingNum == 60){
-      HS2state = 0;
-      digitalWrite(IH2, HS2state);
+    if (settingValue > -1) HVoutAdjValue = uint8_t(settingValue);
+    uint8_t position = MCP41HVI2C_SetWiper(U24addr,HVoutAdjValue);
+    if (debugDisplay) {
+        Serial.print(position);
+        Serial.print(", ");
+        Serial.println(HVoutAdjValue);
     }
-    
-    potTCONSettings[settingNum - 50] = uint8_t(settingValue);
-    MCP41HVExtender_SetTerminals(settingNum - 50, potTCONSettings[settingNum - 50]);
-    
+    return position;
   }
-  else if (settingNum == 66) {
-    LS1state = 0;
-    digitalWrite(IL1,LS1state);
-    PWM1Connect = boolean(settingValue);
-    setConnectionSwitches();
-    
+  else if (settingNum == 50){
+    if (settingValue > -1) ignitionCtlState = boolean(settingValue);
+    digitalWrite(ignitionCtlPin,ignitionCtlState);
+    if (debugDisplay) {
+        Serial.print(ignitionCtlState);
+        connectionString(ignitionCtlState);
+        Serial.print(displayBuffer);
+    }
+    return ignitionCtlState;
+  } 
+  else if (settingNum >  50 && settingNum <= 66) {
+    if (settingValue > -1) potTCONSettings[settingNum - 51] = uint8_t(settingValue);
+    uint8_t terminalConnection = MCP41HVExtender_SetTerminals(settingNum - 51, potTCONSettings[settingNum - 51]);
+    if (debugDisplay) {
+        Serial.print(potTCONSettings[settingNum - 51]);
+        Serial.print(", ");
+        Serial.print(terminalConnection);
+        terminalString(terminalConnection);
+        Serial.print(displayBuffer);
+    }
+    return terminalConnection;
   }
-  else if (settingNum == 67) {
-    PWM2Connect = boolean(settingValue);
-    setConnectionSwitches();
-    
-  }
-  else if (settingNum == 68) {
-    Vout3CConnect = boolean(settingValue);
-    setConnectionSwitches();
-  }
+  else if (settingNum == 66){
+    if (settingValue > -1) PWM1Out = boolean(settingValue);
+    setTerminationSwitches();
+    if (debugDisplay) {
+        Serial.print(PWM1Out);
+        connectionString(PWM1Out);
+        Serial.print(displayBuffer);
+    }
+    return PWM1Out;
+  } 
+  else if (settingNum == 67){
+    if (settingValue > -1) PWM2Out = boolean(settingValue);
+    setTerminationSwitches();
+    if (debugDisplay) {
+        Serial.print(PWM2Out);
+        connectionString(PWM2Out);
+        Serial.print(displayBuffer);
+    }
+    return PWM2Out;
+  }  
+  else if (settingNum == 68){
+    if (settingValue > -1) PWM3Out = boolean(settingValue);
+    setTerminationSwitches();
+    if (debugDisplay) {
+        Serial.print(PWM3Out);
+        connectionString(PWM3Out);
+        Serial.print(displayBuffer);
+    }
+    return PWM3Out;
+  }  
   else if (settingNum == 69) {
-    Vout3DConnect = boolean(settingValue);
-    setConnectionSwitches();
-  }
+    if (settingValue > -1) PWM4Out = boolean(settingValue);
+    setTerminationSwitches();
+    if (debugDisplay) {
+        Serial.print(PWM4Out);
+        connectionString(PWM4Out);
+        Serial.print(displayBuffer);
+    }
+    return PWM4Out;
+  } 
   else if (settingNum == 70) {
-    LINSHLDConnect = boolean(settingValue);
-    setConnectionSwitches();
+    if (settingValue > -1) LIN1Switch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(LIN1Switch);
+        connectionString(LIN1Switch);
+        Serial.print(displayBuffer);
+    }
+    return LIN1Switch;
   }
   else if (settingNum == 71) {
-    LIN16Connect = boolean(settingValue);
-    if (LIN16Connect) {
-      MCP41HVExtender_SetTerminals(15, potTCONSettings[15]);
+    if (settingValue > -1) LIN2Switch = boolean(settingValue);
+    setConfigSwitches();
+    if (LIN2Switch) MCP41HVExtender_SetTerminals(15, 0);
+    else MCP41HVExtender_SetTerminals(15, potTCONSettings[15])
+    if (debugDisplay) {
+        Serial.print(LIN2Switch);
+        connectionString(LIN2Switch);
+        Serial.print(displayBuffer);
     }
-    setConnectionSwitches();
-    
+    return LIN2Switch;
+  }
+  else if (settingNum == 73) {
+    if (settingValue > -1) U1though8Enable = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(U1though8Enable);
+        connectionString(U1though8Enable);
+        Serial.print(displayBuffer);
+    }
+    return U1though8Enable;
+  } 
+  else if (settingNum == 74){
+    if (settingValue > -1) U9though16Enable = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        Serial.print(U9though16Enable);
+        connectionString(U9though16Enable);
+        Serial.print(displayBuffer);
+    }
+    return U9though16Enable;
+  } 
+  else if (settingNum == 75){
+    if (settingValue > -1) pot28WiperSetting = uint8_t(settingValue);
+    uint8_t terminalConnection = MCP41HVI2C_SetWiper(U34addr,pot28WiperSetting);
+    if (debugDisplay) {
+        Serial.print(pot28WiperSetting);
+        Serial.print(", ");
+        Serial.print(terminalConnection);
+        terminalString(terminalConnection);
+        Serial.print(displayBuffer);
+    }
+    return terminalConnection;
+  }
+  else if (settingNum == 76){
+    if (settingValue > -1) pot29WiperSetting = uint8_t(settingValue);
+    uint8_t terminalConnection = MCP41HVI2C_SetWiper(U36addr,pot29WiperSetting);
+    if (debugDisplay) {
+        Serial.print(pot29WiperSetting);
+        Serial.print(", ");
+        Serial.print(terminalConnection);
+        terminalString(terminalConnection);
+        Serial.print(displayBuffer);
+    }
+    return terminalConnection;
+  }
+  else if (settingNum == 77){
+    if (settingValue > -1) pot30WiperSetting = uint8_t(settingValue);
+    uint8_t terminalConnection = MCP41HVI2C_SetWiper(U37addr,pot30WiperSetting);
+    if (debugDisplay) {
+        Serial.print(pot30WiperSetting);
+        Serial.print(", ");
+        Serial.print(terminalConnection);
+        terminalString(terminalConnection);
+        Serial.print(displayBuffer);
+    }
+    return terminalConnection;
+  }
+  else if (settingNum == 78){
+    if (settingValue > -1) pot28TCONSetting = uint8_t(settingValue);
+    uint8_t terminalConnection = MCP41HVI2C_SetTerminals(U34addr,pot28TCONSetting);
+    if (debugDisplay) {
+        Serial.print(pot28TCONSetting);
+        Serial.print(", ");
+        Serial.print(terminalConnection);
+        terminalString(terminalConnection);
+        Serial.print(displayBuffer);
+    }
+    return terminalConnection;
+  }
+  else if (settingNum == 79){
+    if (settingValue > -1) pot29TCONSetting = uint8_t(settingValue);
+    uint8_t terminalConnection = MCP41HVI2C_SetTerminals(U36addr,pot29TCONSetting);
+    if (debugDisplay) {
+        Serial.print(pot29TCONSetting);
+        Serial.print(", ");
+        Serial.print(terminalConnection);
+        terminalString(terminalConnection);
+        Serial.print(displayBuffer);
+    }
+    return terminalConnection;
+  }
+  else if (settingNum == 80){
+    if (settingValue > -1) pot30TCONSetting = uint8_t(settingValue);
+    uint8_t terminalConnection = MCP41HVI2C_SetTerminals(U37addr,pot30TCONSetting);
+    if (debugDisplay) {
+        Serial.print(pot30TCONSetting);
+        Serial.print(", ");
+        Serial.print(terminalConnection);
+        terminalString(terminalConnection);
+        Serial.print(displayBuffer);
+    }
+    return terminalConnection;
   }
   
-  listSetting(settingNum);
-
+  else return -1;
+  
+  
 }
+
 
 
 /*               End Define Settings                              */
@@ -800,42 +1169,6 @@ void setSetting(uint8_t settingNum, int settingValue) {
 
 
 
-
-void connectionString(boolean switchState) {
-  //memset(displayBuffer,0,sizeof(displayBuffer));
-  Serial.print(switchState);
-  if (switchState) strcpy(displayBuffer, " Connected");
-  else strcpy(displayBuffer, " Open");
-}
-
-void terminalString(uint8_t setting) {
-  switch (setting) {
-    case TCON_B_ONLY:
-      strcpy(displayBuffer, " 1 (TCON_B_ONLY)");
-      break;
-    case TCON_WIPER_ONLY:
-      strcpy(displayBuffer, "2 (TCON_WIPER_ONLY)");
-      break;
-    case TCON_WIPER_AND_B:
-      strcpy(displayBuffer, "3 (TCON_WIPER_AND_B)");
-      break;
-    case TCON_A_ONLY:
-      strcpy(displayBuffer, "4 (TCON_A_ONLY)");
-      break;
-    case TCON_A_AND_B :
-      strcpy(displayBuffer, "5 (TCON_A_AND_B)");
-      break;
-    case TCON_WIPER_AND_A :
-      strcpy(displayBuffer, "6 (TCON_WIPER_AND_A)");
-      break;
-    case TCON_CONNECT_ALL:
-      strcpy(displayBuffer, "7 (TCON_CONNECT_ALL)");
-      break;
-    default:
-      strcpy(displayBuffer, "Nothing connected");
-      break;
-  }
-}
 
 
 void setDefaultEEPROMdata () {
@@ -902,111 +1235,3 @@ void getEEPROMdata () {
 }
 
 
-/****************************************************************/
-/*   Begin Function Calls for Digital Potentiometer             */
-  
-uint8_t MCP41HVExtender_SetTerminals(uint8_t pin, uint8_t TCON_Value) {
-  PotExpander.writeGPIOAB(~(1 << pin));
-  delay(1);
-  SPI.transfer(0x40); //Write to TCON Register
-  SPI.transfer(TCON_Value + 8);
-  SPI.transfer(0x4C); //Read Command
-  uint8_t result = SPI.transfer(0xFF); //Read Terminal Connection (TCON) Register
-  PotExpander.writeGPIOAB(0xFF);
-  return result & 0x0F;
-}
-
-uint8_t MCP41HVExtender_SetWiper(uint8_t pin, uint8_t potValue)
-{
-  PotExpander.writeGPIOAB(~(1 << pin));
-  delay(1);
-  SPI.transfer(0x00); //Write to wiper Register
-  SPI.transfer(potValue);
-  SPI.transfer(0x0C); //Read command
-  uint8_t result = SPI.transfer(0xFF); //Read Wiper Register
-  PotExpander.writeGPIOAB(0xFF);
-  return result;
-} 
-/*   End Function Calls for Digital Potentiometer               */
-/****************************************************************/
-
-/****************************************************************/
-/*   Begin Function Calls for DAC                               */
-
-void initializeDACs(uint8_t address) {
-  Serial.print("Setting DAC Internal Reference register with address of 0x");
-  Serial.println(address, HEX);
-  Wire.beginTransmission(address);   // Slave address
-  Wire.write(0b10000000);
-  Wire.write(0x00);
-  Wire.write(0x10);
-  Wire.endTransmission();
-
-  Wire.beginTransmission(address);   // Slave address
-  Wire.write(0b10000000);
-  Wire.endTransmission();
-
-  Wire.requestFrom(address, 2);
-  char highC = Wire.read();
-  char lowC = Wire.read();
-  Serial.print("Internal Reference Register: ");
-  Serial.println(lowC);         // print the character
-
-  Serial.println("Setting LDAC register.");
-  Wire.beginTransmission(address);   // Slave address
-  Wire.write(0b01100000);
-  Wire.write(0xFF);
-  Wire.write(0xFF);
-  Wire.endTransmission();
-
-  Wire.beginTransmission(address);   // Slave address
-  Wire.write(0b01100000);
-  Wire.endTransmission();
-
-  Wire.requestFrom(address, 2);
-  highC = Wire.read();
-  lowC = Wire.read();
-  Serial.print("LDAC Register: ");
-  Serial.println(lowC, HEX);        // print the character
-
-  Serial.println("Setting DAC Power Down register to On.");
-  Wire.beginTransmission(address);   // Slave address
-  Wire.write(0b01000000);
-  Wire.write(0b00011111);
-  Wire.write(0xFF);
-  Wire.endTransmission();
-
-  Wire.beginTransmission(address);   // Slave address
-  Wire.write(0b01000000);
-  Wire.endTransmission();
-
-  Wire.requestFrom(address, 2);
-  highC = Wire.read();
-  lowC = Wire.read();
-  Serial.print("Power Register: ");
-  Serial.println(lowC, BIN);        // print the character
-
-  Serial.print(F("Done with DAC at address 0x"));
-  Serial.println(address, HEX);
-}
-
-uint16_t setDAC(uint16_t setting, uint8_t DACchannel, uint8_t address) {
-  Wire.beginTransmission(address);   // Slave address
-  Wire.write(0b00100000 + DACchannel);
-  Wire.write((setting & 0x0FF0) >> 4);
-  Wire.write((setting & 0x000F) << 4);
-  Wire.endTransmission();
-
-  Wire.beginTransmission(address);   // Slave address
-  Wire.write(0b00010000 + DACchannel);
-  Wire.endTransmission();
-
-  Wire.requestFrom(address, 2);
-  uint8_t highC = Wire.read();
-  uint8_t lowC =  Wire.read();
-  uint16_t result = (highC << 4) + (lowC >> 4);
-  return result;
-}
-
-/*   End Function Calls for DAC                              */
-/****************************************************************/

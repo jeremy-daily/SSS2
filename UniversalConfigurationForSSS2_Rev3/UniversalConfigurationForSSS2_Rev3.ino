@@ -33,7 +33,6 @@ uint8_t DM13_FF_Count = 0;
 
 
 //set up a display buffer
-char displayBuffer[100];
 
 /****************************************************************/
 /*              Setup millisecond timers and intervals          */
@@ -292,7 +291,7 @@ void turnOnAdjustMode() {
   Serial.print(currentSetting);
   Serial.print(" - ");
   Serial.println(settingNames[currentSetting]);
-  knob.write(getSetting(currentSetting));
+  knob.write(setSetting(currentSetting,-1,DEBUG_OFF));
   setLimits(currentSetting);
 
 }
@@ -319,10 +318,10 @@ void changeSetting() {
   //listSetting(currentSetting);
   if (ADJUST_MODE_ON){
     setLimits(currentSetting);
-    knob.write(getSetting(currentSetting));
+    knob.write(setSetting(currentSetting,-1,DEBUG_OFF));
   }
   else{
-    if (knob.read() == currentSetting) listSetting(currentSetting);
+    if (knob.read() == currentSetting) setSetting(currentSetting,-1,DEBUG_ON);
     else knob.write(currentSetting); //automatic listSetting if knob changes
     knobLowLimit = 1;
     knobHighLimit = numSettings - 1;
@@ -331,7 +330,7 @@ void changeSetting() {
 
 void listSettings(){
   Serial.println(F("LS - List Settings. "));
-  for (int i = 1; i < numSettings; i++) listSetting(i);
+  for (int i = 1; i < numSettings; i++) setSetting(currentSetting,-1,DEBUG_ON);
 }
 
 void changeValue(){
@@ -339,8 +338,8 @@ void changeValue(){
   if (ADJUST_MODE_ON && currentSetting != 0) {
     Serial.println(F("SS - Set Setting."));
     int adjustmentValue = constrain(commandString.toInt(), knobLowLimit, knobHighLimit);
-    setSetting(currentSetting, adjustmentValue);
-    currentKnob = getSetting(currentSetting);
+    
+    currentKnob = setSetting(currentSetting, adjustmentValue,DEBUG_ON);
     knob.write(currentKnob);
   }
   else
@@ -1047,12 +1046,11 @@ void setup() {
   Wire.setDefaultTimeout(200000); // 200ms
 
   initializeDACs(Vout2address);
-  initializeDACs(Vout3address);
 
 
   listInfo();
   for (int i = 1; i < numSettings; i++) {
-    setSetting(i, getSetting(i));
+    setSetting(i, -1,DEBUG_ON);
   }
   
   currentSetting = 0;
@@ -1503,11 +1501,11 @@ void loop() {
     }
     //Place function calls to execute when the knob turns.
     if (ADJUST_MODE_ON) {
-      setSetting(currentSetting, currentKnob);
+      setSetting(currentSetting, currentKnob,DEBUG_ON);
     }
     else {
       currentSetting = currentKnob;
-      listSetting(currentSetting);
+      setSetting(currentSetting,-1,DEBUG_ON);
     }
   }
   /*            End Quadrature Knob Processing                    */
