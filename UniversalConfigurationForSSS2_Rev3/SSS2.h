@@ -78,7 +78,8 @@ const uint16_t vehicleIdentificationNumAddress = 3000;
 char vehicleIdentificationNum[20] = "A Fake VIN";
 
 
-
+//set up a display buffer
+char displayBuffer[100];
 
 
 /****************************************************************/
@@ -112,7 +113,7 @@ void setPinModes(){
     pinMode(CStermPin, OUTPUT);
     pinMode(PWM3Pin, OUTPUT);
     pinMode(PWM4Pin, OUTPUT);
-    pinMode(buttonPin, INPUT);
+    pinMode(buttonPin, INPUT_PULLUP);
     pinMode(CStouchPin, OUTPUT);
     pinMode(IH1Pin, OUTPUT);
     pinMode(IH2Pin, OUTPUT);
@@ -191,7 +192,7 @@ int knobLowLimit = 0;
 int knobHighLimit = 255;
 int knobJump = 1;
 
-
+uint8_t terminationSettings;
 
 
 void connectionString(boolean switchState) {
@@ -225,7 +226,7 @@ void terminalString(uint8_t setting) {
       strcpy(displayBuffer, "7 (TCON_CONNECT_ALL)");
       break;
     default:
-      strcpy(displayBuffer, "Nothing connected");
+      strcpy(displayBuffer, "0 Nothing connected");
       break;
   }
 }
@@ -237,8 +238,8 @@ void terminalString(uint8_t setting) {
 uint8_t setTerminationSwitches() {
   //Set the termination Switches of U29 on Rev 3
 
-  uint8_t terminationSettings =  CAN0term | CAN1term << 1 | CAN2term << 2 |  LINmaster << 3 | 
-                                 PWM1Out << 4 | PWM2Out << 5 | PWM3Out << 6 | PWM4Out << 7;
+  uint8_t terminationSettings =  uint8_t( CAN0term | CAN1term << 1 | CAN2term << 2 |  LINmaster << 3 | 
+                                 PWM1Out << 4 | PWM2Out << 5 | PWM3Out << 6 | PWM4Out << 7);
   digitalWrite(CStermPin, LOW);
   SPI.transfer(terminationSettings);
   digitalWrite(CStermPin, HIGH);
@@ -292,15 +293,6 @@ void getConfigSwitches(uint16_t configSwitchSettings) {
   U15U16P0ASwitch   = (configSwitchSettings & 0b1000000000000000) >> 15;
 }
 
-//set up a display buffer
-char displayBuffer[100];
-
-void connectionString(boolean switchState) {
-  //memset(displayBuffer,0,sizeof(displayBuffer));
-  Serial.print(switchState);
-  if (switchState) strcpy(displayBuffer, " Connected");
-  else strcpy(displayBuffer, " Open");
-}
 
 /****************************************************************/
 /*   Begin Function Calls for Digital Potentiometer             */
@@ -313,7 +305,7 @@ uint8_t MCP41HVExtender_SetTerminals(uint8_t pin, uint8_t TCON_Value) {
   SPI.transfer(0x4C); //Read Command
   uint8_t result = SPI.transfer(0xFF); //Read Terminal Connection (TCON) Register
   PotExpander.writeGPIOAB(0xFF);
-  return result & 0x0F;
+  return result & 0x07;
 }
 
 
@@ -685,7 +677,7 @@ void setLimits(uint8_t settingNum) {
     knobHighLimit = 1;
     knobJump = 1;
   }
-  if (settingNum > 74 && settingNum <= 77) {
+  else if (settingNum > 74 && settingNum <= 77) {
     knobLowLimit = 0;
     knobHighLimit = 255;
     knobJump = 1;
@@ -701,13 +693,14 @@ void setLimits(uint8_t settingNum) {
     knobJump = 1;
   }
 
-  Serial.print("Low Limit: ");
-  Serial.println(knobLowLimit);
-  Serial.print("High Limit: ");
-  Serial.println(knobHighLimit);
+  // Serial.print("Low Limit: ");
+  // Serial.println(knobLowLimit);
+  // Serial.print("High Limit: ");
+  // Serial.println(knobHighLimit);
 }
 
 int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
+  
   
   if (debugDisplay){
     Serial.print(settingNum);
@@ -738,9 +731,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) U1U2P0ASwitch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(U1U2P0ASwitch);
         connectionString(U1U2P0ASwitch);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return U1U2P0ASwitch;
   }
@@ -748,9 +740,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) U3U4P0ASwitch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(U3U4P0ASwitch);
         connectionString(U3U4P0ASwitch);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return U3U4P0ASwitch;
   }
@@ -758,9 +749,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) U5U6P0ASwitch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(U5U6P0ASwitch);
         connectionString(U5U6P0ASwitch);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return U5U6P0ASwitch;
   }
@@ -768,9 +758,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) U7U8P0ASwitch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(U7U8P0ASwitch);
         connectionString(U7U8P0ASwitch);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return U7U8P0ASwitch;
   } 
@@ -778,9 +767,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) U9U10P0ASwitch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(U9U10P0ASwitch);
         connectionString(U9U10P0ASwitch);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return U9U10P0ASwitch;
   }  
@@ -788,9 +776,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) U11U12P0ASwitch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(U11U12P0ASwitch);
         connectionString(U11U12P0ASwitch);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return U11U12P0ASwitch;
   }  
@@ -798,9 +785,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) U13U14P0ASwitch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(U13U14P0ASwitch);
         connectionString(U13U14P0ASwitch);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return U13U14P0ASwitch;
   }   
@@ -808,43 +794,41 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) U15U16P0ASwitch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(U15U16P0ASwitch);
         connectionString(U15U16P0ASwitch);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return U15U16P0ASwitch;
   }
   else if (settingNum == 33){
     if (settingValue > -1) pwm1value = uint8_t(settingValue);
     analogWrite(PWM1Pin,pwm1value);
-    if (debugDisplay) Serial.print(pwm1value);
+    if (debugDisplay) Serial.println(pwm1value);
     return pwm1value;
   }
   else if (settingNum == 34){
     if (settingValue > -1) pwm2value = uint8_t(settingValue);
     analogWrite(PWM2Pin,pwm2value);
-    if (debugDisplay) Serial.print(pwm2value);
+    if (debugDisplay) Serial.println(pwm2value);
     return pwm1value;
   }
   else if (settingNum == 35){
     if (settingValue > -1) pwm3value = uint8_t(settingValue);
     analogWrite(PWM3Pin,pwm3value);
-    if (debugDisplay) Serial.print(pwm3value);
+    if (debugDisplay) Serial.println(pwm3value);
     return pwm3value;
   }
   else if (settingNum == 36){
     if (settingValue > -1) pwm4value = uint8_t(settingValue);
     analogWrite(PWM3Pin,pwm4value);
-    if (debugDisplay) Serial.print(pwm4value);
+    if (debugDisplay) Serial.println(pwm4value);
     return pwm4value;
   }
   else if (settingNum == 37){
     if (settingValue > -1) P10or19Switch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(P10or19Switch);
-        connectionString(U15U16P0ASwitch);
-        Serial.print(displayBuffer);
+        connectionString(P10or19Switch);
+        Serial.println(displayBuffer);
     }
     return P10or19Switch;
   }
@@ -852,9 +836,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) P15or18Switch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(P15or18Switch);
         connectionString(P15or18Switch);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return P15or18Switch;
   } 
@@ -862,9 +845,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) CAN1Switch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(CAN1Switch);
         connectionString(CAN1Switch);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return CAN1Switch;
   }  
@@ -872,9 +854,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) CAN2Switch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(CAN2Switch);
         connectionString(CAN2Switch);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return CAN2Switch;
   }
@@ -882,9 +863,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) CAN0term = boolean(settingValue);
     setTerminationSwitches();
     if (debugDisplay) {
-        Serial.print(CAN0term);
         connectionString(CAN0term);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return CAN0term;
   } 
@@ -892,9 +872,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) CAN1term = boolean(settingValue);
     setTerminationSwitches();
     if (debugDisplay) {
-        Serial.print(CAN1term);
         connectionString(CAN1term);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return CAN1term;
   } 
@@ -902,9 +881,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) CAN2term = boolean(settingValue);
     setTerminationSwitches();
     if (debugDisplay) {
-        Serial.print(CAN2term);
         connectionString(CAN2term);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return CAN2term;
   }  
@@ -912,9 +890,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) LINmaster = boolean(settingValue);
     setTerminationSwitches();
     if (debugDisplay) {
-        Serial.print(LINmaster);
         connectionString(LINmaster);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return LINmaster;
   }  
@@ -927,9 +904,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     else
     digitalWrite(IH1Pin,HS1state);
     if (debugDisplay) {
-        Serial.print(HS1state);
         connectionString(HS1state);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return HS1state;
   }  
@@ -939,9 +915,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     else MCP41HVExtender_SetTerminals(11, potTCONSettings[10]); //Reset all terminals on Pot 11
     digitalWrite(IH2Pin,HS2state);
     if (debugDisplay) {
-        Serial.print(HS2state);
         connectionString(HS2state);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return HS2state;
   }
@@ -951,9 +926,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     else MCP41HVExtender_SetTerminals(12, potTCONSettings[11]); //Reset all terminals 
     digitalWrite(IL1Pin,IL1State);
     if (debugDisplay) {
-        Serial.print(IL1State);
         connectionString(IL1State);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return IL1State;
   }
@@ -963,9 +937,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     else MCP41HVExtender_SetTerminals(12, potTCONSettings[11]); //Reset all terminals 
     digitalWrite(IL2Pin,IL2State);
     if (debugDisplay) {
-        Serial.print(IL2State);
         connectionString(IL2State);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return IL2State;
   }
@@ -983,9 +956,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) ignitionCtlState = boolean(settingValue);
     digitalWrite(ignitionCtlPin,ignitionCtlState);
     if (debugDisplay) {
-        Serial.print(ignitionCtlState);
         connectionString(ignitionCtlState);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return ignitionCtlState;
   } 
@@ -995,9 +967,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         Serial.print(potTCONSettings[settingNum - 51]);
         Serial.print(", ");
-        Serial.print(terminalConnection);
         terminalString(terminalConnection);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return terminalConnection;
   }
@@ -1005,9 +976,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) PWM1Out = boolean(settingValue);
     setTerminationSwitches();
     if (debugDisplay) {
-        Serial.print(PWM1Out);
         connectionString(PWM1Out);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return PWM1Out;
   } 
@@ -1015,9 +985,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) PWM2Out = boolean(settingValue);
     setTerminationSwitches();
     if (debugDisplay) {
-        Serial.print(PWM2Out);
         connectionString(PWM2Out);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return PWM2Out;
   }  
@@ -1025,9 +994,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) PWM3Out = boolean(settingValue);
     setTerminationSwitches();
     if (debugDisplay) {
-        Serial.print(PWM3Out);
         connectionString(PWM3Out);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return PWM3Out;
   }  
@@ -1035,9 +1003,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) PWM4Out = boolean(settingValue);
     setTerminationSwitches();
     if (debugDisplay) {
-        Serial.print(PWM4Out);
         connectionString(PWM4Out);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return PWM4Out;
   } 
@@ -1045,21 +1012,28 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) LIN1Switch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(LIN1Switch);
         connectionString(LIN1Switch);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return LIN1Switch;
   }
   else if (settingNum == 71) {
+    if (settingValue > -1) LIN1Switch = boolean(settingValue);
+    setConfigSwitches();
+    if (debugDisplay) {
+        connectionString(LIN1Switch);
+        Serial.println(displayBuffer);
+    }
+    return LIN1Switch;
+  }
+  else if (settingNum == 72) {
     if (settingValue > -1) LIN2Switch = boolean(settingValue);
     setConfigSwitches();
     if (LIN2Switch) MCP41HVExtender_SetTerminals(15, 0);
-    else MCP41HVExtender_SetTerminals(15, potTCONSettings[15])
+    else MCP41HVExtender_SetTerminals(15, potTCONSettings[15]);
     if (debugDisplay) {
-        Serial.print(LIN2Switch);
         connectionString(LIN2Switch);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return LIN2Switch;
   }
@@ -1067,9 +1041,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) U1though8Enable = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(U1though8Enable);
         connectionString(U1though8Enable);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return U1though8Enable;
   } 
@@ -1077,9 +1050,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) U9though16Enable = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
-        Serial.print(U9though16Enable);
         connectionString(U9though16Enable);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return U9though16Enable;
   } 
@@ -1089,9 +1061,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         Serial.print(pot28WiperSetting);
         Serial.print(", ");
-        Serial.print(terminalConnection);
-        terminalString(terminalConnection);
-        Serial.print(displayBuffer);
+        Serial.println(terminalConnection);
     }
     return terminalConnection;
   }
@@ -1101,9 +1071,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         Serial.print(pot29WiperSetting);
         Serial.print(", ");
-        Serial.print(terminalConnection);
-        terminalString(terminalConnection);
-        Serial.print(displayBuffer);
+        Serial.println(terminalConnection);
     }
     return terminalConnection;
   }
@@ -1113,9 +1081,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         Serial.print(pot30WiperSetting);
         Serial.print(", ");
-        Serial.print(terminalConnection);
-        terminalString(terminalConnection);
-        Serial.print(displayBuffer);
+        Serial.println(terminalConnection);
     }
     return terminalConnection;
   }
@@ -1125,9 +1091,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         Serial.print(pot28TCONSetting);
         Serial.print(", ");
-        Serial.print(terminalConnection);
         terminalString(terminalConnection);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return terminalConnection;
   }
@@ -1137,9 +1102,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         Serial.print(pot29TCONSetting);
         Serial.print(", ");
-        Serial.print(terminalConnection);
         terminalString(terminalConnection);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return terminalConnection;
   }
@@ -1149,9 +1113,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         Serial.print(pot30TCONSetting);
         Serial.print(", ");
-        Serial.print(terminalConnection);
         terminalString(terminalConnection);
-        Serial.print(displayBuffer);
+        Serial.println(displayBuffer);
     }
     return terminalConnection;
   }
@@ -1224,9 +1187,9 @@ void getEEPROMdata () {
   EEPROM.get(componentIDAddress, componentID);
  // EEPROM.get(number_of_CAN_msgsAddress, number_of_CAN_msgs);
   EEPROM.get(terminationSettingsAddress, terminationSettings);
-  getTerminationSwitches();
+  getTerminationSwitches(terminationSettings);
   EEPROM.get(connectionSettingsAddress, connectionSettings);
-  getConnectionSwitches();
+  
   EEPROM.get(programmedForAddress, programmedFor);
   EEPROM.get(programmedByAddress, programmedBy);
   EEPROM.get(programmedDateAddress, programDate);

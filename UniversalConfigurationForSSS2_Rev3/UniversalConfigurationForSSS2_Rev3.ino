@@ -73,7 +73,8 @@ OneButton button(buttonPin, true);
 
 
 void longPressStart() {
-  ignitionCtlState = !ignitionCtlState;
+  setLimits(255);
+  setSetting(50, !ignitionCtlState, DEBUG_ON);
   digitalWrite(ignitionCtlPin, ignitionCtlState);
   digitalWrite(greenLEDpin, ignitionCtlState);
   CANTX_5000ms_timer = 4950;
@@ -81,10 +82,14 @@ void longPressStart() {
   DM13_FF_Count = 0;
 }
 
-void myClickFunction() {}
+void myClickFunction() {
+  turnOffAdjustMode();
+  }
 void myDoubleClickFunction() {}
 void longPress() {} //Do nothing at this time.
 void longPressStop() {} 
+
+
 
 /*                         End Function Calls for Knob Buttons                            */
 /********************************************************************************************/
@@ -96,7 +101,7 @@ void longPressStop() {}
 
 
 //Set up the CAN data structures
-static CAN_message_t rxmsg, txmsg;
+static CAN_message_t txmsg;
 
 //set up a counter for each received message
 uint32_t RXCAN0count = 0;
@@ -267,6 +272,7 @@ String inputString = "";
 
 String commandChars = "";
 String commandString = "";
+String commandExtension = "";
 
 uint16_t currentSetting = 0;
 
@@ -304,6 +310,26 @@ void turnOffAdjustMode() {
   knobHighLimit = numSettings - 1;
 }
 
+void fastSetSetting(){
+  
+  int returnval;
+    currentSetting = commandChars.toInt();
+    if (currentSetting > 0 && currentSetting < numSettings){
+      setLimits(currentSetting);
+      if (commandString.length() > 1){ 
+        long settingValue = constrain(commandString.toInt(), knobLowLimit, knobHighLimit);
+        returnval = setSetting(currentSetting, settingValue,DEBUG_OFF);
+      }
+      else{
+        returnval = setSetting(currentSetting, -1, DEBUG_OFF);
+      }
+      Serial.print(currentSetting);
+      Serial.print(",");
+      Serial.println(returnval);  
+    }
+    else Serial.println("-1");
+  
+}
 
 void changeSetting() {
   Serial.println(F("CS - Change or Select Setting."));
@@ -330,7 +356,7 @@ void changeSetting() {
 
 void listSettings(){
   Serial.println(F("LS - List Settings. "));
-  for (int i = 1; i < numSettings; i++) setSetting(currentSetting,-1,DEBUG_ON);
+  for (int i = 1; i < numSettings; i++) setSetting(i,-1,DEBUG_ON);
 }
 
 void changeValue(){
@@ -369,6 +395,7 @@ void saveEEPROM(){
 
 /**************************************************************************************/
 /*               Begin Function calls for User input data                             */
+
 
 void listInfo() {
   Serial.print("Component ID (Make*Model*Serial*Unit): ");
@@ -817,7 +844,7 @@ void parseJ1939(CAN_message_t &rxmsg ){
   }
   if (displayJ1939){
     char J1939Characters[30];
-    sprintf(J1939Characters,"%d,%d,%d,%d,%d,",PRIORITY,PGN,DA,SA,DLC);
+    sprintf(J1939Characters,"%d,%08ul,%d,%d,%d,",PRIORITY,PGN,DA,SA,DLC);
     Serial.print(J1939Characters);
     for (uint8_t i = 0; i<DLC; i++){
       sprintf(J1939Characters,"%02X,",rxmsg.buf[i]);
@@ -954,35 +981,10 @@ CAN0Class CAN0Class;
 void setup() {
   Serial.begin(115200);
   Serial1.begin(19200);
+  
   setPinModes();
 
   digitalWrite(redLEDpin,redLEDstate);
-  
-  
-  inputString.reserve(200);
- 
-  PotExpander.begin(7);  //U33
-  ConfigExpander.begin(3); //U21
-  for (uint8_t i = 0; i<16; i++){
-    PotExpander.pinMode(i,OUTPUT);
-    ConfigExpander.pinMode(i,OUTPUT);
-  }
-  
-  delay(800);
-  Serial.println("Welcome to the Smart Sensor Simulator 2.");
-  
-  Serial.println("Finished Setting Up MCP23017 extender chips.");
-  PotExpander.writeGPIOAB(0xFFFF);
-  ConfigExpander.writeGPIOAB(0xFFFF);
-  
-  Serial.print("Termination Switches (U29): ");
-  uint8_t terminationSettings = setTerminationSwitches();
-  Serial.println(terminationSettings,BIN);
-
-  Serial.print("Configration Switches (U21): ");
-  uint16_t configSwitchSettings = setConfigSwitches();
-  Serial.println(configSwitchSettings,BIN);
-  
   digitalWrite(greenLEDpin,LOW);
   digitalWrite(CSdispPin,HIGH);
   digitalWrite(CSCANPin,HIGH);
@@ -995,18 +997,48 @@ void setup() {
   digitalWrite(IL2Pin,LOW);
   digitalWrite(ignitionCtlPin,LOW);
   
+  inputString.reserve(200);
  
-  //button.attachClick(myClickFunction);
-  //button.attachDoubleClick(myDoubleClickFunction);
-  button.attachLongPressStart(longPressStart);
-  //button.attachLongPressStop(longPressStop);
- // button.attachDuringLongPress(longPress);
-  button.setPressTicks(2000);
-  button.setClickTicks(250);
+  PotExpander.begin(7);  //U33
+  ConfigExpander.begin(3); //U21
+  for (uint8_t i = 0; i<16; i++){
+    PotExpander.pinMode(i,OUTPUT);
+    ConfigExpander.pinMode(i,OUTPUT);
+  }
   
+  delay(800);
+  Serial.println(F("Welcome to the Smart Sensor Simulator 2."));
+  
+  
+  Serial.println(F("Setting up the I2C GPIO extenders."));
+  Wire.begin();
+  Wire.setDefaultTimeout(200000); // 200ms
+  PotExpander.writeGPIOAB(0xFFFF);
+  ConfigExpander.writeGPIOAB(0xFFFF);
+  Serial.println("Finished Setting Up MCP23017 extender chips.");
   
   SPI.begin();
+  Serial.print(F("Termination Switches (U29): "));
+  terminationSettings = setTerminationSwitches();
+  Serial.println(terminationSettings,BIN);
 
+  Serial.print("Configration Switches (U21): ");
+  uint16_t configSwitchSettings = setConfigSwitches();
+  Serial.println(configSwitchSettings,BIN);
+  
+  
+  
+  Serial.println(F("Attaching Button Press Handlers."));
+  button.attachClick(myClickFunction);
+  button.attachDoubleClick(myDoubleClickFunction);
+  button.attachLongPressStart(longPressStart);
+  button.attachLongPressStop(longPressStop);
+  button.attachDuringLongPress(longPress);
+  button.setPressTicks(2000);
+  button.setClickTicks(250);
+
+  
+  Serial.println(F("Setting Up Analog Input Device."));
   digitalWrite(CSanalogPin, LOW);
   delay(2);
   //Write to Range Register 1 to Select the range for input channels
@@ -1041,36 +1073,38 @@ void setup() {
   digitalWrite(CSanalogPin, HIGH);
   delay(1);
 
-  //Set up the i2C for the DAC
-  Wire.begin();
-  Wire.setDefaultTimeout(200000); // 200ms
-
+  
+  Serial.println(F("Initializing the Analog Out Converter."));
   initializeDACs(Vout2address);
 
 
   listInfo();
   for (int i = 1; i < numSettings; i++) {
-    setSetting(i, -1,DEBUG_ON);
+    currentSetting = setSetting(i, -1,DEBUG_OFF);
+    setSetting(i, currentSetting ,DEBUG_ON);
   }
   
   currentSetting = 0;
-  setLimits(currentSetting);
+  
 
-  Serial.print("Starting CAN...");
+  Serial.print(F("Starting CAN..."));
   Can0.attachObj(&CAN0Class);
   Can1.attachObj(&CAN1Class);
   
   Serial.println("Done.");
   
-  Serial.print("Setting Baud Rate...");
-  BAUDRATE0=250000;
+  Serial.print(F("Setting Baud Rate..."));
+  BAUDRATE0 = 250000;
   Can0.begin(BAUDRATE0);
+  Serial.print(F(" CAN0 = "));
+  Serial.print(F("BAUDRATE0"));
   BAUDRATE1=660000;
   Can1.begin(BAUDRATE1);
-  Serial.println("Done.");
+  Serial.print(F(", CAN1 = "));
+  Serial.println(F("BAUDRATE1"));
   
   
-  Serial.print("Setting Filters...");
+  Serial.print(F("Setting CAN Filters..."));
   //leave the first 4 mailboxes to use the default filter. Just change the higher ones
   allPassFilter.id=0;
   allPassFilter.ext=1;
@@ -1083,7 +1117,7 @@ void setup() {
 //     CANClass0.attachMBHandler(filterNum);
 //     CANClass1.attachMBHandler(filterNum);
 //  }
-  Serial.print("Done.\nAttaching General Handlers...");
+  Serial.print(F("Done.\nAttaching General Handlers..."));
   
   CAN0Class.attachGeneralHandler();
   CAN1Class.attachGeneralHandler();
@@ -1095,9 +1129,12 @@ void setup() {
   setConfigSwitches();
     
   Serial1.begin(19200);
-  Serial.println("Started LIN at 19200.");
+  Serial.println(F("Started LIN at 19200."));
   
-  Serial.println("Finished Starting Up... Type a command:");
+  knobLowLimit = 1;
+  knobHighLimit = numSettings - 1;
+  
+  Serial.println(F("Finished Starting Up... Type a command:"));
  
   k=0;
   firstLINtime =true;
@@ -1449,10 +1486,14 @@ void loop() {
   /*            Begin Serial Command Processing                   */
   if (Serial.available() >= 2 && Serial.available() < 140) {
     commandChars = Serial.readStringUntil(',');
-    if (Serial.available()) commandString = Serial.readStringUntil('\n');
+    if (Serial.available()) 
+    commandString = Serial.readStringUntil('\n');
     else commandString = "";
+    //if (Serial.available()) commandExtension = Serial.readStringUntil('\n');
+   // else commandExtension = "-1";
     //Serial.println(F("Please put a comma after the two command characters."));
-    if      (commandChars == "SM" || commandChars == "sm") sendMessage();
+    if      (commandChars.toInt() > 0) fastSetSetting();  
+    else if (commandChars == "SM" || commandChars == "sm") sendMessage();
     else if (commandChars == "SS" || commandChars == "ss") changeValue();
     else if (commandChars == "SC" || commandChars == "sc") Serial.println(F("SC - Not implemented yet."));
     else if (commandChars == "SA" || commandChars == "sa") saveEEPROM();
@@ -1501,7 +1542,9 @@ void loop() {
     }
     //Place function calls to execute when the knob turns.
     if (ADJUST_MODE_ON) {
+      //setLimits(currentSetting);
       setSetting(currentSetting, currentKnob,DEBUG_ON);
+      
     }
     else {
       currentSetting = currentKnob;
