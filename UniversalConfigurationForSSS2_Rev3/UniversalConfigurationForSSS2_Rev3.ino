@@ -379,6 +379,78 @@ void saveEEPROM(){
   Serial.println(F("SA - Saving Settings to EEPROM."));
   setDefaultEEPROMdata();
 }
+
+void displayVoltage(){
+  float reading = analogRead(A21);
+  
+  Serial.println((reading*reading*.008003873 + 8.894535*reading)*.001);
+  
+//  SPI.beginTransaction(SPISettings(1000000,MSBFIRST, SPI_MODE3));
+//  for (int i = 0; i<8;i++){
+//    uint8_t controlHighTemplate = 0b10000000;
+//    uint8_t controlLowTemplate =  0b00000000;
+//    
+//    digitalWrite(CSanalogPin,LOW);
+//    delay(1);
+//    uint8_t spiHighByte =  SPI.transfer(controlHighTemplate | (i<<2));
+//    uint8_t spiLowByte =  SPI.transfer(controlLowTemplate);
+//    int data = spiLowByte | (spiHighByte << 8);
+//    Serial.print(data,HEX);
+//    Serial.print(",");  
+//    digitalWrite(CSanalogPin,HIGH);
+//    delay(1);
+//  }
+//  
+//  SPI.endTransaction();
+//  Serial.println();
+}
+
+void setupADC(){
+  SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE3));
+  digitalWrite(CSanalogPin, LOW);
+  //Write to Range Register 1 to Select the range for input channels
+  uint8_t out = SPI.transfer(0b10111111);
+  Serial.println(out,HEX);
+  out = SPI.transfer(0b11100000); //Write to ADC Device
+  Serial.println(out,HEX);
+  digitalWrite(CSanalogPin, HIGH);
+  delay(1);
+
+  digitalWrite(CSanalogPin, LOW);
+  //Write to Range Register 2 to Select the range for input channels
+  out = SPI.transfer(0b11011111);
+  //Serial.println(out,HEX);
+  out = SPI.transfer(0b11100000); //Write to ADC Device
+  //Serial.println(out,HEX);
+  digitalWrite(CSanalogPin, HIGH);
+  delay(1);
+
+  digitalWrite(CSanalogPin, LOW);
+  //Write to Seq. Register. This register selects the channels for conversion. We want them all.
+  //Bit 16 (MSB) = 1 (Write)
+  //Bits 15,14 = 11 (Sequence Register)
+  //Bits 13-6 = 11111111 (Set all to on)
+  //Bits 5-1 = 0 (Not used according to the data sheet)
+  out = SPI.transfer(0b11111111);
+  //Serial.println(out,HEX);
+  out = SPI.transfer(0b11100000);
+  //Serial.println(out,HEX);
+  //SPI1.transfer(0xFFFF);
+  digitalWrite(CSanalogPin, HIGH);
+  delay(1);
+
+  //digitalWrite(CSanalogPin, LOW);
+  //delay(2);
+  //Write to control register to select the final channel in the seq. Set Seq1 =1  and Seq2=0
+  //Write  RegSel1 RegSel2 ADD2 ADD1 ADD0 Mode1 Mode0 PM1 PM0 Coding Ref Seq1 Seq2 Zero Zero
+  //out = SPI.transfer(0b10011100);
+  //Serial.println(out,HEX);
+  //out = SPI.transfer(0b00100000);
+  //Serial.println(out,HEX);
+  //digitalWrite(CSanalogPin, HIGH);
+  //delay(1);
+  SPI.endTransaction();
+}
 /*                End Function Calls for Serial and Knob Commands                           */
 /********************************************************************************************/
 
@@ -1039,40 +1111,7 @@ void setup() {
 
   
   Serial.println(F("Setting Up Analog Input Device."));
-  digitalWrite(CSanalogPin, LOW);
-  delay(2);
-  //Write to Range Register 1 to Select the range for input channels
-  SPI.transfer(0b10111111);
-  SPI.transfer(0b11100000); //Write to ADC Device
-  digitalWrite(CSanalogPin, HIGH);
-  delay(1);
-
-  digitalWrite(CSanalogPin, LOW);
-  delay(2);
-  //Write to Range Register 2 to Select the range for input channels
-  SPI.transfer(0b11011111);
-  SPI.transfer(0b11100000); //Write to ADC Device
-  digitalWrite(CSanalogPin, HIGH);
-  delay(1);
-
-  digitalWrite(CSanalogPin, LOW);
-  delay(2);
-  //Write to Seq. Register
-  SPI.transfer(0b11111111);
-  SPI.transfer(0b11100000);
-  //SPI1.transfer(0xFFFF);
-  digitalWrite(CSanalogPin, HIGH);
-  delay(1);
-
-  digitalWrite(CSanalogPin, LOW);
-  delay(2);
-  //Write to control register to select the final channel in the seq. Set Seq1 =1  and Seq2=0
-  //Write  RegSel1 RegSel2 ADD2 ADD1 ADD0 Mode1 Mode0 PM1 PM0 Coding Ref Seq1 Seq2 Zero Zero
-  SPI.transfer(0b10011100);
-  SPI.transfer(0b00111000);
-  digitalWrite(CSanalogPin, HIGH);
-  delay(1);
-
+  setupADC();
   
   Serial.println(F("Initializing the Analog Out Converter."));
   initializeDACs(Vout2address);
@@ -1515,6 +1554,7 @@ void loop() {
     else if (commandChars == "DB" || commandChars == "db") displayBaud();
     else if (commandChars == "CN" || commandChars == "cn") startStopCAN();
     else if (commandChars == "DJ" || commandChars == "dj") displayJ1939 = !displayJ1939;
+    else if (commandChars == "V"  || commandChars ==  "v") displayVoltage();
    
     
     else Serial.println(F("Unrecognized Command Characters. Use a comma after the command.\nKnown commands are CN, B0, B1, DS, VI, SW, PN, PD, PB, PF, LI, LS, CI, CS, AF, AO, SA, SC, SS, or SM."));

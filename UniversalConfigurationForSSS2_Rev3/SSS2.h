@@ -121,6 +121,12 @@ void setPinModes(){
     pinMode(IL2Pin, OUTPUT);
     pinMode(ignitionCtlPin, OUTPUT);
     
+    digitalWrite(CSCANPin, HIGH);
+    digitalWrite(CSdispPin, HIGH);
+    digitalWrite(CStouchPin, HIGH);
+    digitalWrite(CStermPin, HIGH);
+    
+    
 }
 
 /**********************************************************************/
