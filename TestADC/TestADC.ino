@@ -57,40 +57,45 @@ void setup() {
   SPI.begin();
   while(!Serial);
   
-  SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+  SPI.beginTransaction(SPISettings(3000000, MSBFIRST, SPI_MODE0));
   digitalWrite(CSanalogPin, LOW);
+  delay(1);
   //Write to Range Register 1 to Select the range for input channels
-  out1 = SPI.transfer(0b10111111);
-  out2 = SPI.transfer(0b11100000); //Write to ADC Device
+  out1 = SPI.transfer(0xA0);
+  out2 = SPI.transfer(0x00); //Write to ADC Device
   digitalWrite(CSanalogPin, HIGH);
   Serial.println(out2 | (out1 << 8),HEX);
   delay(1);
 
   digitalWrite(CSanalogPin, LOW);
   //Write to Range Register 2 to Select the range for input channels
-  out1 = SPI.transfer(0b11011111);
-  out2 = SPI.transfer(0b11100000); //Write to ADC Device
+  out1 = SPI.transfer(0xC0);
+  out2 = SPI.transfer(0x00); //Write to ADC Device
   digitalWrite(CSanalogPin, HIGH);
   Serial.println(out2 | (out1 << 8),HEX);
   delay(1);
 
   digitalWrite(CSanalogPin, LOW);
+  delay(1);
+  
   //Write to Seq. Register. This register selects the channels for conversion. We want them all.
   //Bit 16 (MSB) = 1 (Write)
   //Bits 15,14 = 11 (Sequence Register)
   //Bits 13-6 = 11111111 (Set all to on)
   //Bits 5-1 = 0 (Not used according to the data sheet)
-  out1 = SPI.transfer(0b11111111);
-  out2 = SPI.transfer(0b11100000);
+  out1 = SPI.transfer(0xFF);
+  out2 = SPI.transfer(0xE0);
   digitalWrite(CSanalogPin, HIGH);
   Serial.println(out2 | (out1 << 8),HEX);
   delay(1);
 
   digitalWrite(CSanalogPin, LOW);
+  delay(1);
+  
   //Write to control register to select the final channel in the seq. Set Seq1 =1  and Seq2=0
   //Write  RegSel1 RegSel2 ADD2 ADD1 ADD0 Mode1 Mode0 PM1 PM0 Coding Ref Seq1 Seq2 Zero Zero
   out1 = SPI.transfer(0b10011100);
-  out2 = SPI.transfer(0b00101000);
+  out2 = SPI.transfer(0b00001000);
   digitalWrite(CSanalogPin, HIGH);
   Serial.println(out2 | (out1 << 8),HEX);
   delay(1);
@@ -100,14 +105,15 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  SPI.beginTransaction(SPISettings(1000000,MSBFIRST, SPI_MODE0));
+  SPI.beginTransaction(SPISettings(10000000,MSBFIRST, SPI_MODE3));
   for (int i = 0; i<8;i++){
-    uint8_t controlHighTemplate = 0b10000000;
-    uint8_t controlLowTemplate =  0b00000000;
+    uint8_t controlHighTemplate = 0x00;
+    uint8_t controlLowTemplate =  0x34;
     
     digitalWrite(CSanalogPin,LOW);
     delay(1);
     uint8_t spiHighByte =  SPI.transfer(controlHighTemplate | (i<<2));
+    delay(1);
     uint8_t spiLowByte =  SPI.transfer(controlLowTemplate);
     int data = spiLowByte | (spiHighByte << 8);
     Serial.print(controlHighTemplate | (i<<2),BIN);

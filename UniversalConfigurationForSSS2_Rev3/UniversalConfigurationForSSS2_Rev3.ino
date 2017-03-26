@@ -21,6 +21,7 @@ byte sourceAddress = 0xFA;
 #include <EEPROM.h>
 #include <FlexCAN.h>
 #include "SSS2.h"
+#include <TimeLib.h>
 
 
 
@@ -64,6 +65,7 @@ elapsedMillis CAN0RXtimer;
 elapsedMillis CAN1RXtimer;
 elapsedMillis transportTimer;
 
+elapsedMicros microsecondsPerSecond;
 
 /********************************************************************************************/
 /*                         Begin Function Calls for Knob Buttons                            */
@@ -104,8 +106,8 @@ void longPressStop() {}
 static CAN_message_t txmsg;
 
 //set up a counter for each received message
-uint32_t RXCAN0count = 0;
-uint32_t RXCAN1count = 0;
+uint32_t RXCount0 = 0;
+uint32_t RXCount1 = 0;
 
 int CANWaitTimeout = 20;
 uint32_t BAUDRATE0 = 250000;
@@ -227,6 +229,9 @@ unsigned long serialSend4Micros;
 boolean ADJUST_MODE_ON  = 0;
 boolean SAFE_TO_ADJUST = 0;
 boolean displayCAN = 0;
+boolean displayCAN0 = 0;
+boolean displayCAN1 = 0;
+boolean displayCAN2 = 0;
 boolean CAN0baudNotDetected = true;
 boolean CAN1baudNotDetected = true;
 boolean TXCAN = true;
@@ -311,32 +316,27 @@ void turnOffAdjustMode() {
 }
 
 void fastSetSetting(){
-  
   int returnval;
-    currentSetting = commandChars.toInt();
-    if (currentSetting > 0 && currentSetting < numSettings){
-      setLimits(currentSetting);
-      if (commandString.length() > 1){ 
-        long settingValue = constrain(commandString.toInt(), knobLowLimit, knobHighLimit);
-        returnval = setSetting(currentSetting, settingValue,DEBUG_OFF);
-      }
-      else{
-        returnval = setSetting(currentSetting, -1, DEBUG_OFF);
-      }
-      Serial.print(currentSetting);
-      Serial.print(",");
-      Serial.println(returnval);  
+  currentSetting = commandChars.toInt();
+  if (currentSetting > 0 && currentSetting < numSettings){
+    setLimits(currentSetting);
+    if (commandString.length() > 1){ 
+      long settingValue = constrain(commandString.toInt(), knobLowLimit, knobHighLimit);
+      returnval = setSetting(currentSetting, settingValue,DEBUG_OFF);
     }
-    else Serial.println("-1");
+    else{
+      returnval = setSetting(currentSetting, -1, DEBUG_OFF);
+    }
+    Serial.print(currentSetting);
+    Serial.print(",");
+    Serial.println(returnval);  
+  }
+  else Serial.println("-1");
   
 }
 
 void changeSetting() {
   Serial.println(F("CS - Change or Select Setting."));
-  //Serial.print(currentSetting);
-  //Serial.print(" - ");
-  //Serial.print(settingNames[currentSetting]);
-  //Serial.print(" to ");
   if (commandString.length() > 0) {
     currentSetting = constrain(commandString.toInt(), 0, numSettings);
     
@@ -364,7 +364,6 @@ void changeValue(){
   if (ADJUST_MODE_ON && currentSetting != 0) {
     Serial.println(F("SS - Set Setting."));
     int adjustmentValue = constrain(commandString.toInt(), knobLowLimit, knobHighLimit);
-    
     currentKnob = setSetting(currentSetting, adjustmentValue,DEBUG_ON);
     knob.write(currentKnob);
   }
@@ -382,75 +381,10 @@ void saveEEPROM(){
 
 void displayVoltage(){
   float reading = analogRead(A21);
-  
   Serial.println((reading*reading*.008003873 + 8.894535*reading)*.001);
-  
-//  SPI.beginTransaction(SPISettings(1000000,MSBFIRST, SPI_MODE3));
-//  for (int i = 0; i<8;i++){
-//    uint8_t controlHighTemplate = 0b10000000;
-//    uint8_t controlLowTemplate =  0b00000000;
-//    
-//    digitalWrite(CSanalogPin,LOW);
-//    delay(1);
-//    uint8_t spiHighByte =  SPI.transfer(controlHighTemplate | (i<<2));
-//    uint8_t spiLowByte =  SPI.transfer(controlLowTemplate);
-//    int data = spiLowByte | (spiHighByte << 8);
-//    Serial.print(data,HEX);
-//    Serial.print(",");  
-//    digitalWrite(CSanalogPin,HIGH);
-//    delay(1);
-//  }
-//  
-//  SPI.endTransaction();
-//  Serial.println();
 }
 
-void setupADC(){
-  SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE3));
-  digitalWrite(CSanalogPin, LOW);
-  //Write to Range Register 1 to Select the range for input channels
-  uint8_t out = SPI.transfer(0b10111111);
-  Serial.println(out,HEX);
-  out = SPI.transfer(0b11100000); //Write to ADC Device
-  Serial.println(out,HEX);
-  digitalWrite(CSanalogPin, HIGH);
-  delay(1);
 
-  digitalWrite(CSanalogPin, LOW);
-  //Write to Range Register 2 to Select the range for input channels
-  out = SPI.transfer(0b11011111);
-  //Serial.println(out,HEX);
-  out = SPI.transfer(0b11100000); //Write to ADC Device
-  //Serial.println(out,HEX);
-  digitalWrite(CSanalogPin, HIGH);
-  delay(1);
-
-  digitalWrite(CSanalogPin, LOW);
-  //Write to Seq. Register. This register selects the channels for conversion. We want them all.
-  //Bit 16 (MSB) = 1 (Write)
-  //Bits 15,14 = 11 (Sequence Register)
-  //Bits 13-6 = 11111111 (Set all to on)
-  //Bits 5-1 = 0 (Not used according to the data sheet)
-  out = SPI.transfer(0b11111111);
-  //Serial.println(out,HEX);
-  out = SPI.transfer(0b11100000);
-  //Serial.println(out,HEX);
-  //SPI1.transfer(0xFFFF);
-  digitalWrite(CSanalogPin, HIGH);
-  delay(1);
-
-  //digitalWrite(CSanalogPin, LOW);
-  //delay(2);
-  //Write to control register to select the final channel in the seq. Set Seq1 =1  and Seq2=0
-  //Write  RegSel1 RegSel2 ADD2 ADD1 ADD0 Mode1 Mode0 PM1 PM0 Coding Ref Seq1 Seq2 Zero Zero
-  //out = SPI.transfer(0b10011100);
-  //Serial.println(out,HEX);
-  //out = SPI.transfer(0b00100000);
-  //Serial.println(out,HEX);
-  //digitalWrite(CSanalogPin, HIGH);
-  //delay(1);
-  SPI.endTransaction();
-}
 /*                End Function Calls for Serial and Knob Commands                           */
 /********************************************************************************************/
 
@@ -599,6 +533,22 @@ void displayBaud(){
   Serial.print("CAN1 ");
   Serial.println(BAUDRATE1);  
 }
+
+void startStopCAN0Streaming(){
+  if (commandString.toInt() > 0) displayCAN0 = true;
+  else  displayCAN0 = false;
+}
+
+void startStopCAN1Streaming(){
+  if (commandString.toInt() > 0) displayCAN1 = true;
+  else  displayCAN1 = false;
+}
+
+void startStopCAN2Streaming(){
+  if (commandString.toInt() > 0) displayCAN2 = true;
+  else  displayCAN1 = false;
+}
+
 
 void startStopCAN(){
   int signalNumber = 0;
@@ -853,7 +803,7 @@ void sendMessage(){
     }
     
     else
-      Serial.println(F("0: Invalid input data for SM. Input should be using hex characters with no spaces in the form SM,channel,ID,data."));
+      Serial.println(F("0: Invalid input data for SM. Input should be using hex characters with no spaces in the form SM,channel,ID,data/n"));
   }
   else
   {
@@ -986,73 +936,86 @@ void sendJ1939(uint8_t channel, uint8_t priority, uint32_t pgn, uint8_t DA, uint
 }
 
 
-void printFrame(CAN_message_t &rxmsg, int mailbox)
+//A generic CAN Frame print function for the Serial terminal
+void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCount)
 {
-  uint32_t ID = rxmsg.id;
-  uint8_t len = rxmsg.len;
-  sprintf(displayBuffer," %10d %08X %1d",micros(),ID,len);
-  Serial.print(displayBuffer);
-  for (uint8_t i = 0; i<len;i++){
-    char byteDigits[4];
-    sprintf(byteDigits," %02X",rxmsg.buf[i]);
-    Serial.print(byteDigits);
-  }
-  Serial.println();
+  time_t timeStamp = now();
+  char CANdata[28];
+  CANdata[0]='C';
+  CANdata[1]=((rxmsg.id & 0xFF000000)>>24) | (channel & 3)<<6 | rxmsg.ext <<5;
+  CANdata[2]=(rxmsg.id & 0x00FF0000)>>16;
+  CANdata[3]=(rxmsg.id & 0x0000FF00)>>8;
+  CANdata[4]=(rxmsg.id & 0x000000FF);
+  CANdata[5]=rxmsg.len;
+  CANdata[6]=rxmsg.buf[0];
+  CANdata[7]=rxmsg.buf[1];
+  CANdata[8]=rxmsg.buf[2];
+  CANdata[9]=rxmsg.buf[3];
+  CANdata[10]=rxmsg.buf[4];
+  CANdata[11]=rxmsg.buf[5];
+  CANdata[12]=rxmsg.buf[6];
+  CANdata[13]=rxmsg.buf[7];
+  CANdata[14]=(0xFF000000 & timeStamp) >> 24;
+  CANdata[15]=(0x00FF0000 & timeStamp) >> 16;
+  CANdata[16]=(0x0000FF00 & timeStamp) >>  8;
+  CANdata[17]=(0x000000FF & timeStamp);
+  CANdata[18]=(0xFF000000 & uint32_t(microsecondsPerSecond)) >> 24;
+  CANdata[19]=(0x00FF0000 & uint32_t(microsecondsPerSecond)) >> 16;
+  CANdata[20]=(0x0000FF00 & uint32_t(microsecondsPerSecond)) >>  8;
+  CANdata[21]=(0x000000FF & uint32_t(microsecondsPerSecond));
+  CANdata[22]=(0xFF000000 & RXCount) >> 24;
+  CANdata[23]=(0x00FF0000 & RXCount) >> 16;
+  CANdata[24]=(0x0000FF00 & RXCount) >>  8;
+  CANdata[25]=(0x000000FF & RXCount);
+  CANdata[26]='\n';
+  CANdata[27]='\r';
+  Serial.write(CANdata,28);
 }
 
-
-class CAN1Class : public CANListener 
+class CANClass : public CANListener
 {
-public:
-   void gotFrame(CAN_message_t &frame, int mailbox); //overrides the parent version so we can actually do something
+  public:
+    bool frameHandler(CAN_message_t &frame, int mailbox, uint8_t controller); //overrides the parent version so we can actually do something
 };
 
-void CAN1Class::gotFrame(CAN_message_t &frame, int mailbox)
-{ 
-   RXCAN1count++;
-   CAN1baudNotDetected = false;
-   if (RXCAN1orJ1708timer >=90){
-     RXCAN1orJ1708timer = 0;
-     if (ignitionCtlState) greenLEDstate = !greenLEDstate;
-     else greenLEDstate = false;
-     digitalWrite(greenLEDpin, greenLEDstate); 
-   }
-   if (displayCAN){
-     Serial.print("CAN1");
-     printFrame(frame, mailbox);
-   }
-}
-CAN1Class CAN1Class;
-
-class CAN0Class : public CANListener 
+bool CANClass::frameHandler(CAN_message_t &frame, int mailbox, uint8_t channel)
 {
-public:
-   void gotFrame(CAN_message_t &frame, int mailbox); //overrides the parent version so we can actually do something
-};
-
-void CAN0Class::gotFrame(CAN_message_t &frame, int mailbox)
-{  
-   RXCAN0count++;
-   CAN0baudNotDetected = false;
-   if (RXCAN0timer >=90){
-    RXCAN0timer = 0;
+  if (channel == 0) {
+    RXCount0++;
+    if (displayCAN0) printFrame(frame, mailbox, channel, RXCount0);
     redLEDstate = !redLEDstate;
-    digitalWrite(redLEDpin, redLEDstate);  
-   }
-   if (displayCAN){
-     Serial.print("CAN0");
-     printFrame(frame, mailbox);
-   }
-   parseJ1939(frame);
-     
+    digitalWrite(redLEDpin, redLEDstate);
+  }
+  else {
+    RXCount1++;
+    if (displayCAN1) printFrame(frame, mailbox, channel, RXCount1);
+    if (ignitionCtlState){
+      greenLEDstate = !greenLEDstate;
+      digitalWrite(greenLEDpin, greenLEDstate);
+    }
+    
+  }
+
+
+  return true;
 }
-CAN0Class CAN0Class;
+
+//For this example, both CAN channels will use the same listener class
+CANClass myCANClassInstance;
+
+time_t getTeensy3Time(){
+  microsecondsPerSecond = 0;
+  return Teensy3Clock.get();
+}
 
 
   
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(4000000);
   Serial1.begin(19200);
+  
+  setSyncProvider(getTeensy3Time);
+  setSyncInterval(1);
   
   setPinModes();
 
@@ -1109,10 +1072,6 @@ void setup() {
   button.setPressTicks(2000);
   button.setClickTicks(250);
 
-  
-  Serial.println(F("Setting Up Analog Input Device."));
-  setupADC();
-  
   Serial.println(F("Initializing the Analog Out Converter."));
   initializeDACs(Vout2address);
 
@@ -1127,8 +1086,8 @@ void setup() {
   
 
   Serial.print(F("Starting CAN..."));
-  Can0.attachObj(&CAN0Class);
-  Can1.attachObj(&CAN1Class);
+  Can0.attachObj(&myCANClassInstance);
+  Can1.attachObj(&myCANClassInstance);
   
   Serial.println("Done.");
   
@@ -1158,8 +1117,8 @@ void setup() {
 //  }
   Serial.print(F("Done.\nAttaching General Handlers..."));
   
-  CAN0Class.attachGeneralHandler();
-  CAN1Class.attachGeneralHandler();
+  myCANClassInstance.attachGeneralHandler();
+  
   Serial.println("Done.");
   
   txmsg.ext = 1;
@@ -1532,29 +1491,32 @@ void loop() {
    // else commandExtension = "-1";
     //Serial.println(F("Please put a comma after the two command characters."));
     if      (commandChars.toInt() > 0) fastSetSetting();  
-    else if (commandChars == "SM" || commandChars == "sm") sendMessage();
-    else if (commandChars == "SS" || commandChars == "ss") changeValue();
-    else if (commandChars == "SC" || commandChars == "sc") Serial.println(F("SC - Not implemented yet."));
-    else if (commandChars == "SA" || commandChars == "sa") saveEEPROM();
-    else if (commandChars == "AO" || commandChars == "ao") turnOnAdjustMode();
-    else if (commandChars == "AF" || commandChars == "af") turnOffAdjustMode();
-    else if (commandChars == "CS" || commandChars == "cs") changeSetting(); //Select setting to change
-    else if (commandChars == "CI" || commandChars == "ci") changeComponentID();
-    else if (commandChars == "LS" || commandChars == "ls") listSettings();
-    else if (commandChars == "LI" || commandChars == "li") listInfo();
-    else if (commandChars == "PF" || commandChars == "pf") setProgrammedFor();
-    else if (commandChars == "PB" || commandChars == "pb") setProgrammedBy();
-    else if (commandChars == "PD" || commandChars == "pd") setProgramDate();
-    else if (commandChars == "PN" || commandChars == "pn") setProgramNotes();
-    else if (commandChars == "SW" || commandChars == "sw") getSoftwareVersion();
-    else if (commandChars == "VI" || commandChars == "vi") setVIN();
-    else if (commandChars == "DS" || commandChars == "ds") setDisplayCAN();
-    else if (commandChars == "B0" || commandChars == "b0") autoBaud0();
-    else if (commandChars == "B1" || commandChars == "b1") autoBaud1();
-    else if (commandChars == "DB" || commandChars == "db") displayBaud();
-    else if (commandChars == "CN" || commandChars == "cn") startStopCAN();
-    else if (commandChars == "DJ" || commandChars == "dj") displayJ1939 = !displayJ1939;
-    else if (commandChars == "V"  || commandChars ==  "v") displayVoltage();
+    else if (commandChars.startsWith("SM") || commandChars.startsWith("sm")) sendMessage();
+    else if (commandChars.startsWith("SS") || commandChars.startsWith("ss")) changeValue();
+    else if (commandChars.startsWith("SC") || commandChars.startsWith("sc")) Serial.println(F("SC - Not implemented yet."));
+    else if (commandChars.startsWith("SA") || commandChars.startsWith("sa")) saveEEPROM();
+    else if (commandChars.startsWith("AO") || commandChars.startsWith("ao")) turnOnAdjustMode();
+    else if (commandChars.startsWith("AF") || commandChars.startsWith("af")) turnOffAdjustMode();
+    else if (commandChars.startsWith("CS") || commandChars.startsWith("cs")) changeSetting(); //Select setting to change
+    else if (commandChars.startsWith("CI") || commandChars.startsWith("ci")) changeComponentID();
+    else if (commandChars.startsWith("LS") || commandChars.startsWith("ls")) listSettings();
+    else if (commandChars.startsWith("LI") || commandChars.startsWith("li")) listInfo();
+    else if (commandChars.startsWith("PF") || commandChars.startsWith("pf")) setProgrammedFor();
+    else if (commandChars.startsWith("PB") || commandChars.startsWith("pb")) setProgrammedBy();
+    else if (commandChars.startsWith("PD") || commandChars.startsWith("pd")) setProgramDate();
+    else if (commandChars.startsWith("PN") || commandChars.startsWith("pn")) setProgramNotes();
+    else if (commandChars.startsWith("SW") || commandChars.startsWith("sw")) getSoftwareVersion();
+    else if (commandChars.startsWith("VI") || commandChars.startsWith("vi")) setVIN();
+    else if (commandChars.startsWith("DS") || commandChars.startsWith("ds")) setDisplayCAN();
+    else if (commandChars.startsWith("B0") || commandChars.startsWith("b0")) autoBaud0();
+    else if (commandChars.startsWith("B1") || commandChars.startsWith("b1")) autoBaud1();
+    else if (commandChars.startsWith("DB") || commandChars.startsWith("db")) displayBaud();
+    else if (commandChars.startsWith("CN") || commandChars.startsWith("cn")) startStopCAN();
+    else if (commandChars.startsWith("C0") || commandChars.startsWith("c0")) startStopCAN0Streaming();
+    else if (commandChars.startsWith("C1") || commandChars.startsWith("c1")) startStopCAN1Streaming();
+    else if (commandChars.startsWith("C2") || commandChars.startsWith("c2")) startStopCAN2Streaming();
+    else if (commandChars.startsWith("DJ") || commandChars.startsWith("dj")) displayJ1939 = !displayJ1939;
+    else if (commandChars.startsWith("AI") || commandChars.startsWith("ai")) displayVoltage();
    
     
     else Serial.println(F("Unrecognized Command Characters. Use a comma after the command.\nKnown commands are CN, B0, B1, DS, VI, SW, PN, PD, PB, PF, LI, LS, CI, CS, AF, AO, SA, SC, SS, or SM."));
