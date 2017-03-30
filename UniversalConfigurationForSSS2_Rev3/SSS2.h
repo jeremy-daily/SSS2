@@ -120,7 +120,8 @@ void setPinModes(){
     pinMode(IL1Pin, OUTPUT);
     pinMode(IL2Pin, OUTPUT);
     pinMode(ignitionCtlPin, OUTPUT);
-    
+    pinMode(A21,INPUT);
+     
     digitalWrite(CSCANPin, HIGH);
     digitalWrite(CSdispPin, HIGH);
     digitalWrite(CStouchPin, HIGH);
@@ -269,7 +270,7 @@ uint16_t setConfigSwitches() {
   //Set the termination Switches of U21 on Rev 3 based on the boolean values of the variables representing the GPIO pins of U21
 
   uint16_t configSwitchSettings =  
-              LIN1Switch | LIN2Switch  << 1 | P10or19Switch << 2 |  P15or18Switch << 3 | U1though8Enable << 4 | U9though16Enable << 5 |
+              LIN1Switch | LIN2Switch  << 1 | P10or19Switch << 2 |  P15or18Switch << 3 | !U1though8Enable << 4 | !U9though16Enable << 5 |
               CAN1Switch << 6 | CAN2Switch << 7 | U1U2P0ASwitch << 8 |  U3U4P0ASwitch  << 9 |  U5U6P0ASwitch  << 10 | U7U8P0ASwitch << 11 |
               U9U10P0ASwitch << 12 | U11U12P0ASwitch << 13 | U13U14P0ASwitch << 14 | U15U16P0ASwitch << 15;
   ConfigExpander.writeGPIOAB(configSwitchSettings);
@@ -903,11 +904,10 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }  
   else if (settingNum == 45)  {
     if (settingValue > -1) HS1state = boolean(settingValue);
-    if (HS1state){
-      PWM3Out = false;
-      setTerminationSwitches();
-    }
-    else
+    if (HS1state) PWM3Out = false;
+    else PWM3Out = true;
+    
+    setTerminationSwitches();
     digitalWrite(IH1Pin,HS1state);
     if (debugDisplay) {
         connectionString(HS1state);

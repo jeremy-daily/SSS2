@@ -13,7 +13,7 @@
 
 //softwareVersion
 char softwareVersion[200] = "SSS2*Rev3*0.4*bb1672fcd2fb80092faaea9b7877db6d12e86da2"; //Hash of the previous git commit
-char componentID[200] = "SYNER*SSS2-R03*0007*UNIVERSAL"; //Add the serial number for hard coded values.
+char componentID[200] = "SYNER*SSS2-R03*0017*UNIVERSAL"; //Add the serial number for hard coded values.
 
 byte sourceAddress = 0xFA; 
 
@@ -235,6 +235,7 @@ boolean displayCAN2 = 0;
 boolean CAN0baudNotDetected = true;
 boolean CAN1baudNotDetected = true;
 boolean TXCAN = true;
+boolean enableSendComponentInfo = true;
 
 boolean send08FF0001 = true;
 boolean send08FF0003 = true;
@@ -284,7 +285,7 @@ uint16_t currentSetting = 0;
 
 
 void  adjustError() {
-  Serial.println(F("SS - Condition not met. Turn adjust mode on by typing AO, then select a setting with CS"));
+  Serial.println(F("INFO SS - Condition not met. Turn adjust mode on by typing AO, then select a setting with CS"));
 }
 
 
@@ -297,8 +298,8 @@ void  adjustError() {
 
 void turnOnAdjustMode() {
   ADJUST_MODE_ON = 1;
-  Serial.println(F("AO - Turned Adjustment mode on. Type AF or click to turn off. Type SS,XXXX  or scroll knob and click to set settings."));
-  Serial.print(F("Current Setting for Adjustement is "));
+  Serial.println(F("INFO AO - Turned Adjustment mode on. Type AF or click to turn off. Type SS,XXXX  or scroll knob and click to set settings."));
+  Serial.print(F("INFO Current Setting for Adjustement is "));
   Serial.print(currentSetting);
   Serial.print(" - ");
   Serial.println(settingNames[currentSetting]);
@@ -309,7 +310,7 @@ void turnOnAdjustMode() {
 
 void turnOffAdjustMode() {
   ADJUST_MODE_ON = 0;
-  Serial.println(F("AF - Turned Setting Adjustment mode off. Type AO to turn on. Scroll knob to select a setting."));
+  Serial.println(F("INFO AF - Turned Setting Adjustment mode off. Type AO to turn on. Scroll knob to select a setting."));
   knob.write(currentSetting);
   knobLowLimit = 1;
   knobHighLimit = numSettings - 1;
@@ -320,23 +321,24 @@ void fastSetSetting(){
   currentSetting = commandChars.toInt();
   if (currentSetting > 0 && currentSetting < numSettings){
     setLimits(currentSetting);
-    if (commandString.length() > 1){ 
+    if (commandString.length() > 0){ 
       long settingValue = constrain(commandString.toInt(), knobLowLimit, knobHighLimit);
       returnval = setSetting(currentSetting, settingValue,DEBUG_OFF);
     }
     else{
       returnval = setSetting(currentSetting, -1, DEBUG_OFF);
     }
+    Serial.print("SET ");
     Serial.print(currentSetting);
     Serial.print(",");
     Serial.println(returnval);  
   }
-  else Serial.println("-1");
+  else Serial.println(F("ERROR in setting value."));
   
 }
 
 void changeSetting() {
-  Serial.println(F("CS - Change or Select Setting."));
+  Serial.println(F("INFO CS - Change or Select Setting."));
   if (commandString.length() > 0) {
     currentSetting = constrain(commandString.toInt(), 0, numSettings);
     
@@ -347,7 +349,10 @@ void changeSetting() {
     knob.write(setSetting(currentSetting,-1,DEBUG_OFF));
   }
   else{
-    if (knob.read() == currentSetting) setSetting(currentSetting,-1,DEBUG_ON);
+    if (knob.read() == currentSetting){
+      Serial.print("INFO ");
+      setSetting(currentSetting,-1,DEBUG_ON);
+    }
     else knob.write(currentSetting); //automatic listSetting if knob changes
     knobLowLimit = 1;
     knobHighLimit = numSettings - 1;
@@ -355,14 +360,17 @@ void changeSetting() {
 }
 
 void listSettings(){
-  Serial.println(F("LS - List Settings. "));
-  for (int i = 1; i < numSettings; i++) setSetting(i,-1,DEBUG_ON);
+  Serial.println(F("INFO LS - List Settings. "));
+  for (int i = 1; i < numSettings; i++) {
+    Serial.print("INFO ");
+    setSetting(i,-1,DEBUG_ON);
+  }
 }
 
 void changeValue(){
   //Set value from Serial commands
   if (ADJUST_MODE_ON && currentSetting != 0) {
-    Serial.println(F("SS - Set Setting."));
+    Serial.println(F("INFO SS - Set Setting."));
     int adjustmentValue = constrain(commandString.toInt(), knobLowLimit, knobHighLimit);
     currentKnob = setSetting(currentSetting, adjustmentValue,DEBUG_ON);
     knob.write(currentKnob);
@@ -375,12 +383,13 @@ void changeValue(){
 
 void saveEEPROM(){
   //Save settings to EEPROM
-  Serial.println(F("SA - Saving Settings to EEPROM."));
+  Serial.println(F("INFO SA - Saving Settings to EEPROM."));
   setDefaultEEPROMdata();
 }
 
 void displayVoltage(){
   float reading = analogRead(A21);
+  Serial.print("A21 ");
   Serial.println((reading*reading*.008003873 + 8.894535*reading)*.001);
 }
 
@@ -404,65 +413,65 @@ void displayVoltage(){
 
 
 void listInfo() {
-  Serial.print("Component ID (Make*Model*Serial*Unit): ");
+  Serial.print("INFO Component ID (Make*Model*Serial*Unit): ");
   Serial.println(componentID);
-  Serial.print("Programmed for: ");
+  Serial.print("INFO Programmed for: ");
   Serial.println(programmedFor);
-  Serial.print("Programmed by: ");
+  Serial.print("INFO Programmed by: ");
   Serial.println(programmedBy);
-  Serial.print("Program Date: ");
+  Serial.print("INFO Program Date: ");
   Serial.println(programDate);
-  Serial.print("Software Version: ");
+  Serial.print("INFO Software Version: ");
   Serial.println(softwareVersion);
-  Serial.print("Program Notes: ");
+  Serial.print("INFO Program Notes: ");
   Serial.println(programNotes);
   
 }
 
 void setProgrammedFor() {
   if (commandString.length() > 0) commandString.toCharArray(programmedFor,200);
-  Serial.print("PF - SSS unit is programmed for: ");
+  Serial.print("SET PF - SSS unit is programmed for: ");
   Serial.println(programmedFor);
 }
 
 void setProgrammedBy() {
   if (commandString.length() > 0) commandString.toCharArray(programmedBy,200);
-  Serial.print("PB - SSS unit was programmed by: ");
+  Serial.print("SET PB - SSS unit was programmed by: ");
   Serial.println(programmedBy);
 }
 
 void setProgramDate() {
   if (commandString.length() > 0) commandString.toCharArray(programDate,200);
-  Serial.print("PD - Date SSS unit was programmed: ");
+  Serial.print("SET PD - Date SSS unit was programmed: ");
   Serial.println(programDate);
 }
 
 void getSoftwareVersion() {
-  Serial.print("SW - Software/Firmware version: ");
+  Serial.print("INFO SW - Software/Firmware version: ");
   Serial.println(softwareVersion);
 }
 
 void changeComponentID() {
   if (commandString.length() > 5) commandString.toCharArray(componentID,200);
-  Serial.print(F("CI - Component Information (Make*Model*Serial*Unit): "));
+  Serial.print(F("SET CI - Component Information (Make*Model*Serial*Unit): "));
   Serial.println(componentID);
   if (commandString.length() <= 5 && commandString.length() > 0) Serial.println(F("Please make the component ID longer than 5 characters to change it."));
 }
 
 void setProgramNotes(){
   if (commandString.length() > 0) commandString.toCharArray(programNotes,1000);
-  Serial.println(F("PN - Programmer Notes: "));
+  Serial.println(F("SET PN - Programmer Notes: "));
   Serial.println(programNotes);
 }
 
 void setVIN(){
   if (commandString.length() > 0) commandString.toCharArray(vehicleIdentificationNum,20);
-  Serial.println(F("VI - Vehicle Identification Number (VIN): "));
+  Serial.println(F("SET VI - Vehicle Identification Number (VIN): "));
   Serial.println(vehicleIdentificationNum);
 }
 
 void setDisplayCAN(){
-  Serial.print(F("DS - Display CAN Messages "));
+  Serial.print(F("INFO DS - Display CAN Messages "));
   displayCAN = !displayCAN;
   if (displayCAN) Serial.println("on.");
   else Serial.println("off.");
@@ -474,7 +483,7 @@ void autoBaud0(){
   if (commandString.length() > 0){
     commandString.toCharArray(baudstring,9);
     BAUDRATE0 = strtoul(baudstring,0,10);
-    Serial.print("CAN0 set to ");
+    Serial.print("SET CAN0 baudrate set to ");
     Serial.println(BAUDRATE0);
     for (uint8_t baudRateIndex = 0; baudRateIndex<sizeof(baudRateList); baudRateIndex++){
       if (BAUDRATE0 == baudRateList[baudRateIndex]){
@@ -494,17 +503,17 @@ void autoBaud0(){
   } 
   if (BAUDRATE0 == 0){
     CAN0baudNotDetected = true;
-    Serial.println("CAN0 set to automatically set baudrate.");
+    Serial.println("INFO CAN0 set to automatically set baudrate.");
   }
 }
 
 void autoBaud1(){
-  Serial.println(F("B1 - Set the baudrate for CAN 1 or select AutoBaud"));
+  Serial.println(F("INFO B1 - Set the baudrate for CAN 1 or select AutoBaud"));
   char baudstring[9];
   if (commandString.length() > 0){
     commandString.toCharArray(baudstring,9);
     BAUDRATE1 = strtoul(baudstring,0,10);
-    Serial.print("CAN1 set to ");
+    Serial.print("INFO CAN1 baudrate set to ");
     Serial.println(BAUDRATE1);
     for (uint8_t baudRateIndex = 0; baudRateIndex<sizeof(baudRateList); baudRateIndex++){
       if (BAUDRATE1 == baudRateList[baudRateIndex]){
@@ -523,14 +532,14 @@ void autoBaud1(){
   } 
   if (BAUDRATE1 == 0){
     CAN1baudNotDetected = true;
-    Serial.println(F("CAN1 set to automatically set baudrate."));
+    Serial.println(F("INFO CAN1 set to automatically set baudrate."));
   }
 }
 
 void displayBaud(){
-  Serial.print("CAN0 ");
+  Serial.print("SET CAN0 Baudrate");
   Serial.println(BAUDRATE0);
-  Serial.print("CAN1 ");
+  Serial.print("SET CAN1 Baudrate");
   Serial.println(BAUDRATE1);  
 }
 
@@ -549,11 +558,22 @@ void startStopCAN2Streaming(){
   else  displayCAN1 = false;
 }
 
+void setEnableComponentInfo(){
+  if (commandString.toInt() > 0){
+    enableSendComponentInfo = true;
+    Serial.print(F("SET Enable CAN transmission of Component ID"));
+  }
+  else{
+    enableSendComponentInfo = false;
+    Serial.print(F("SET Disable CAN transmission of Component ID"));  
+  }
+  
+}
 
 void startStopCAN(){
   int signalNumber = 0;
   char commandCharBuffer[4];
-  Serial.println(F("CN - CAN Transmission."));
+  Serial.println(F("INFO CN - CAN Transmission."));
   if (commandString.length() > 0) {
     commandString.toCharArray(commandCharBuffer,4);
     signalNumber = atoi(commandCharBuffer);
@@ -595,7 +615,7 @@ void startStopCAN(){
   
   else if (signalNumber == 254) {
     TXCAN = true;
-    Serial.println(F("CAN Transmission turned on for all messages."));
+    Serial.println(F("INFO CAN Transmission turned on for all messages."));
     send08FF0001 = true;
     send08FF0003 = true;
     send08FF0103 = true;
@@ -632,7 +652,7 @@ void startStopCAN(){
   }
   else if (signalNumber == 255) {
     TXCAN=false;
-    Serial.println(F("CAN Transmission turned off for all messages."));
+    Serial.println(F("INFO CAN Transmission turned off for all messages."));
     send08FF0001 = false;
     send08FF0003 = false;
     send08FF0103 = false;
@@ -679,38 +699,38 @@ void startStopCAN(){
 }
 
 void displayCANTXswitch (int signalNumber){
-  if      (signalNumber == 1)  {Serial.print(F(" 1: send08FF0001 = ")); Serial.println(send08FF0001);}
-  else if (signalNumber == 2)  {Serial.print(F(" 2: send08FF0003 = ")); Serial.println(send08FF0003);}
-  else if (signalNumber == 3)  {Serial.print(F(" 3: send08FF0103 = ")); Serial.println(send08FF0103);}
-  else if (signalNumber == 4)  {Serial.print(F(" 4: send08FF0203 = ")); Serial.println(send08FF0203);}
-  else if (signalNumber == 5)  {Serial.print(F(" 5: send08FF0303 = ")); Serial.println(send08FF0303);}
-  else if (signalNumber == 6)  {Serial.print(F(" 6: send08FF0603 = ")); Serial.println(send08FF0603);}
-  else if (signalNumber == 7)  {Serial.print(F(" 7: send08FF0703 = ")); Serial.println(send08FF0703);}
-  else if (signalNumber == 8)  {Serial.print(F(" 8: send0CFF0703 = ")); Serial.println(send0CFF0703);}
-  else if (signalNumber == 9)  {Serial.print(F(" 9: send0CFE6E0B = ")); Serial.println(send0CFE6E0B);}
-  else if (signalNumber == 10) {Serial.print(F("10: send10FF0903 = ")); Serial.println(send10FF0903);}
-  else if (signalNumber == 11) {Serial.print(F("11: send18F00131 = ")); Serial.println(send18F00131);}
-  else if (signalNumber == 12) {Serial.print(F("12: send18F0010B = ")); Serial.println(send18F0010B);}
-  else if (signalNumber == 13) {Serial.print(F("13: send18FEF117 = ")); Serial.println(send18FEF117);}
-  else if (signalNumber == 14) {Serial.print(F("14: send18FEF128 = ")); Serial.println(send18FEF128);}
-  else if (signalNumber == 15) {Serial.print(F("15: send18FEF121 = ")); Serial.println(send18FEF121);}
-  else if (signalNumber == 16) {Serial.print(F("16: send18FEF131 = ")); Serial.println(send18FEF131);}
-  else if (signalNumber == 17) {Serial.print(F("17: send18E00017 = ")); Serial.println(send18E00017);}
-  else if (signalNumber == 18) {Serial.print(F("18: send18E00019 = ")); Serial.println(send18E00019);}
-  else if (signalNumber == 19) {Serial.print(F("19: send18E00021 = ")); Serial.println(send18E00021);}
-  else if (signalNumber == 20) {Serial.print(F("20: send18E00028 = ")); Serial.println(send18E00028);}
-  else if (signalNumber == 21) {Serial.print(F("21: send18E00031 = ")); Serial.println(send18E00031);}
-  else if (signalNumber == 22) {Serial.print(F("22: send10ECFF3D = ")); Serial.println(send10ECFF3D);}
-  else if (signalNumber == 23) {Serial.print(F("23: send10ECFF01 = ")); Serial.println(send10ECFF01);}
-  else if (signalNumber == 24) {Serial.print(F("24: send18FEF803 = ")); Serial.println(send18FEF803);}
-  else if (signalNumber == 25) {Serial.print(F("25: send18FEF521 = ")); Serial.println(send18FEF521);}
-  else if (signalNumber == 26) {Serial.print(F("26: send18FEF017 = ")); Serial.println(send18FEF017);}
-  else if (signalNumber == 27) {Serial.print(F("27: send18FEF021 = ")); Serial.println(send18FEF021);}
-  else if (signalNumber == 28) {Serial.print(F("28: send18FEF028 = ")); Serial.println(send18FEF028);}
-  else if (signalNumber == 30) {Serial.print(F("30: send18DF00F9 = ")); Serial.println(send18DF00F9);}
-  else if (signalNumber == 31) {Serial.print(F("31: send18DFFFF9 = ")); Serial.println(send18DFFFF9);}
-  else if (signalNumber == 32) {Serial.print(F("33: send0CF00203 = ")); Serial.println(send0CF00203);}
-  else if (signalNumber == 33) {Serial.print(F("33: send18F00503 = ")); Serial.println(send18F00503);}
+  if      (signalNumber == 1)  {Serial.print(F("SET 1: send08FF0001 = ")); Serial.println(send08FF0001);}
+  else if (signalNumber == 2)  {Serial.print(F("SET 2: send08FF0003 = ")); Serial.println(send08FF0003);}
+  else if (signalNumber == 3)  {Serial.print(F("SET 3: send08FF0103 = ")); Serial.println(send08FF0103);}
+  else if (signalNumber == 4)  {Serial.print(F("SET 4: send08FF0203 = ")); Serial.println(send08FF0203);}
+  else if (signalNumber == 5)  {Serial.print(F("SET 5: send08FF0303 = ")); Serial.println(send08FF0303);}
+  else if (signalNumber == 6)  {Serial.print(F("SET 6: send08FF0603 = ")); Serial.println(send08FF0603);}
+  else if (signalNumber == 7)  {Serial.print(F("SET 7: send08FF0703 = ")); Serial.println(send08FF0703);}
+  else if (signalNumber == 8)  {Serial.print(F("SET 8: send0CFF0703 = ")); Serial.println(send0CFF0703);}
+  else if (signalNumber == 9)  {Serial.print(F("SET 9: send0CFE6E0B = ")); Serial.println(send0CFE6E0B);}
+  else if (signalNumber == 10) {Serial.print(F("SET 10: send10FF0903 = ")); Serial.println(send10FF0903);}
+  else if (signalNumber == 11) {Serial.print(F("SET 11: send18F00131 = ")); Serial.println(send18F00131);}
+  else if (signalNumber == 12) {Serial.print(F("SET 12: send18F0010B = ")); Serial.println(send18F0010B);}
+  else if (signalNumber == 13) {Serial.print(F("SET 13: send18FEF117 = ")); Serial.println(send18FEF117);}
+  else if (signalNumber == 14) {Serial.print(F("SET 14: send18FEF128 = ")); Serial.println(send18FEF128);}
+  else if (signalNumber == 15) {Serial.print(F("SET 15: send18FEF121 = ")); Serial.println(send18FEF121);}
+  else if (signalNumber == 16) {Serial.print(F("SET 16: send18FEF131 = ")); Serial.println(send18FEF131);}
+  else if (signalNumber == 17) {Serial.print(F("SET 17: send18E00017 = ")); Serial.println(send18E00017);}
+  else if (signalNumber == 18) {Serial.print(F("SET 18: send18E00019 = ")); Serial.println(send18E00019);}
+  else if (signalNumber == 19) {Serial.print(F("SET 19: send18E00021 = ")); Serial.println(send18E00021);}
+  else if (signalNumber == 20) {Serial.print(F("SET 20: send18E00028 = ")); Serial.println(send18E00028);}
+  else if (signalNumber == 21) {Serial.print(F("SET 21: send18E00031 = ")); Serial.println(send18E00031);}
+  else if (signalNumber == 22) {Serial.print(F("SET 22: send10ECFF3D = ")); Serial.println(send10ECFF3D);}
+  else if (signalNumber == 23) {Serial.print(F("SET 23: send10ECFF01 = ")); Serial.println(send10ECFF01);}
+  else if (signalNumber == 24) {Serial.print(F("SET 24: send18FEF803 = ")); Serial.println(send18FEF803);}
+  else if (signalNumber == 25) {Serial.print(F("SET 25: send18FEF521 = ")); Serial.println(send18FEF521);}
+  else if (signalNumber == 26) {Serial.print(F("SET 26: send18FEF017 = ")); Serial.println(send18FEF017);}
+  else if (signalNumber == 27) {Serial.print(F("SET 27: send18FEF021 = ")); Serial.println(send18FEF021);}
+  else if (signalNumber == 28) {Serial.print(F("SET 28: send18FEF028 = ")); Serial.println(send18FEF028);}
+  else if (signalNumber == 30) {Serial.print(F("SET 30: send18DF00F9 = ")); Serial.println(send18DF00F9);}
+  else if (signalNumber == 31) {Serial.print(F("SET 31: send18DFFFF9 = ")); Serial.println(send18DFFFF9);}
+  else if (signalNumber == 32) {Serial.print(F("SET 32: send0CF00203 = ")); Serial.println(send0CF00203);}
+  else if (signalNumber == 33) {Serial.print(F("SET 33: send18F00503 = ")); Serial.println(send18F00503);}
 
 }
 
@@ -767,7 +787,7 @@ void sendMessage(){
         //Serial.print(" ");
         //Serial.print(txmsg.id,HEX);
       }
-      else Serial.println("0: Invalid ID format");
+      else Serial.println("ERROR Invalid ID format");
       
       String dataString = commandString.substring(commaIndex1+1);
       
@@ -778,7 +798,7 @@ void sendMessage(){
       // Serial.print(" ");
       for (uint8_t i = 0; i < txmsg.len*2 ; i++){
         if (isxdigit(dataCharBuffer[i])) goodData = true; 
-        else { goodData = false; Serial.println("0 Non Hex Characters or Odd number of nibbles or ID is too long"); break; }
+        else { goodData = false; Serial.println("ERROR Non Hex Characters or Odd number of nibbles or ID is too long"); break; }
       } 
       if (goodData){
         for (int i = 0; i <  txmsg.len ; i++){
@@ -793,21 +813,19 @@ void sendMessage(){
     if (goodData && goodID ){
       if (channel == 0) {
         Can0.write(txmsg);
-        Serial.println(txmsg.len);
       }
       else if (channel == 1){
         Can1.write(txmsg);
-        Serial.println(txmsg.len);
       }
-      else Serial.println("0: Invalid Channel for SM.");
+      else Serial.println("ERROR Invalid Channel for SM.");
     }
     
     else
-      Serial.println(F("0: Invalid input data for SM. Input should be using hex characters with no spaces in the form SM,channel,ID,data/n"));
+      Serial.println(F("ERROR Invalid input data for SM. Input should be using hex characters with no spaces in the form SM,channel,ID,data/n"));
   }
   else
   {
-    Serial.println(F("0: Missing or invalid data to send."));
+    Serial.println(F("ERROR Missing or invalid data to send."));
   }
   txmsg.ext = 1; //set default
   txmsg.len = 8;
@@ -820,10 +838,11 @@ void sendMessage(){
 
 void sendComponentInfo()
 {
+  if (enableSendComponentInfo){
        char id[29];
        strncpy(id,componentID,29);
        
-       Serial.print("Received Request for Component ID. Sending  ");
+       Serial.print(F("INFO Received Request for Component ID. Sending  "));
        for (int i = 0; i<28;i++) Serial.print(id[i]);
        Serial.println();
        
@@ -846,7 +865,7 @@ void sendComponentInfo()
        Can0.write(txmsg);
        memcpy(txmsg.buf,transport4,8);
        Can0.write(txmsg);
-       
+  }     
 }       
 void parseJ1939(CAN_message_t &rxmsg ){
   uint32_t ID = rxmsg.id;
@@ -940,36 +959,38 @@ void sendJ1939(uint8_t channel, uint8_t priority, uint32_t pgn, uint8_t DA, uint
 void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCount)
 {
   time_t timeStamp = now();
-  char CANdata[28];
+  char CANdata[30];
   CANdata[0]='C';
-  CANdata[1]=((rxmsg.id & 0xFF000000)>>24) | (channel & 3)<<6 | rxmsg.ext <<5;
-  CANdata[2]=(rxmsg.id & 0x00FF0000)>>16;
-  CANdata[3]=(rxmsg.id & 0x0000FF00)>>8;
-  CANdata[4]=(rxmsg.id & 0x000000FF);
-  CANdata[5]=rxmsg.len;
-  CANdata[6]=rxmsg.buf[0];
-  CANdata[7]=rxmsg.buf[1];
-  CANdata[8]=rxmsg.buf[2];
-  CANdata[9]=rxmsg.buf[3];
-  CANdata[10]=rxmsg.buf[4];
-  CANdata[11]=rxmsg.buf[5];
-  CANdata[12]=rxmsg.buf[6];
-  CANdata[13]=rxmsg.buf[7];
-  CANdata[14]=(0xFF000000 & timeStamp) >> 24;
-  CANdata[15]=(0x00FF0000 & timeStamp) >> 16;
-  CANdata[16]=(0x0000FF00 & timeStamp) >>  8;
-  CANdata[17]=(0x000000FF & timeStamp);
-  CANdata[18]=(0xFF000000 & uint32_t(microsecondsPerSecond)) >> 24;
-  CANdata[19]=(0x00FF0000 & uint32_t(microsecondsPerSecond)) >> 16;
-  CANdata[20]=(0x0000FF00 & uint32_t(microsecondsPerSecond)) >>  8;
-  CANdata[21]=(0x000000FF & uint32_t(microsecondsPerSecond));
-  CANdata[22]=(0xFF000000 & RXCount) >> 24;
-  CANdata[23]=(0x00FF0000 & RXCount) >> 16;
-  CANdata[24]=(0x0000FF00 & RXCount) >>  8;
-  CANdata[25]=(0x000000FF & RXCount);
-  CANdata[26]='\n';
-  CANdata[27]='\r';
-  Serial.write(CANdata,28);
+  CANdata[1]='A';
+  CANdata[2]='N';
+  CANdata[3]=channel;
+  CANdata[4]=((rxmsg.id & 0xFF000000)>>24) | rxmsg.ext <<7;
+  CANdata[5]=(rxmsg.id & 0x00FF0000)>>16;
+  CANdata[6]=(rxmsg.id & 0x0000FF00)>>8;
+  CANdata[7]=(rxmsg.id & 0x000000FF);
+  CANdata[8]=rxmsg.len;
+  CANdata[9]=rxmsg.buf[0];
+  CANdata[10]=rxmsg.buf[1];
+  CANdata[11]=rxmsg.buf[2];
+  CANdata[12]=rxmsg.buf[3];
+  CANdata[13]=rxmsg.buf[4];
+  CANdata[14]=rxmsg.buf[5];
+  CANdata[15]=rxmsg.buf[6];
+  CANdata[16]=rxmsg.buf[7];
+  CANdata[17]=(0xFF000000 & timeStamp) >> 24;
+  CANdata[18]=(0x00FF0000 & timeStamp) >> 16;
+  CANdata[19]=(0x0000FF00 & timeStamp) >>  8;
+  CANdata[20]=(0x000000FF & timeStamp);
+  CANdata[21]=(0xFF000000 & uint32_t(microsecondsPerSecond)) >> 24;
+  CANdata[22]=(0x00FF0000 & uint32_t(microsecondsPerSecond)) >> 16;
+  CANdata[23]=(0x0000FF00 & uint32_t(microsecondsPerSecond)) >>  8;
+  CANdata[24]=(0x000000FF & uint32_t(microsecondsPerSecond));
+  CANdata[25]=(0xFF000000 & RXCount) >> 24;
+  CANdata[26]=(0x00FF0000 & RXCount) >> 16;
+  CANdata[27]=(0x0000FF00 & RXCount) >>  8;
+  CANdata[28]=(0x000000FF & RXCount);
+  CANdata[29]='\n';
+  Serial.write(CANdata,30);
 }
 
 class CANClass : public CANListener
@@ -1517,9 +1538,10 @@ void loop() {
     else if (commandChars.startsWith("C2") || commandChars.startsWith("c2")) startStopCAN2Streaming();
     else if (commandChars.startsWith("DJ") || commandChars.startsWith("dj")) displayJ1939 = !displayJ1939;
     else if (commandChars.startsWith("AI") || commandChars.startsWith("ai")) displayVoltage();
+    else if (commandChars.startsWith("MK") || commandChars.startsWith("mk")) setEnableComponentInfo();
    
     
-    else Serial.println(F("Unrecognized Command Characters. Use a comma after the command.\nKnown commands are CN, B0, B1, DS, VI, SW, PN, PD, PB, PF, LI, LS, CI, CS, AF, AO, SA, SC, SS, or SM."));
+    else Serial.println(F("ERROR Unrecognized Command Characters. Use a comma after the command.\nERROR Known commands are CN, B0, B1, DS, VI, SW, PN, PD, PB, PF, LI, LS, CI, CS, AF, AO, SA, SC, SS, or SM."));
     Serial.flush();
   }
   /*              End Serial Command Processing                   */
