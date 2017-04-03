@@ -1,3 +1,4 @@
+
 /*
    Smart Sensor Simulator 2
    Controlling the  Quadtrature Knob, Ignition Relay, and Voltage Regulator
@@ -59,6 +60,7 @@ elapsedMillis CANTX_1005ms_timer;
 elapsedMillis CANTX_5000ms_timer;
 elapsedMillis CANTX_10000ms_timer;
 elapsedMillis CANTX_30000ms_timer;
+elapsedMillis A21TX_Timer;
 elapsedMillis c59timer;
 elapsedMillis c5Btimer;
 elapsedMillis CAN0RXtimer;
@@ -72,7 +74,9 @@ elapsedMicros microsecondsPerSecond;
 
 OneButton button(buttonPin, true);
 
-
+static byte mac[6];
+char mac_string[20];     //string to hold MAC address
+String password = "password";
 
 void longPressStart() {
   setLimits(255);
@@ -103,7 +107,7 @@ void longPressStop() {}
 
 
 //Set up the CAN data structures
-static CAN_message_t txmsg;
+static CAN_message_t rxmsg,txmsg;
 
 //set up a counter for each received message
 uint32_t RXCount0 = 0;
@@ -271,6 +275,8 @@ boolean send18DFFFF9 = false;
 boolean send0CF00203 = true;
 boolean send18F00503 = true;
 
+boolean sendA21voltage = false;
+
 boolean displayJ1939 = false;
 const uint8_t numPeriodicCANMessages = 33;
 
@@ -389,8 +395,20 @@ void saveEEPROM(){
 
 void displayVoltage(){
   float reading = analogRead(A21);
-  Serial.print("A21 ");
-  Serial.println((reading*reading*.008003873 + 8.894535*reading)*.001);
+  sprintf(displayBuffer,"A21 %10lu,%2.6f",millis(),(reading*reading*.008003873 + 8.894535*reading)*.001);
+  Serial.println(displayBuffer);
+}
+
+void streamVoltage(){
+  
+  if (commandString.toInt() > 0){
+    sendA21voltage = true;
+    Serial.println("SET Stream analog in data on."); 
+  }
+  else {
+    Serial.println("SET Stream analog In data off.");
+    sendA21voltage = false;
+  }
 }
 
 
@@ -570,48 +588,72 @@ void setEnableComponentInfo(){
   
 }
 
+void checkAgainstMAC(){
+  read_mac();
+  char secret[31];
+  char key[31];
+  char pad[9] = "E5:E6:E7";
+  sprintf(secret,"%s:%s",mac_string,pad);
+  if(commandString==String(secret)) Serial.println("OK:Authenticated");
+  else Serial.println("OK:Denied");
+}
+
+void setPassword(){
+  EEPROM.put(4000,commandString);
+  Serial.println("SET Password");
+}
+
+void getPassword(){
+  EEPROM.get(4000,password);
+  Serial.println("INFO Password: *****");
+}
+
 void startStopCAN(){
   int signalNumber = 0;
-  char commandCharBuffer[4];
-  Serial.println(F("INFO CN - CAN Transmission."));
-  if (commandString.length() > 0) {
-    commandString.toCharArray(commandCharBuffer,4);
-    signalNumber = atoi(commandCharBuffer);
-  }
-       if (signalNumber == 1)  send08FF0001 = !send08FF0001; 
-  else if (signalNumber == 2)  send08FF0003 = !send08FF0003;
-  else if (signalNumber == 3)  send08FF0103 = !send08FF0103;
-  else if (signalNumber == 4)  send08FF0203 = !send08FF0203;
-  else if (signalNumber == 5)  send08FF0303 = !send08FF0303;
-  else if (signalNumber == 6)  send08FF0603 = !send08FF0603;
-  else if (signalNumber == 7)  send08FF0703 = !send08FF0703;
-  else if (signalNumber == 8)  send0CFF0703 = !send0CFF0703;
-  else if (signalNumber == 9)  send0CFE6E0B = !send0CFE6E0B;
-  else if (signalNumber == 10) send10FF0903 = !send10FF0903;
-  else if (signalNumber == 11) send18F00131 = !send18F00131;
-  else if (signalNumber == 12) send18F0010B = !send18F0010B;
-  else if (signalNumber == 13) send18FEF117 = !send18FEF117;
-  else if (signalNumber == 14) send18FEF128 = !send18FEF128;
-  else if (signalNumber == 15) send18FEF121 = !send18FEF121;
-  else if (signalNumber == 16) send18FEF131 = !send18FEF131;
-  else if (signalNumber == 17) send18E00017 = !send18E00017;
-  else if (signalNumber == 18) send18E00019 = !send18E00019;
-  else if (signalNumber == 19) send18E00021 = !send18E00021;
-  else if (signalNumber == 20) send18E00028 = !send18E00028;
-  else if (signalNumber == 21) send18E00031 = !send18E00031;
-  else if (signalNumber == 22) send10ECFF3D = !send10ECFF3D;
-  else if (signalNumber == 23) send10ECFF01 = !send10ECFF01;
-  else if (signalNumber == 24) send18FEF803 = !send18FEF803;
-  else if (signalNumber == 25) send18FEF521 = !send18FEF521;
-  else if (signalNumber == 26) send18FEF017 = !send18FEF017;
-  else if (signalNumber == 27) send18FEF021 = !send18FEF021;
-  else if (signalNumber == 28) send18FEF028 = !send18FEF028;
-  else if (signalNumber == 29) send18FEF031 = !send18FEF031;
-  else if (signalNumber == 30) {send18DF00F9 = !send18DF00F9; DM13_00_Count = 0;}
-  else if (signalNumber == 31) {send18DFFFF9 = !send18DFFFF9; DM13_FF_Count = 0;}
-  else if (signalNumber == 32) send0CF00203 = !send0CF00203; 
-  else if (signalNumber == 33) send18F00503 = !send18F00503;
+  int state = 0;
+  char commandCharBuffer[8];
+  commandString.toCharArray(commandCharBuffer,8);
   
+  sscanf(commandCharBuffer, "%d,%b", &signalNumber, &state); 
+
+//  //Serial.println(F("INFO CN - CAN Transmission."));
+//  if (commandString.length() > 0) {
+//    commandString.toCharArray(commandCharBuffer,6);
+//    signalNumber = atoi(commandCharBuffer);
+//  }
+       if (signalNumber == 1)  send08FF0001 = state; 
+  else if (signalNumber == 2)  send08FF0003 = state;
+  else if (signalNumber == 3)  send08FF0103 = state;
+  else if (signalNumber == 4)  send08FF0203 = state;
+  else if (signalNumber == 5)  send08FF0303 = state;
+  else if (signalNumber == 6)  send08FF0603 = state;
+  else if (signalNumber == 7)  send08FF0703 = state;
+  else if (signalNumber == 8)  send0CFF0703 = state;
+  else if (signalNumber == 9)  send0CFE6E0B = state;
+  else if (signalNumber == 10) send10FF0903 = state;
+  else if (signalNumber == 11) send18F00131 = state;
+  else if (signalNumber == 12) send18F0010B = state;
+  else if (signalNumber == 13) send18FEF117 = state;
+  else if (signalNumber == 14) send18FEF128 = state;
+  else if (signalNumber == 15) send18FEF121 = state;
+  else if (signalNumber == 16) send18FEF131 = state;
+  else if (signalNumber == 17) send18E00017 = state;
+  else if (signalNumber == 18) send18E00019 = state;
+  else if (signalNumber == 19) send18E00021 = state;
+  else if (signalNumber == 20) send18E00028 = state;
+  else if (signalNumber == 21) send18E00031 = state;
+  else if (signalNumber == 22) send10ECFF3D = state;
+  else if (signalNumber == 23) send10ECFF01 = state;
+  else if (signalNumber == 24) send18FEF803 = state;
+  else if (signalNumber == 25) send18FEF521 = state;
+  else if (signalNumber == 26) send18FEF017 = state;
+  else if (signalNumber == 27) send18FEF021 = state;
+  else if (signalNumber == 28) send18FEF028 = state;
+  else if (signalNumber == 29) send18FEF031 = state;
+  else if (signalNumber == 30) {send18DF00F9 = state; DM13_00_Count = 0;}
+  else if (signalNumber == 31) {send18DFFFF9 = state; DM13_FF_Count = 0;}
+  else if (signalNumber == 32) send0CF00203 = state; 
+  else if (signalNumber == 33) send18F00503 = state;
   
   else if (signalNumber == 254) {
     TXCAN = true;
@@ -958,71 +1000,16 @@ void sendJ1939(uint8_t channel, uint8_t priority, uint32_t pgn, uint8_t DA, uint
 //A generic CAN Frame print function for the Serial terminal
 void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCount)
 {
-  time_t timeStamp = now();
-  char CANdata[30];
-  CANdata[0]='C';
-  CANdata[1]='A';
-  CANdata[2]='N';
-  CANdata[3]=channel;
-  CANdata[4]=((rxmsg.id & 0xFF000000)>>24) | rxmsg.ext <<7;
-  CANdata[5]=(rxmsg.id & 0x00FF0000)>>16;
-  CANdata[6]=(rxmsg.id & 0x0000FF00)>>8;
-  CANdata[7]=(rxmsg.id & 0x000000FF);
-  CANdata[8]=rxmsg.len;
-  CANdata[9]=rxmsg.buf[0];
-  CANdata[10]=rxmsg.buf[1];
-  CANdata[11]=rxmsg.buf[2];
-  CANdata[12]=rxmsg.buf[3];
-  CANdata[13]=rxmsg.buf[4];
-  CANdata[14]=rxmsg.buf[5];
-  CANdata[15]=rxmsg.buf[6];
-  CANdata[16]=rxmsg.buf[7];
-  CANdata[17]=(0xFF000000 & timeStamp) >> 24;
-  CANdata[18]=(0x00FF0000 & timeStamp) >> 16;
-  CANdata[19]=(0x0000FF00 & timeStamp) >>  8;
-  CANdata[20]=(0x000000FF & timeStamp);
-  CANdata[21]=(0xFF000000 & uint32_t(microsecondsPerSecond)) >> 24;
-  CANdata[22]=(0x00FF0000 & uint32_t(microsecondsPerSecond)) >> 16;
-  CANdata[23]=(0x0000FF00 & uint32_t(microsecondsPerSecond)) >>  8;
-  CANdata[24]=(0x000000FF & uint32_t(microsecondsPerSecond));
-  CANdata[25]=(0xFF000000 & RXCount) >> 24;
-  CANdata[26]=(0x00FF0000 & RXCount) >> 16;
-  CANdata[27]=(0x0000FF00 & RXCount) >>  8;
-  CANdata[28]=(0x000000FF & RXCount);
-  CANdata[29]='\n';
-  Serial.write(CANdata,30);
+  char CANdata[75];
+  sprintf(CANdata,"CAN %d %10lu %10lu %5u %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X",
+          channel,RXCount,micros(),rxmsg.timestamp,rxmsg.id,rxmsg.ext,rxmsg.len,
+          rxmsg.buf[0],rxmsg.buf[1],rxmsg.buf[2],rxmsg.buf[3],
+          rxmsg.buf[4],rxmsg.buf[5],rxmsg.buf[6],rxmsg.buf[7]);
+  
+  Serial.println(CANdata);
+  //Serial.send_now();
 }
 
-class CANClass : public CANListener
-{
-  public:
-    bool frameHandler(CAN_message_t &frame, int mailbox, uint8_t controller); //overrides the parent version so we can actually do something
-};
-
-bool CANClass::frameHandler(CAN_message_t &frame, int mailbox, uint8_t channel)
-{
-  if (channel == 0) {
-    RXCount0++;
-    if (displayCAN0) printFrame(frame, mailbox, channel, RXCount0);
-    redLEDstate = !redLEDstate;
-    digitalWrite(redLEDpin, redLEDstate);
-  }
-  else {
-    RXCount1++;
-    if (displayCAN1) printFrame(frame, mailbox, channel, RXCount1);
-    if (ignitionCtlState){
-      greenLEDstate = !greenLEDstate;
-      digitalWrite(greenLEDpin, greenLEDstate);
-    }
-    
-  }
-
-
-  return true;
-}
-
-//For this example, both CAN channels will use the same listener class
-CANClass myCANClassInstance;
 
 time_t getTeensy3Time(){
   microsecondsPerSecond = 0;
@@ -1030,10 +1017,35 @@ time_t getTeensy3Time(){
 }
 
 
+void readm(uint8_t word, uint8_t *mac, uint8_t offset) {
+  FTFL_FCCOB0 = 0x41;             // Selects the READONCE command
+  FTFL_FCCOB1 = word;             // read the given word of read once area
+
+// launch command and wait until complete
+  FTFL_FSTAT = FTFL_FSTAT_CCIF;
+  while(!(FTFL_FSTAT & FTFL_FSTAT_CCIF));
+
+  *(mac+offset) =   FTFL_FCCOB5;       // collect only the top three bytes,
+  *(mac+offset+1) = FTFL_FCCOB6;       // in the right orientation (big endian).
+  *(mac+offset+2) = FTFL_FCCOB7;       // Skip FTFL_FCCOB4 as it's always 0.
+}
+void read_mac() {
+  readm(0xe,mac,0);
+  readm(0xf,mac,3);
+  sprintf(mac_string, "%02X:%02X:%02X:%02X:%02X:%02X",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+}
+
+void print_mac()  {  
+  Serial.print("ID ");
+  Serial.println(mac_string);
+}
+
   
 void setup() {
   Serial.begin(4000000);
   Serial1.begin(19200);
+  
+  analogWriteResolution(12);
   
   setSyncProvider(getTeensy3Time);
   setSyncInterval(1);
@@ -1106,12 +1118,6 @@ void setup() {
   currentSetting = 0;
   
 
-  Serial.print(F("Starting CAN..."));
-  Can0.attachObj(&myCANClassInstance);
-  Can1.attachObj(&myCANClassInstance);
-  
-  Serial.println("Done.");
-  
   Serial.print(F("Setting Baud Rate..."));
   BAUDRATE0 = 250000;
   Can0.begin(BAUDRATE0);
@@ -1132,16 +1138,7 @@ void setup() {
     Can0.setFilter(allPassFilter,filterNum); 
     Can1.setFilter(allPassFilter,filterNum); 
   }
-//  for (uint8_t filterNum = 0; filterNum < 16;filterNum++){
-//     CANClass0.attachMBHandler(filterNum);
-//     CANClass1.attachMBHandler(filterNum);
-//  }
-  Serial.print(F("Done.\nAttaching General Handlers..."));
-  
-  myCANClassInstance.attachGeneralHandler();
-  
-  Serial.println("Done.");
-  
+
   txmsg.ext = 1;
   txmsg.len = 8;
 
@@ -1168,7 +1165,25 @@ void setup() {
 
 
 void loop() {
-  
+   // put your main code here, to run repeatedly:
+  while (Can0.available()) {
+    Can0.read(rxmsg);
+    RXCount0++;
+    if (displayCAN0) printFrame(rxmsg, -1, 0, RXCount0);
+    redLEDstate = !redLEDstate;
+    digitalWrite(redLEDpin, redLEDstate);
+    CAN1baudNotDetected = false;
+  }
+  while (Can1.available()) {
+    Can1.read(rxmsg);
+    RXCount1++;
+    if (displayCAN1) printFrame(rxmsg, -1, 1, RXCount1);
+    if (ignitionCtlState){
+      greenLEDstate = !greenLEDstate;
+      digitalWrite(greenLEDpin, greenLEDstate);
+    }
+    CAN1baudNotDetected = false;
+  }
   /********************************************************************/
   /*            Begin AutoBaud Detection                              */
   /* This runs each loop and sets a value for the BAUDRATE if needed  */
@@ -1194,6 +1209,11 @@ void loop() {
 
   /************************************************************************/
   /*            Begin PERIODIC CAN Message Transmission                            */
+  if (A21TX_Timer >=100){
+    A21TX_Timer=0;
+    if (sendA21voltage) displayVoltage();
+  }
+  
   if (ignitionCtlState && TXCAN){
      if (CANTX_10ms_timer >= 10){
         CANTX_10ms_timer = 0;
@@ -1353,7 +1373,9 @@ void loop() {
      
      if (CANTX_100ms_timer >= 100){
        CANTX_100ms_timer = 0;
-
+       
+     
+      
        memcpy(txmsg.buf,blankCANdata,8);
        //signal 11
        txmsg.id = 0x18F00131; // Electronic Brake Controller from SA=49
@@ -1481,12 +1503,10 @@ void loop() {
        if (send18DF00F9 && DM13_00_Count == 8){
          txmsg.id = 0x18DF00F9; //DM13 Hold
          Can0.write(txmsg);
-         Serial.println(DM13_00_Count);
        }
        if (send18DFFFF9  && DM13_FF_Count == 8){
          txmsg.id = 0x18DFFFF9; //ACM
          Can0.write(txmsg);
-         Serial.println(DM13_FF_Count);
        }
        
      }
@@ -1505,12 +1525,8 @@ void loop() {
   /*            Begin Serial Command Processing                   */
   if (Serial.available() >= 2 && Serial.available() < 140) {
     commandChars = Serial.readStringUntil(',');
-    if (Serial.available()) 
-    commandString = Serial.readStringUntil('\n');
+    if (Serial.available()) commandString = Serial.readStringUntil('\n');
     else commandString = "";
-    //if (Serial.available()) commandExtension = Serial.readStringUntil('\n');
-   // else commandExtension = "-1";
-    //Serial.println(F("Please put a comma after the two command characters."));
     if      (commandChars.toInt() > 0) fastSetSetting();  
     else if (commandChars.startsWith("SM") || commandChars.startsWith("sm")) sendMessage();
     else if (commandChars.startsWith("SS") || commandChars.startsWith("ss")) changeValue();
@@ -1539,10 +1555,14 @@ void loop() {
     else if (commandChars.startsWith("DJ") || commandChars.startsWith("dj")) displayJ1939 = !displayJ1939;
     else if (commandChars.startsWith("AI") || commandChars.startsWith("ai")) displayVoltage();
     else if (commandChars.startsWith("MK") || commandChars.startsWith("mk")) setEnableComponentInfo();
+    else if (commandChars.startsWith("ID") || commandChars.startsWith("id")) {read_mac(); print_mac();}
+    else if (commandChars.startsWith("SV") || commandChars.startsWith("sv")) streamVoltage();
+    else if (commandChars.startsWith("OK") || commandChars.startsWith("ok")) checkAgainstMAC();
+    else if (commandChars.startsWith("PW") || commandChars.startsWith("pw")) setPassword();
    
     
     else Serial.println(F("ERROR Unrecognized Command Characters. Use a comma after the command.\nERROR Known commands are CN, B0, B1, DS, VI, SW, PN, PD, PB, PF, LI, LS, CI, CS, AF, AO, SA, SC, SS, or SM."));
-    Serial.flush();
+  
   }
   /*              End Serial Command Processing                   */
   /****************************************************************/
