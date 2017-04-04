@@ -14,7 +14,7 @@
 
 //softwareVersion
 char softwareVersion[200] = "SSS2*Rev3*0.4*bb1672fcd2fb80092faaea9b7877db6d12e86da2"; //Hash of the previous git commit
-char componentID[200] = "SYNER*SSS2-R03*0017*UNIVERSAL"; //Add the serial number for hard coded values.
+char componentID[200] = "SYNER*SSS2-R03*XXXX*UNIVERSAL"; //Add the serial number for hard coded values.
 
 byte sourceAddress = 0xFA; 
 
@@ -23,7 +23,10 @@ byte sourceAddress = 0xFA;
 #include <FlexCAN.h>
 #include "SSS2.h"
 #include <TimeLib.h>
+#include <TeensyID.h>
 
+
+uint32_t uid[4];
 
 
 
@@ -113,17 +116,17 @@ static CAN_message_t rxmsg,txmsg;
 uint32_t RXCount0 = 0;
 uint32_t RXCount1 = 0;
 
-int CANWaitTimeout = 20;
+int CANWaitTimeout = 200;
 uint32_t BAUDRATE0 = 250000;
 uint32_t BAUDRATE1 = 250000;
-const uint32_t baudRateList[4] = {250000,500000,666000,125000};
+const uint32_t baudRateList[5] = {250000,500000,666666,125000,1000000};
 uint8_t baudRateIndex0 = 0;
 uint8_t baudRateIndex1 = 0;
 
 
 CAN_filter_t allPassFilter;
 
-byte blankCANdata[8] = {255,255,255,255,255,255,255,255};
+byte blankCANdata[8] = {0,0,0,0,0,0,0,0}; //{255,255,255,255,255,255,255,255};
 byte sessionControlMessage[8] = {0x20,0x0E,0x00,0x01,0xFF,0xCA,0xFE,0x00};
 byte sessionTransportMessage[8] = {0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00}; // This eliminates an unknown code in DDEC Reports
 
@@ -588,25 +591,12 @@ void setEnableComponentInfo(){
   
 }
 
-void checkAgainstMAC(){
-  read_mac();
-  char secret[31];
-  char key[31];
-  char pad[9] = "E5:E6:E7";
-  sprintf(secret,"%s:%s",mac_string,pad);
-  if(commandString==String(secret)) Serial.println("OK:Authenticated");
+void checkAgainstUID(){
+  String secret = kinetisUID();
+  if(commandString==secret) Serial.println("OK:Authenticated");
   else Serial.println("OK:Denied");
 }
 
-void setPassword(){
-  EEPROM.put(4000,commandString);
-  Serial.println("SET Password");
-}
-
-void getPassword(){
-  EEPROM.get(4000,password);
-  Serial.println("INFO Password: *****");
-}
 
 void startStopCAN(){
   int signalNumber = 0;
@@ -654,6 +644,7 @@ void startStopCAN(){
   else if (signalNumber == 31) {send18DFFFF9 = state; DM13_FF_Count = 0;}
   else if (signalNumber == 32) send0CF00203 = state; 
   else if (signalNumber == 33) send18F00503 = state;
+  
   
   else if (signalNumber == 254) {
     TXCAN = true;
@@ -1000,14 +991,10 @@ void sendJ1939(uint8_t channel, uint8_t priority, uint32_t pgn, uint8_t DA, uint
 //A generic CAN Frame print function for the Serial terminal
 void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCount)
 {
-  char CANdata[75];
-  sprintf(CANdata,"CAN %d %10lu %10lu %5u %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X",
+  Serial.printf("CAN%d %10lu %10lu %5u %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X\n",
           channel,RXCount,micros(),rxmsg.timestamp,rxmsg.id,rxmsg.ext,rxmsg.len,
           rxmsg.buf[0],rxmsg.buf[1],rxmsg.buf[2],rxmsg.buf[3],
           rxmsg.buf[4],rxmsg.buf[5],rxmsg.buf[6],rxmsg.buf[7]);
-  
-  Serial.println(CANdata);
-  //Serial.send_now();
 }
 
 
@@ -1017,33 +1004,45 @@ time_t getTeensy3Time(){
 }
 
 
-void readm(uint8_t word, uint8_t *mac, uint8_t offset) {
-  FTFL_FCCOB0 = 0x41;             // Selects the READONCE command
-  FTFL_FCCOB1 = word;             // read the given word of read once area
-
-// launch command and wait until complete
-  FTFL_FSTAT = FTFL_FSTAT_CCIF;
-  while(!(FTFL_FSTAT & FTFL_FSTAT_CCIF));
-
-  *(mac+offset) =   FTFL_FCCOB5;       // collect only the top three bytes,
-  *(mac+offset+1) = FTFL_FCCOB6;       // in the right orientation (big endian).
-  *(mac+offset+2) = FTFL_FCCOB7;       // Skip FTFL_FCCOB4 as it's always 0.
-}
-void read_mac() {
-  readm(0xe,mac,0);
-  readm(0xf,mac,3);
-  sprintf(mac_string, "%02X:%02X:%02X:%02X:%02X:%02X",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+void print_uid()  {  
+  Serial.printf("ID: %s\n", kinetisUID());
 }
 
-void print_mac()  {  
-  Serial.print("ID ");
-  Serial.println(mac_string);
+void displayStats(){
+  CAN_stats_t currentStats = Can0.getStats();
+  printStats(currentStats,0);
+  currentStats = Can1.getStats();
+  printStats(currentStats,1);
+}
+ 
+void printStats(CAN_stats_t currentStats,int channel){
+  Serial.printf("STATS for CAN%d: Enabled:%d, RingRXHighWater: %ul, ringRXFramesLost: %lu, ringTXHighWater: %lu, mailbox use count:[%lu",
+                            channel,currentStats.enabled,currentStats.ringRxHighWater,currentStats.ringRxFramesLost,currentStats.ringTxHighWater,currentStats.mb[0].refCount);
+  for (int i=1;i<16;i++){
+    Serial.printf(", %lu",currentStats.mb[i].refCount); 
+  }
+  Serial.printf("], overrunCount: [%lu",currentStats.mb[0].overrunCount);
+  for (int i=1; i<16; i++){
+    Serial.printf(", %lu",currentStats.mb[i].overrunCount); 
+  }
+  Serial.println("]");
 }
 
+void clearStats(){
+  Can0.clearStats();
+  Can1.clearStats();
   
+  Can0.startStats();
+  Can1.startStats();
+  
+  Serial.println("INFO Cleared CAN Statisitics");
+}
+    
 void setup() {
   Serial.begin(4000000);
   Serial1.begin(19200);
+  
+  kinetisUID(uid);
   
   analogWriteResolution(12);
   
@@ -1118,15 +1117,10 @@ void setup() {
   currentSetting = 0;
   
 
-  Serial.print(F("Setting Baud Rate..."));
-  BAUDRATE0 = 250000;
   Can0.begin(BAUDRATE0);
-  Serial.print(F(" CAN0 = "));
-  Serial.print(F("BAUDRATE0"));
-  BAUDRATE1=660000;
   Can1.begin(BAUDRATE1);
-  Serial.print(F(", CAN1 = "));
-  Serial.println(F("BAUDRATE1"));
+
+  
   
   
   Serial.print(F("Setting CAN Filters..."));
@@ -1160,6 +1154,8 @@ void setup() {
   //ignitionCtlState=true;
   //CAN0baudNotDetected = false;
   //CAN1baudNotDetected = false;
+  Can0.startStats();
+  Can1.startStats();
 }
 
 
@@ -1172,7 +1168,6 @@ void loop() {
     if (displayCAN0) printFrame(rxmsg, -1, 0, RXCount0);
     redLEDstate = !redLEDstate;
     digitalWrite(redLEDpin, redLEDstate);
-    CAN1baudNotDetected = false;
   }
   while (Can1.available()) {
     Can1.read(rxmsg);
@@ -1182,30 +1177,8 @@ void loop() {
       greenLEDstate = !greenLEDstate;
       digitalWrite(greenLEDpin, greenLEDstate);
     }
-    CAN1baudNotDetected = false;
   }
-  /********************************************************************/
-  /*            Begin AutoBaud Detection                              */
-  /* This runs each loop and sets a value for the BAUDRATE if needed  */
-  if (CAN0baudNotDetected && CAN0RXtimer >= CANWaitTimeout){
-    CAN0RXtimer = 0;
-    BAUDRATE0 = baudRateList[baudRateIndex0];
-    baudRateIndex0 += 1;
-    if (baudRateIndex0 == 4) baudRateIndex0=0; //reset the index after all elements have been tried.
-    Can0.begin(BAUDRATE0);
-    for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can0.setFilter(allPassFilter,filterNum);
-   }
   
-  if (CAN1baudNotDetected && CAN1RXtimer >= CANWaitTimeout){
-    CAN1RXtimer = 0;
-    BAUDRATE1 = baudRateList[baudRateIndex1];
-    baudRateIndex1 += 1;
-    if (baudRateIndex1 == 4) baudRateIndex1=0; //reset the index after all elements have been tried.
-    Can1.begin(BAUDRATE1);
-    for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can1.setFilter(allPassFilter,filterNum);
-  }
-  /*           End AutoBaud Detection                              */
-  /********************************************************************/
 
   /************************************************************************/
   /*            Begin PERIODIC CAN Message Transmission                            */
@@ -1356,18 +1329,13 @@ void loop() {
          memcpy(txmsg.buf,DF00F9,8);
          txmsg.id = 0x18DF00F9; //ACM
          Can0.write(txmsg);
-         Serial.print("Send DM13_00 ");
          DM13_00_Count++;
-         Serial.println(DM13_00_Count);;
-         
        }
        if (send18DFFFF9  && DM13_FF_Count < 8){
          memcpy(txmsg.buf,DFFFF9,8);
          txmsg.id = 0x18DFFFF9; //ACM
          Can0.write(txmsg);
          DM13_FF_Count++;
-         Serial.print("Send DM13_FF ");
-         Serial.println(DM13_FF_Count);
        }
      }
      
@@ -1389,9 +1357,8 @@ void loop() {
        //signal 14
        txmsg.id = 0x18FEF128; //CCVS from SA=40
        if (send18FEF128) Can0.write(txmsg);
-       txmsg.id = 0x18FEF128; //CCVS from SA=40
        //signal 15
-       txmsg.id = 0x18FEF128; //CCVS from SA=40
+       txmsg.id = 0x18FEF121; //CCVS from SA=40
        if (send18FEF121) Can0.write(txmsg);
        //signal 16
        txmsg.id = 0x18FEF131; //CCVS from SA=49
@@ -1410,7 +1377,7 @@ void loop() {
        if (send18E00028) Can0.write(txmsg);
        txmsg.id = 0x18E00028; //Cab Message 1 from SA=40
        //signal 21
-       txmsg.id = 0x18E00028; //Cab Message 1 from SA=40
+       txmsg.id = 0x18E00031; //Cab Message 1 from SA=40
        if (send18E00031) Can0.write(txmsg);
        //signal 26
        txmsg.id = 0x18FEF017; //PTO message from SA=23
@@ -1555,15 +1522,19 @@ void loop() {
     else if (commandChars.startsWith("DJ") || commandChars.startsWith("dj")) displayJ1939 = !displayJ1939;
     else if (commandChars.startsWith("AI") || commandChars.startsWith("ai")) displayVoltage();
     else if (commandChars.startsWith("MK") || commandChars.startsWith("mk")) setEnableComponentInfo();
-    else if (commandChars.startsWith("ID") || commandChars.startsWith("id")) {read_mac(); print_mac();}
+    else if (commandChars.startsWith("ID") || commandChars.startsWith("id")) print_uid();
     else if (commandChars.startsWith("SV") || commandChars.startsWith("sv")) streamVoltage();
-    else if (commandChars.startsWith("OK") || commandChars.startsWith("ok")) checkAgainstMAC();
-    else if (commandChars.startsWith("PW") || commandChars.startsWith("pw")) setPassword();
+    else if (commandChars.startsWith("OK") || commandChars.startsWith("ok")) checkAgainstUID();
+    else if (commandChars.startsWith("ST") || commandChars.startsWith("st")) displayStats();
+    else if (commandChars.startsWith("CL") || commandChars.startsWith("cl")) clearStats();
+
    
     
     else Serial.println(F("ERROR Unrecognized Command Characters. Use a comma after the command.\nERROR Known commands are CN, B0, B1, DS, VI, SW, PN, PD, PB, PF, LI, LS, CI, CS, AF, AO, SA, SC, SS, or SM."));
   
   }
+  Serial.clear();
+  Serial.flush();
   /*              End Serial Command Processing                   */
   /****************************************************************/
 
