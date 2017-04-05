@@ -1,4 +1,5 @@
 
+
 /*
    Smart Sensor Simulator 2
    Controlling the  Quadtrature Knob, Ignition Relay, and Voltage Regulator
@@ -17,7 +18,9 @@ char softwareVersion[200] = "SSS2*Rev3*0.4*bb1672fcd2fb80092faaea9b7877db6d12e86
 char componentID[200] = "SYNER*SSS2-R03*XXXX*UNIVERSAL"; //Add the serial number for hard coded values.
 
 byte sourceAddress = 0xFA; 
-
+#include <SPI.h>
+#include <mcp_can.h>
+#include <mcp_can_dfs.h>
 
 #include <EEPROM.h>
 #include <FlexCAN.h>
@@ -77,9 +80,9 @@ elapsedMicros microsecondsPerSecond;
 
 OneButton button(buttonPin, true);
 
-static byte mac[6];
-char mac_string[20];     //string to hold MAC address
-String password = "password";
+//static byte mac[6];
+//char mac_string[20];     //string to hold MAC address
+//String password = "password";
 
 void longPressStart() {
   setLimits(255);
@@ -107,6 +110,13 @@ void longPressStop() {}
 
 /****************************************************************/
 /*                    CAN Setup                                 */
+long unsigned int rxId;
+unsigned char len = 0;
+unsigned char rxBuf[8];
+char msgString[128];                        // Array to store serial string
+
+#define CAN0_INT 6                             // Set INT to pin 2
+MCP_CAN CAN0(CSCANPin);                               // Set CS to pin 10
 
 
 //Set up the CAN data structures
@@ -1037,6 +1047,7 @@ void clearStats(){
   
   Serial.println("INFO Cleared CAN Statisitics");
 }
+boolean configed=false;
     
 void setup() {
   Serial.begin(4000000);
@@ -1156,11 +1167,67 @@ void setup() {
   //CAN1baudNotDetected = false;
   Can0.startStats();
   Can1.startStats();
+
+
+  initializeCAN1();
+  
+  CAN0.setMode(MCP_NORMAL);                     // Set operation mode to normal so the MCP2515 sends acks to received data.
+
+  pinMode(CAN0_INT, INPUT); 
+  //configed=true;    
 }
 
-
-
+void initializeCAN1(){
+  SPI.setMOSI(11);
+  SPI.setMISO(12);
+  SPI.setSCK(13);
+  
+  SPI.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE0));
+  digitalWrite(CSCANPin,LOW);
+  SPI.transfer(0b11000000);
+  digitalWrite(CSCANPin,HIGH);
+  delay(1);
+  
+  digitalWrite(CSCANPin,LOW);
+  SPI.transfer(0b10110000);
+  byte b1 = SPI.transfer(0xFF);
+  byte b2 = SPI.transfer(0xFF);
+  digitalWrite(CSCANPin,HIGH);
+  Serial.printf("CAN Return Bytes 1: %02X %02X\n",b1,b2);
+  SPI.endTransaction();
+}
+elapsedMillis waitTime;
 void loop() {
+  if(configed)                         // If CAN0_INT pin is low, read receive buffer
+  {
+      CAN0.readMsgBuf(&rxId, &len, rxBuf);   // Read data: len = data length, buf = data byte(s)
+    
+    if((rxId & 0x80000000) == 0x80000000)     // Determine if ID is standard (11 bits) or extended (29 bits)
+      sprintf(msgString, "Extended ID: 0x%.8lX  DLC: %1d  Data:", (rxId & 0x1FFFFFFF), len);
+    else
+      sprintf(msgString, "Standard ID: 0x%.3lX       DLC: %1d  Data:", rxId, len);
+  
+    Serial.print(msgString);
+  
+    if((rxId & 0x40000000) == 0x40000000){    // Determine if message is a remote request frame.
+      sprintf(msgString, " REMOTE REQUEST FRAME");
+      Serial.print(msgString);
+    } else {
+      for(byte i = 0; i<len; i++){
+        sprintf(msgString, " 0x%.2X", rxBuf[i]);
+        Serial.print(msgString);
+      }
+    }
+        
+    Serial.println();
+  }
+  else {
+    if (waitTime>=250){
+    waitTime=0;
+    initializeCAN1();}
+    
+  }
+  
    // put your main code here, to run repeatedly:
   while (Can0.available()) {
     Can0.read(rxmsg);

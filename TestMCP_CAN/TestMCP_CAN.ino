@@ -157,6 +157,7 @@ void setup()
   pinMode(CAN0_INT, INPUT);                            // Configuring pin for /INT input
   
   Serial.println("MCP2515 Library Receive Example...");
+  configed=true;
 }
 
 void loop()
@@ -186,6 +187,32 @@ void loop()
   }
 }
 
+//
+//mcp2515_write_register(0x2A, 0x00);      // Write to CNF1
+//  mcp2515_write_register(0x29, 0x99);     // Write to CNF2
+//  mcp2515_write_register(0x28, 0x02);     // Write to CNF3
+//  
+//  mcp2515_write_register(0x2B, 0x00);     // Write to CANINTE and clear it
+//    
+//  mcp2515_write_register(0x60, 0x60);     // Write to RXB0CTRL and set to turn masks off
+//  mcp2515_write_register(0x70, 0x60);     // Write to RXB1CTRL and set to turn masks off  
+//  
+//  mcp2515_write_register(0x20, 0x00);     // Write to RXM0SIDH and clear it 
+//  mcp2515_write_register(0x21, 0x00);     // Write to RXM0SIDL and clear it 
+//  mcp2515_write_register(0x22, 0x00);     // Write to RXM0EID8 and clear it 
+//  mcp2515_write_register(0x23, 0x00);     // Write to RXM0EID0 and clear it 
+//  
+//  mcp2515_write_register(0x24, 0x00);     // Write to RXM1SIDH and clear it
+//  mcp2515_write_register(0x25, 0x00);     // Write to RXM1SIDL and clear it 
+//  mcp2515_write_register(0x26, 0x00);     // Write to RXM1EID8 and clear it 
+//  mcp2515_write_register(0x27, 0x00);     // Write to RXM1EID0 and clear it
+//  
+//  mcp2515_bit_modify(0x0C, 0x05, (1<<2));   // Set RXM0BF as a digital output
+//  
+//  mcp2515_write_register(0x0D, 0x00);     // Set TXnRTS pins as inputs
+//  
+//  mcp2515_bit_modify(MCP_CANCTRL, 0xE0, 0x00);
+//  
 /*********************************************************************************************************
   END FILE
 *********************************************************************************************************/
