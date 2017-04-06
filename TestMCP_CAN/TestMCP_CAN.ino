@@ -1,5 +1,3 @@
-#include <mcp_can.h>
-#include <mcp_can_dfs.h>
 
 // CAN Receive Example
 //
@@ -10,6 +8,10 @@
 
 Adafruit_MCP23017 ConfigExpander; //U21
 Adafruit_MCP23017 PotExpander; //U33
+
+#include <mcp_can.h>
+#include <mcp_can_dfs.h>
+
 /****************************************************************/
 /*                         Pin Defintions                       */
 const uint8_t greenLEDpin       = 2;
@@ -84,13 +86,25 @@ void setPinModes(){
     pinMode(IL2Pin, OUTPUT);
     pinMode(ignitionCtlPin, OUTPUT);
     pinMode(A21,INPUT);
-     
+       
     digitalWrite(CSCANPin, HIGH);
     digitalWrite(CSdispPin, HIGH);
     digitalWrite(CStouchPin, HIGH);
     digitalWrite(CStermPin, HIGH);
+    digitalWrite(redLEDpin,redLEDstate);
+    digitalWrite(greenLEDpin,LOW);
+    digitalWrite(CSdispPin,HIGH);
+    digitalWrite(CSCANPin,HIGH);
+    digitalWrite(CSanalogPin,HIGH);
+    digitalWrite(CStermPin,HIGH);
+    digitalWrite(CStouchPin,HIGH);
+    digitalWrite(IH1Pin,LOW);
+    digitalWrite(IH2Pin,LOW);
+    digitalWrite(IL1Pin,LOW);
+    digitalWrite(IL2Pin,LOW);
+    digitalWrite(ignitionCtlPin,LOW);
     
-    
+    pinMode(12,INPUT_PULLUP);
 }
 
 /**********************************************************************/
@@ -110,7 +124,7 @@ char msgString[128];                        // Array to store serial string
 
 #define CAN0_INT 6                             // Set INT to pin 2
 MCP_CAN CAN0(CSCANPin);                               // Set CS to pin 10
-
+#define DEBUG_MODE 1;
 boolean configed=false;
 
 void setup()
@@ -119,18 +133,7 @@ void setup()
   SPI.begin();
    setPinModes();
 
-  digitalWrite(redLEDpin,redLEDstate);
-  digitalWrite(greenLEDpin,LOW);
-  digitalWrite(CSdispPin,HIGH);
-  digitalWrite(CSCANPin,HIGH);
-  digitalWrite(CSanalogPin,HIGH);
-  digitalWrite(CStermPin,HIGH);
-  digitalWrite(CStouchPin,HIGH);
-  digitalWrite(IH1Pin,LOW);
-  digitalWrite(IH2Pin,LOW);
-  digitalWrite(IL1Pin,LOW);
-  digitalWrite(IL2Pin,LOW);
-  digitalWrite(ignitionCtlPin,LOW);
+  
   
  
   PotExpander.begin(7);  //U33
@@ -144,7 +147,8 @@ void setup()
   PotExpander.writeGPIOAB(0xFF);
   ConfigExpander.writeGPIOAB(0xFF);
   while(!Serial);
-  
+  delay(10);
+  SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE1));
   // Initialize MCP2515 running at 16MHz with a baudrate of 500kb/s and the masks and filters disabled.
   if(CAN0.begin(MCP_ANY, CAN_250KBPS, MCP_16MHZ) == CAN_OK){
     Serial.println("MCP2515 Initialized Successfully!");
@@ -158,14 +162,17 @@ void setup()
   
   Serial.println("MCP2515 Library Receive Example...");
   configed=true;
+  SPI.endTransaction();
+  
 }
 
 void loop()
 {
   if(configed)                         // If CAN0_INT pin is low, read receive buffer
   {
-      CAN0.readMsgBuf(&rxId, &len, rxBuf);   // Read data: len = data length, buf = data byte(s)
-    
+     SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE1));
+     CAN0.readMsgBuf(&rxId, &len, rxBuf);   // Read data: len = data length, buf = data byte(s)
+     SPI.endTransaction();
     if((rxId & 0x80000000) == 0x80000000)     // Determine if ID is standard (11 bits) or extended (29 bits)
       sprintf(msgString, "Extended ID: 0x%.8lX  DLC: %1d  Data:", (rxId & 0x1FFFFFFF), len);
     else
@@ -185,6 +192,7 @@ void loop()
         
     Serial.println();
   }
+  delay(100);
 }
 
 //
