@@ -12,8 +12,10 @@
 */
 
 //softwareVersion
-char softwareVersion[200] = "SSS2*Rev2*0.4*52dc93b18b1bd434c839e8e529d19ac4b70ab945"; //Hash of the previous git commit
-char componentID[200] = "SYNER*SSS2-R02*0003*UNIVERSAL"; //Add the serial number for hard coded values.
+
+
+char softwareVersion[200] = "SSS2*Rev2*0.4*bb1672fcd2fb80092faaea9b7877db6d12e86da2"; //Hash of the previous git commit
+char componentID[200] = "SYNER*SSS2-R02*0007*UNIVERSAL"; //Add the serial number for hard coded values.
 
 byte sourceAddress = 0xFA; 
 
@@ -58,11 +60,11 @@ uint8_t bitPositions[8] = { ~0b00000001,
 
 uint8_t DM13_00_Count = 0;
 uint8_t DM13_FF_Count = 0;
-uint8_t potWiperSettings[16] ={21,22,22,56,56,0,10,56,56,0,56,56,56,56,56,255};
-uint8_t potTCONSettings[16] ={3,3,3,7,7,3,3,7,7,3,0,0,7,7,7,0};
+uint8_t potWiperSettings[16] ={21,22,22,56,56,0,255,56,56,0,56,56,56,56,56,255};
+uint8_t potTCONSettings[16] ={3,3,3,7,7,3,6,7,7,3,0,0,7,7,7,0};
 uint16_t DAC2value[8] = {0,0,0,0,512,512,0,0};
 uint8_t pwm1value = 0;
-uint8_t pwm2value = 100;
+uint8_t pwm2value = 0;
 uint8_t pwm3value = 19;
 uint8_t pwm4value = 222; //Set this for Bendix
 uint8_t HVoutAdjValue = 168;
@@ -122,7 +124,7 @@ const int CShvadjPin        = 55;
 const int CStermPin         = 41;//21; //41;
 const int CSVoutPin         = 42;//26; //42;
 const int CSCANPin          = 54;
-const int ignitionCtlPin    = 53;//20; //53;
+const int ignitionCtlPin    = 39;
 const int buttonPin         = 24;
 const int pwm1              = 16;
 const int pwm2              = 17;
@@ -132,6 +134,8 @@ const int IH1               = 35;
 const int IH2               = 36;
 const int IL1               = 37;
 const int IL2               = 38;
+const int CAN1SwitchPin     = 50;
+const int CAN2SwitchPin     = 51;
 
 
 //i2C Device Addresses
@@ -319,6 +323,8 @@ boolean U7andU8POA;
 boolean CAN0term = true;
 boolean CAN1term = true;
 boolean CAN2term = true;
+boolean CAN1SwitchState = true;
+boolean CAN2SwitchState = true;
 boolean LINmaster;
 boolean PWM1Connect;
 boolean PWM2Connect;
@@ -2070,6 +2076,9 @@ void setup() {
   pinMode(IL2,               OUTPUT);
   pinMode(buttonPin,   INPUT_PULLUP);
   pinMode(LED_BUILTIN,       OUTPUT);
+  pinMode(CAN1SwitchPin,     OUTPUT);
+  pinMode(CAN2SwitchPin,     OUTPUT);
+  pinMode(LED_BUILTIN,       OUTPUT);
 
   digitalWrite(greenLEDpin, greenLEDstate);
   digitalWrite(redLEDpin,     redLEDstate);
@@ -2089,6 +2098,8 @@ void setup() {
   digitalWrite(IL1,                   LOW);
   digitalWrite(IL2,                   LOW);
   digitalWrite(ignitionCtlPin, ignitionCtlState);
+  digitalWrite(CAN1SwitchPin, CAN1SwitchState);
+  digitalWrite(CAN2SwitchPin, CAN2SwitchState);
 
   button.attachClick(myClickFunction);
   button.attachDoubleClick(myDoubleClickFunction);
