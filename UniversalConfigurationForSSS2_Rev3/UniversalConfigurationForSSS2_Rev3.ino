@@ -14,7 +14,7 @@
 */
 
 //softwareVersion
-char softwareVersion[200] = "SSS2*Rev3*0.4*bb1672fcd2fb80092faaea9b7877db6d12e86da2"; //Hash of the previous git commit
+char softwareVersion[200] = "SSS2*Rev3*0.5*CAN-Fixes*d05f5f9df9027442f473471a37743c64a8cdbd42"; //Hash of the previous git commit
 char componentID[200] = "SYNER*SSS2-R03*XXXX*UNIVERSAL"; //Add the serial number for hard coded values.
 
 byte sourceAddress = 0xFA; 
@@ -1011,7 +1011,7 @@ void clearStats(){
 boolean configed=false;
     
 void setup() {
-  Serial.begin(4000000);
+  Serial.begin(9600);
   Serial1.begin(19200);
   
   kinetisUID(uid);
