@@ -6,10 +6,10 @@ Voltage Divider,Port 4,4,,56,,53,7,J24:04,Pink/Black,P2-16,Fuel Pressure 1 Not A
 Voltage Divider,Port 5,5,,56,,54,7,J24:05,Blue,P2-17,Fuel Pressure 2 Not Affected
 Resistance to Ground,Port 6,6,0,0,25,55,3,J24:06,Green/Black,P2-25,283-5 Intake Valve Actuation System Oil Pressure Solenoid current low (97)
 Resistance to Ground,Port 7,7,0,10,255,56,3,J24:07,Orange/Black,P2-8,284-5 Engine Cooland Diverter current low (98)
-Voltage Divider,Port 8,8,,56,,57,7,J24:08,Yellow/Red,P1-13,Output #4 Not Affected
-Voltage Divider,Port 9,9,,56,,58,7,J24:09,White/Red,P1-12,Output #3 Not Affected
+Voltage Divider,Port 8,8,,255,,57,6,J24:08,Yellow/Red,,Not used for CAT. Used for DDEC Pullup
+Voltage Divider,Port 9,9,,56,,58,7,J24:09,White/Red,P1-12,Output #5 Not Affected
 Voltage Divider,Port 10,10,0,0,31,59,3,J24:10,Red/Black,P2-25,385-3: Intake Valve Actuation System Oil Pressure voltage high (95)
-Plus 12V ,Port 11,11,,56,,60,0,J24:11,Blue/White,,Not Used
+"Dig. Pot.,Plus 12V ",Port 11,"11,46",,"56,0**",,60,7**,J24:11,Blue/White,P1-13,Output #4 Not Affected
 "Digital Pot., Ground2*",Port 12,"12, 48",,"56, 1*",,61,0*,J24:12,Tan/Black,P1-3,Sensor Return 
 PWM3,Port 27,35,13,19,241,,,J24:13,Brown,P1-66,91-8 Throttle Position Invalid (32)
 PWM4,Port 28,36,,222,,,,J24:14,Black/White,,Not used for CAT. Used for Bendix ABS warning lamp supply.
