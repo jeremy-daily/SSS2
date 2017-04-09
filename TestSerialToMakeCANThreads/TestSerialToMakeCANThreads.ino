@@ -18,16 +18,17 @@ public:
   uint8_t channel = 0;
   CAN_message_t txmsg;
   
-  bool shouldRun(){
-    // Override enabled on thread when pin goes LOW.
-    enabled = true; //digitalRead(buttonPin);
-    
-//    if (stop_after_count > 0){
-//      if (transmit_number >= stop_after_count) enabled = false;
-//    }
-    // Let default method check for it.
-    return Thread::shouldRun();
-  }
+  
+//  bool shouldRun(){
+//    // Override enabled on thread when pin goes LOW.
+//  //  enabled = ext_enable; //digitalRead(buttonPin);
+//    
+////    if (stop_after_count > 0){
+////      if (transmit_number >= stop_after_count) enabled = false;
+////    }
+//    // Let default method check for it.
+//    return Thread::shouldRun();
+//  }
   
 	void run(){
     if (channel == 0) Can0.write(txmsg);
@@ -41,7 +42,7 @@ public:
 //CanThread can_message1 = CanThread();
 //CanThread can_message2 = CanThread();
 
-CanThread* can_messages[1024] ={};
+CanThread* can_messages[MAX_THREADS] ={};
 
 void setup(){
   pinMode(buttonPin,INPUT_PULLUP);
@@ -88,39 +89,59 @@ void loop(){
   /*            Begin Serial Command Processing                   */
   if (Serial.available() >= 2 && Serial.available() < 140) {
     commandChars = Serial.readStringUntil(',');
-    if (Serial.available()) {
-      commandString = Serial.readStringUntil('\n');
-      if (commandChars.startsWith("SM") || commandChars.startsWith("sm")) {
+    if (Serial.available()) commandString = Serial.readStringUntil('\n');
+    
+    if (commandChars.startsWith("SM") || commandChars.startsWith("sm")) {
         temp_txmsg.id =  commandString.toInt();
        
         
-        while (i < 255){
-          temp_txmsg.id = i++;
+        while (i < 25){
+          temp_txmsg.id = i;
           temp_txmsg.buf[0] = 2*i;
           CanThread* can_message = new CanThread(); 
           can_message->channel = 0;
           can_message->setInterval(period);
           can_message->txmsg = temp_txmsg;
           can_message->stop_after_count = 50;
-          can_thread_controller.add(can_message);
+          if (can_thread_controller.add(can_message)) Serial.println("Added CAN TX message.");
+          else Serial.println("ERROR failed to add CAN TX message.");
           can_messages[i] = can_message;
           int can_count = can_thread_controller.size(false);
           Serial.printf("can_count: %d\n",can_count);
           delay(1);
           can_thread_controller.run();
+          i++;
 
         }
       }
+    else if (commandChars.toLowerCase().startsWith("stop")){
+      int index = commandString.toInt();
+      Serial.printf("Stop,%d\n",index);
+      can_messages[index]->enabled = false;
+      can_messages[index]->txmsg.buf[1] = index;
+      
+      can_thread_controller.remove(index);
+      //can_thread_controller.clear();
+    }
+    else if (commandChars.toLowerCase().startsWith("go")){
+      int index = commandString.toInt();
+      Serial.printf("Go,%d\n",index);
+      can_messages[index]->enabled = true;
+      //can_thread_controller.remove(index);
+      //can_thread_controller.clear();
+    }
+    else if (commandChars.toLowerCase().startsWith("list")){
+      for (int j = 0; j < can_thread_controller.size();j++){
+         Serial.printf("ID: %X, enabled: %d \n", can_messages[j] -> txmsg.id,can_messages[j] -> enabled);
+         can_thread_controller.run();
+      }
     }
   }
-//  commandChars = "";
-//  Serial.flush();
-//  Serial.clear();
-//  
-  if (displayTimer > 500){
-    displayTimer = 0;
-    
-    Serial.printf("Can_thread_1: %ul\n", &can_messages[0]->txmsg.id);
-  }
+
+//  if (displayTimer > 500){
+//    displayTimer = 0;
+//    
+//    Serial.printf("Can_thread_1: %ul\n", &can_messages[0]->txmsg.id);
+//  }
 }
 
