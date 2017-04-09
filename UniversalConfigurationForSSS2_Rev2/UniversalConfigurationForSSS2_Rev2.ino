@@ -13,7 +13,8 @@
 
 //softwareVersion
 char softwareVersion[200] = "SSS2*Rev2*0.4*52dc93b18b1bd434c839e8e529d19ac4b70ab945"; //Hash of the previous git commit
-char componentID[200] = "SYNER*SSS2-R02*0009*UNIVERSAL"; //Add the serial number for hard coded values.
+
+char componentID[200] = "SYNER*SSS2-R02*0003*UNIVERSAL"; //Add the serial number for hard coded values.
 
 byte sourceAddress = 0xFA; 
 
@@ -59,7 +60,7 @@ uint8_t bitPositions[8] = { ~0b00000001,
 
 uint8_t DM13_00_Count = 0;
 uint8_t DM13_FF_Count = 0;
-uint8_t potWiperSettings[16] ={21,22,22,56,56,0,10,56,56,0,56,56,56,56,56,56};
+uint8_t potWiperSettings[16] ={21,22,22,56,56,0,10,56,56,0,56,56,56,56,56,255};
 uint8_t potTCONSettings[16] ={3,3,3,7,7,3,3,7,7,3,0,0,7,7,7,0};
 uint16_t DAC2value[8] = {0,0,0,0,512,512,0,0};
 uint8_t pwm1value = 0;
@@ -68,7 +69,7 @@ uint8_t pwm3value = 19;
 uint8_t pwm4value = 222; //Set this for Bendix
 uint8_t HVoutAdjValue = 168;
 uint8_t terminationSettings = 0xFF; //0b11111111;
-uint8_t connectionSettings = 0b10101110;
+uint8_t connectionSettings = 0b11001110;
 uint8_t HS1state = 0;
 uint8_t HS2state = 0;
 uint8_t LS1state = 0;
@@ -286,6 +287,25 @@ byte Cff0403Data[8] ={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
 
 byte DFFFF9[8] = {0x00,0x00,0x00,0x00,0xFF,0xFF,0xFF,0xFF};
 byte DF00F9[8] = {0x00,0x00,0x00,0x00,0xFF,0xFF,0xFF,0xFF};
+
+int k = 0;
+byte LINDataBytes[3];
+byte outByte[5];
+boolean firstLINtime=true;
+boolean LIN0send = false;
+boolean LIN1send = false;
+boolean LIN2send = false;
+boolean LIN3send = false;
+boolean LIN4send = false;
+
+unsigned long currentMicros;
+unsigned long previousMicros;
+unsigned long serialSend0Micros;
+unsigned long serialSend1Micros;
+unsigned long serialSend2Micros;
+unsigned long serialSend3Micros;
+unsigned long serialSend4Micros;
+
 
 /****************************************************************/
 /*                 Binary State Variables                       */
@@ -1007,8 +1027,11 @@ void setSetting(uint8_t settingNum, int settingValue) {
   }
   else if (settingNum == 71) {
     LIN16Connect = boolean(settingValue);
+    if (LIN16Connect) {
+      MCP41HVExtender_SetTerminals(15, potTCONSettings[15]);
+    }
     setConnectionSwitches();
-    //TODO Change TCON16
+    
   }
   
   listSetting(settingNum);
@@ -2196,6 +2219,18 @@ void setup() {
   txmsg.ext = 1;
   txmsg.len = 8;
 
+  Serial1.setTX(26);
+  Serial1.setRX(27);
+  Serial1.begin(19200);
+  Serial.println("Started LIN at 19200.");
+  
+  Serial.println("Finished Starting Up... Type a command:");
+ 
+  k=0;
+  firstLINtime =true;
+  Serial1.flush();
+  Serial1.clear();
+  
   //ignitionCtlState=true;
   //CAN0baudNotDetected = false;
   //CAN1baudNotDetected = false;
@@ -2630,6 +2665,89 @@ void loop() {
   }
   /*             End LED Indicators for messages                        */
   /**********************************************************************/
+
+  /**********************************************************************/
+  /*            Begin LIN for Shifter                                   */
+  currentMicros = micros();
+  if (Serial1.available()>=3) 
+  {
+    byte firstChar = Serial1.read();
+    byte secondChar = Serial1.read() ;
+    byte thirdChar = Serial1.read() ;
+    if (firstChar == 0x00 && secondChar == 0xF0){
+      Serial.println("LIN Start");
+      Serial1.write(0xF0);
+    }
+    else if (firstChar == 0x00 && secondChar == 0x55 && thirdChar == 0x20 && firstLINtime){
+        firstLINtime =false;
+         Serial1.write(0xFF);
+         Serial1.write(0xF);
+         Serial1.write(0xFF);
+         Serial1.write(0x3F);
+         Serial1.write(0x91);
+         Serial.println("first LIN Pass");
+    }
+    else if (firstChar == 0x00 && secondChar == 0x55 && thirdChar == 0x20 && !firstLINtime)//Serial.print(micros());
+    {
+      outByte[0] = 0x14;
+      outByte[1] = (k << 4) + 0x01;
+      k+=1;
+      outByte[2] = 0x02;
+      outByte[3] = 0x0D;
+      
+      if      (outByte[1]==0x01) outByte[4] =0xBB;
+      else if (outByte[1]==0x11) outByte[4] =0xAB;
+      else if (outByte[1]==0x21) outByte[4] =0x9B;
+      else if (outByte[1]==0x31) outByte[4] =0x8B;
+      else if (outByte[1]==0x41) outByte[4] =0x7B;
+      else if (outByte[1]==0x51) outByte[4] =0x6B;
+      else if (outByte[1]==0x61) outByte[4] =0x5B;
+      else if (outByte[1]==0x71) outByte[4] =0x4B;
+      else if (outByte[1]==0x81) outByte[4] =0x3B;
+      else if (outByte[1]==0x91) outByte[4] =0x2B;
+      else if (outByte[1]==0xA1) outByte[4] =0x1B;
+      else if (outByte[1]==0xB1) outByte[4] =0x0B;
+      else if (outByte[1]==0xC1) outByte[4] =0xFA;
+      else if (outByte[1]==0xD1) outByte[4] =0xEA;
+      else if (outByte[1]==0xE1) outByte[4] =0xDA;
+      else if (outByte[1]==0xF1) outByte[4] =0xCA;
+
+      serialSend0Micros = currentMicros+500;
+      LIN0send = true;
+      serialSend1Micros = currentMicros+1000;
+      LIN1send = true;
+      serialSend2Micros = currentMicros+1500;
+      LIN2send = true;
+      serialSend3Micros = currentMicros+2000;
+      LIN3send = true;
+      serialSend4Micros = currentMicros+2500;
+      LIN4send = true;
+      
+
+    }
+  }    
+
+  if (currentMicros - serialSend0Micros >=0 && LIN0send) {
+    Serial1.write(outByte[0]);
+    LIN0send=false;
+  }
+  if (currentMicros - serialSend1Micros >=0 && LIN1send) {
+    Serial1.write(outByte[1]);
+    LIN1send=false;
+  }
+  if (currentMicros - serialSend2Micros >=0 && LIN2send) {
+    Serial1.write(outByte[2]);
+    LIN2send=false;
+  }
+  if (currentMicros - serialSend3Micros >=0 && LIN3send){
+    Serial1.write(outByte[3]);
+    LIN3send=false;
+  }
+  if (currentMicros - serialSend4Micros >=0 && LIN4send) {
+    Serial1.write(outByte[4]);
+    LIN4send=false;
+  }
+
   
 }
 
