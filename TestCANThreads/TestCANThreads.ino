@@ -31,14 +31,14 @@ public:
 	void run(){
     if (channel == 0) Can0.write(txmsg);
     else if (channel = 1) Can1.write(txmsg);
-    transmit_number++;
+    txmsg.buf[0]=transmit_number++;
   	runned();
 	}
 };
 
 
 CanThread can_message1 = CanThread();
-CanThread can_message2 = CanThread();
+//CanThread can_message2 = CanThread();
 
 
 void setup(){
@@ -49,22 +49,26 @@ void setup(){
   
 
 
-  temp_txmsg.id=0x101;
+  temp_txmsg.buf[0]=3;
+  temp_txmsg.len=8;
+  temp_txmsg.ext=1;
+  temp_txmsg.id=0x18FEF1FA;
   
 	// Configures Thread analog1
 	can_message1.channel = 0;
 	can_message1.setInterval(100);
   can_message1.txmsg = temp_txmsg;
-  can_message1.stop_after_count = 50;
+  
+  can_message1.stop_after_count = 254;
 
-  temp_txmsg.id=0x102;
-  can_message2.channel = 0;
-  can_message2.setInterval(120);
-  can_message2.txmsg = temp_txmsg;
-  can_message2.stop_after_count = 50;
+  //temp_txmsg.id=0x102;
+  //can_message2.channel = 0;
+//  can_message2.setInterval(120);
+ // can_message2.txmsg = temp_txmsg;
+  //can_message2.stop_after_count = 50;
   
   can_thread_controller.add(&can_message1);
-  can_thread_controller.add(&can_message2);
+  //can_thread_controller.add(&can_message2);
   
 	
 }

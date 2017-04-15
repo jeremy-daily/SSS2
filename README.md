@@ -63,7 +63,7 @@ The following are the enumerated settings for the SSS2. These settings are set u
 
 ```int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay)```
 
- where `settingNum` is from the enumerated list below and the `settingValue` is the value for which to set the setting. The debugDisplay provides additional serial console ouptut from the executed command. The function returns the value of the setting as a confirmation it was set. The list of settings is as follows:
+ where `settingNum` is from the enumerated list below and the `settingValue` is the value for which to set the setting. The `debugDisplay` provides additional serial console ouptut from the executed command. The function returns the value of the setting as a confirmation it was set. The list of settings is as follows:
  
   1. Digital Potentiometer  1 Wiper, Port  1 (J24-1)
   2. Digital Potentiometer  2 Wiper, Port  2 (J24-2)
@@ -150,7 +150,7 @@ The following are the enumerated settings for the SSS2. These settings are set u
   83. PWM3 Frequency, Port 27 (J18-10)
   84. PWM4 Frequency, Port 17 (J18-1)
   
-Some setting take binary values of 0 or 1. For example, if the SSS2 recieves a serial command that says `50,1` it will interpret that to set seting number 50 to true, which means to close the ignition key switch relay. Similarly, the command `45,0` will turn off the 12V output on J18-10. 
+Some setting take binary values of 0 or 1. For example, if the SSS2 recieves a serial command that says `50,1` it will interpret that to set seting number 50 to true, which means to close the ignition key switch relay. Similarly, the command `45,0` will turn off the 12V output on J18-10. There is a `fastSetSetting` function that gets called whenever the communication manager receives a digit. This processes the command without the `debugDisplay` flag, so the serial output says `SET X,Y` where X is the setting number and Y is the current or new setting value.
 
   - Binary Settings
   - Terminal Settings

@@ -403,8 +403,8 @@ void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCo
 //  Serial.write(outMessage,26);
   
 
-  Serial.printf("CAN%d %10lu %10lu %5u %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X\n",
-          channel,RXCount,micros(),rxmsg.timestamp,rxmsg.id,rxmsg.ext,rxmsg.len,
+  Serial.printf("CAN%d %10lu %10lu %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X\n",
+          channel,RXCount,micros(),rxmsg.id,rxmsg.ext,rxmsg.len,
           rxmsg.buf[0],rxmsg.buf[1],rxmsg.buf[2],rxmsg.buf[3],
           rxmsg.buf[4],rxmsg.buf[5],rxmsg.buf[6],rxmsg.buf[7]);
 
@@ -531,14 +531,17 @@ void setup() {
   LIN.clear();
 
 
-  J1708.begin(19200);
+  J1708.begin(9600);
   J1708.flush();
   J1708.clear();
   
 }
 
 void loop() {
-
+  //Always do this 
+  can_thread_controller.run();
+  
+  //Check CAN messages
   while (Can0.available()) {
     Can0.read(rxmsg);
     RXCount0++;
@@ -557,6 +560,33 @@ void loop() {
       digitalWrite(greenLEDpin, greenLEDstate);
     }
   }
+
+  //Check J1708
+  while (J1708.available()){
+    J1708RXbuffer[J1708_index] = J1708.read();
+    J1708RXtimer = 0;
+    newJ1708Char = true;
+    
+    J1708_index++;
+    if (J1708_index > sizeof(J1708RXbuffer)) J1708_index = 0;
+  }
+  if (showJ1708 && newJ1708Char && J1708RXtimer > 1150) { //At least 11 bit times must pass
+    //Check to see if this is the first displayed message. If so, discard and start showing subsequent messages.
+    if (firstJ1708) firstJ1708 = false; 
+    else{
+      uint8_t j1708_checksum = 0;
+      Serial.print("J1708 ");
+      for (int i = 0; i<J1708_index;i++){
+        j1708_checksum += J1708RXbuffer[i];
+        Serial.printf("%02X ", J1708RXbuffer[i]);
+      }
+      if (j1708_checksum == 0) Serial.println("OK");
+      else Serial.println("Checksum Failed.");
+    }
+    J1708_index = 0;
+    newJ1708Char = false;
+  }
+
   
   /************************************************************************/
   /*            Begin PERIODIC CAN Message Transmission                            */
@@ -575,7 +605,19 @@ void loop() {
     else commandString = "";
  
     if      (commandPrefix.toInt() > 0) fastSetSetting();  
-    else if (commandPrefix.equalsIgnoreCase("SM")) sendMessage();
+    else if (commandPrefix.equalsIgnoreCase("SM")) {
+      int i=0;
+      while (i < 25){
+          temp_txmsg.id = i;
+          temp_txmsg.buf[0] = 2*i;
+          setupPeriodicCANMessage(i);
+          delay(1);
+          can_thread_controller.run();
+          i++;
+
+        }
+    }
+    else if (commandPrefix.equalsIgnoreCase("J1708")) displayJ1708();
     else if (commandPrefix.startsWith("SS") || commandPrefix.startsWith("ss")) changeValue();
     else if (commandPrefix.startsWith("SC") || commandPrefix.startsWith("sc")) Serial.println(F("SC - Not implemented yet."));
     else if (commandPrefix.startsWith("SA") || commandPrefix.startsWith("sa")) saveEEPROM();

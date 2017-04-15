@@ -12,37 +12,83 @@ ThreadController can_thread_controller = ThreadController();
 
 class CanThread: public Thread
 {
+protected:
+  uint32_t main_period = 100;
+  uint32_t sub_period = 100;
 public:
   uint32_t stop_after_count;
   uint32_t transmit_number;
   uint8_t channel = 0;
-  CAN_message_t txmsg;
+  uint8_t num_messages = 1; 
+  CAN_message_t txmsgs[256] = {};
+  uint8_t message_index = 0;
   
+
+  CanThread( uint8_t _channel, uint32_t _main_period,uint32_t _sub_period): Thread(){
+    if (_main_period >= 10) main_period = _main_period;
+    else main_period = 10; //don't flood the bus
+
+    channel = _channel;
+        
+    sub_period = constrain(_sub_period,0,main_period);
+    
+    interval = sub_period;
+    Serial.printf("Interval: %d\n",interval);
+    enabled = true;
+  };
   
-//  bool shouldRun(){
-//    // Override enabled on thread when pin goes LOW.
-//  //  enabled = ext_enable; //digitalRead(buttonPin);
-//    
-////    if (stop_after_count > 0){
-////      if (transmit_number >= stop_after_count) enabled = false;
-////    }
-//    // Let default method check for it.
-//    return Thread::shouldRun();
-//  }
+  bool shouldRun(long time){
+     if (stop_after_count > 0){
+      if (transmit_number >= stop_after_count) enabled = false;
+    }
+    Serial.printf("enabled: %d\n", enabled);
+    time = millis();
+    // Let default method check for it.
+    return Thread::shouldRun(time);
+  }
   
-	void run(){
-    if (channel == 0) Can0.write(txmsg);
-    else if (channel = 1) Can1.write(txmsg);
+  void run(){
+    if (channel == 0) {
+      Can0.write(txmsgs[message_index]);
+      Serial.printf("CAN0 message_index: %lu\n", message_index);
+    }
+    else if (channel = 1){
+      Can1.write(txmsgs[message_index]);
+      Serial.printf("CAN1 message_index: %lu\n", message_index);
+    }
+    message_index++;
+    
     transmit_number++;
-  	runned();
-	}
+    Serial.printf("transmit_number: %lu\n", transmit_number);
+    //interval = sub_period;
+    if (message_index = num_messages) {
+      uint32_t majorDelay = main_period - num_messages * sub_period; 
+      //interval = constrain(majorDelay,sub_period,main_period);
+      message_index = 0;
+      
+    }
+    //Thread::run();
+    runned();
+  }
+  
 };
 
 
-//CanThread can_message1 = CanThread();
-//CanThread can_message2 = CanThread();
-
 CanThread* can_messages[MAX_THREADS] ={};
+
+int setupPeriodicCANMessage(uint16_t index){
+  CanThread can_message = CanThread(0,100,40); 
+  can_message.txmsgs[index] = temp_txmsg;
+  can_message.stop_after_count = 00;
+  if (can_thread_controller.add(&can_message)) Serial.println("Added CAN TX message.");
+  else Serial.println("ERROR failed to add CAN TX message.");
+  can_message.run();
+  can_messages[index] = &can_message;
+  int can_count = can_thread_controller.size(false);
+  Serial.printf("can_count: %d\n",can_count);
+  return can_count;
+}
+
 
 void setup(){
   pinMode(buttonPin,INPUT_PULLUP);
@@ -51,28 +97,22 @@ void setup(){
   Can1.begin(250000);
   
 
-//
-//  temp_txmsg.id=0x101;
-//  
-//	// Configures Thread analog1
-//	can_message1.channel = 0;
-//	can_message1.setInterval(100);
-//  can_message1.txmsg = temp_txmsg;
-//  can_message1.stop_after_count = 50;
-//
-//  temp_txmsg.id=0x102;
-//  can_message2.channel = 0;
-//  can_message2.setInterval(120);
-//  can_message2.txmsg = temp_txmsg;
-//  can_message2.stop_after_count = 50;
-  
-//  can_thread_controller.add(&can_message1);
-//  can_thread_controller.add(&can_message2);
-//  
 	temp_txmsg.buf[0]=3;
-  temp_txmsg.len=3;
+  temp_txmsg.len=8;
+  temp_txmsg.ext=1;
+  temp_txmsg.id=0x18FEF1FA;
+  
   Serial.print("MAX_THREADS: ");
   Serial.println(MAX_THREADS);
+
+  for (int i=0;i<5;i++){
+    temp_txmsg.buf[0] = 2*i;
+    Serial.printf("CAN Count Return: %d\n", setupPeriodicCANMessage(i));
+    delay(1);
+    can_thread_controller.run();
+    
+
+  }
 }
 
 String commandChars;
@@ -82,18 +122,7 @@ int i=0;
 int period = 100;
 
 
-void sendMessage(){
-  CanThread* can_message = new CanThread(); 
-  can_message->channel = 0;
-  can_message->setInterval(period);
-  can_message->txmsg = temp_txmsg;
-  can_message->stop_after_count = 50;
-  if (can_thread_controller.add(can_message)) Serial.println("Added CAN TX message.");
-  else Serial.println("ERROR failed to add CAN TX message.");
-  can_messages[i] = can_message;
-  int can_count = can_thread_controller.size(false);
-  Serial.printf("can_count: %d\n",can_count);
-}
+
 
 void loop(){
  can_thread_controller.run();
@@ -108,10 +137,10 @@ void loop(){
         temp_txmsg.id =  commandString.toInt();
        
         
-        while (i < 25){
+        while (i < 5){
           temp_txmsg.id = i;
           temp_txmsg.buf[0] = 2*i;
-          sendMessage();
+          setupPeriodicCANMessage;
           delay(1);
           can_thread_controller.run();
           i++;
@@ -122,7 +151,7 @@ void loop(){
       int index = commandString.toInt();
       Serial.printf("Stop,%d\n",index);
       can_messages[index]->enabled = false;
-      can_messages[index]->txmsg.buf[1] = index;
+      can_messages[index]->txmsgs[0].buf[1] = index;
       
       can_thread_controller.remove(index);
       //can_thread_controller.clear();
@@ -136,7 +165,7 @@ void loop(){
     }
     else if (commandChars.toLowerCase().startsWith("list")){
       for (int j = 0; j < can_thread_controller.size();j++){
-         Serial.printf("ID: %X, enabled: %d \n", can_messages[j] -> txmsg.id,can_messages[j] -> enabled);
+         Serial.printf("ID: %X, enabled: %d \n", can_messages[j] -> txmsgs[0].id,can_messages[j] -> enabled);
          can_thread_controller.run();
       }
     }
