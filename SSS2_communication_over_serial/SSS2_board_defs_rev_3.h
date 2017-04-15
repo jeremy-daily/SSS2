@@ -33,15 +33,17 @@ uint16_t pwmValue[numPWMs] = {25,100,19,222};
 uint16_t pwmFrequency[numPWMs] = {200,200,200,200};
 
 const uint8_t numADCs = 1;
-const int8_t analogInPins[numADCs]= {A21};
+const int8_t analogInPins[6]= {A21,A22,A0,A2,A6,A11};
+int analog_display_period = 100;
 
+//int analogPeriod = 100; //milliseconds
 
 /*
  * Begin Default Settings
 */
 const uint8_t numSPIpots = 16;
-uint8_t  SPIpotWiperSettings[numSPIpots] ={21,22,22,56,56,0,10,56,56,0,56,56,56,56,56,255};
-uint8_t  SPIpotTCONSettings[numSPIpots] ={3,3,3,7,7,3,3,7,7,3,0,0,7,7,7,0};
+uint8_t  SPIpotWiperSettings[numSPIpots] ={21,22,22,56,56,0,10,56,56,30,56,56,56,56,56,255};
+uint8_t  SPIpotTCONSettings[numSPIpots] ={3,3,3,7,7,3,3,7,7,7,0,0,7,7,7,0};
 
 const uint8_t numI2Cpots = 3;
 uint8_t  I2CpotWiperSettings[numI2Cpots] = {75,150,225};
@@ -112,7 +114,7 @@ void setPinModes(){
     
     uint8_t i;
     for (i = 0; i < numPWMs; i++) pinMode(PWMPins[i], OUTPUT);
-    for (i = 0; i < numADCs; i++) pinMode(analogInPins[i], OUTPUT);
+    for (i = 0; i < numADCs; i++) pinMode(analogInPins[i], INPUT);
     
 }
 
@@ -163,7 +165,5 @@ bool PWM4Out            = true;
 bool PWM5Out            = true;
 bool PWM6Out            = true;
 bool ignitionCtlState   = false;
-
-
 
 

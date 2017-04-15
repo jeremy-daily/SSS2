@@ -346,34 +346,16 @@ void parseJ1939(CAN_message_t &rxmsg ){
   }
 }
 
-void sendJ1939(uint8_t channel, uint8_t priority, uint32_t pgn, uint8_t DA, uint8_t SA, int numBytes, char J1939Buffer[]){
-  if (numBytes <= 8){
-    if((pgn & 0xFF00) >= 240) txmsg.id = (priority << 26) + (pgn << 8) + SA;
-    else txmsg.id = (priority << 26) + (pgn << 8) + (DA << 8) + SA;
-    txmsg.len = numBytes;
-    for (uint8_t i = 0; i<numBytes;i++) txmsg.buf[i]=J1939Buffer[i];
-    if (channel == 0) Can0.write(txmsg);
-    else if(channel == 1) Can1.write(txmsg);
-    else Serial.println("0: J1939 Message not sent.");
-  }
-  else {
-    //transport
-    uint8_t numFrames = numBytes;
-    transportTimer = 0;
-    
-  }
-}
 
 
 //A generic CAN Frame print function for the Serial terminal
-char outMessage[27] ={};
 void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCount)
 { 
 //  uint32_t currentMicros = micros();
 //  uint8_t *idPointer = (uint8_t *)&rxmsg.id;
 //  uint8_t *RXCountPointer = (uint8_t *)&RXCount;
 //  uint8_t *microsPointer = (uint8_t *)&currentMicros;
-//
+//  char outMessage[27] ={};
 //  outMessage[0]='C';
 //  outMessage[1]='A';
 //  outMessage[2]='N';
@@ -534,6 +516,7 @@ void setup() {
   J1708.begin(9600);
   J1708.flush();
   J1708.clear();
+
   
 }
 
@@ -590,11 +573,17 @@ void loop() {
   
   /************************************************************************/
   /*            Begin PERIODIC CAN Message Transmission                            */
-  if (A21TX_Timer >=100){
-    A21TX_Timer=0;
-    if (sendA21voltage) displayVoltage();
+  if (analog_tx_timer >= analog_display_period ){
+    analog_tx_timer=0;
+    if (send_voltage){
+      Serial.print("ANALOG");
+      for (uint8_t j = 0; j < numADCs; j++){
+        Serial.printf(", A%d:%d",analogInPins[j],analogRead(analogInPins[j]));
+      }
+      Serial.print("\n");
+    }
   }
-
+  
    
   /****************************************************************/
   /*            Begin Serial Command Processing                   */
@@ -610,7 +599,7 @@ void loop() {
       while (i < 25){
           temp_txmsg.id = i;
           temp_txmsg.buf[0] = 2*i;
-          setupPeriodicCANMessage(i);
+          setupPeriodicCANMessage(i,100);
           delay(1);
           can_thread_controller.run();
           i++;
@@ -618,6 +607,7 @@ void loop() {
         }
     }
     else if (commandPrefix.equalsIgnoreCase("J1708")) displayJ1708();
+    else if (commandPrefix.equalsIgnoreCase("GO")) startCAN();
     else if (commandPrefix.startsWith("SS") || commandPrefix.startsWith("ss")) changeValue();
     else if (commandPrefix.startsWith("SC") || commandPrefix.startsWith("sc")) Serial.println(F("SC - Not implemented yet."));
     else if (commandPrefix.startsWith("SA") || commandPrefix.startsWith("sa")) saveEEPROM();
@@ -636,7 +626,7 @@ void loop() {
     else if (commandPrefix.startsWith("AI") || commandPrefix.startsWith("ai")) displayVoltage();
     else if (commandPrefix.startsWith("MK") || commandPrefix.startsWith("mk")) setEnableComponentInfo();
     else if (commandPrefix.startsWith("ID") || commandPrefix.startsWith("id")) print_uid();
-    else if (commandPrefix.startsWith("SV") || commandPrefix.startsWith("sv")) streamVoltage();
+    else if (commandPrefix.startsWith("SV") || commandPrefix.startsWith("sv")) displayVoltage();
     else if (commandPrefix.startsWith("OK") || commandPrefix.startsWith("ok")) checkAgainstUID();
     else if (commandPrefix.startsWith("ST") || commandPrefix.startsWith("st")) displayStats();
     else if (commandPrefix.startsWith("CL") || commandPrefix.startsWith("cl")) clearStats();
