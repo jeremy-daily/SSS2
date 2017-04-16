@@ -17,6 +17,7 @@
 #include "SSS2_board_defs_rev_3.h"
 #include "SSS2_functions.h"
 
+IntervalTimer CANTimer;
 
 //softwareVersion
 String softwareVersion = "SSS2*REV" + revision + "*0.5*CAN-Fixes*d05f5f9df9027442f473471a37743c64a8cdbd42"; //Hash of the previous git commit
@@ -258,34 +259,49 @@ void sendMessage(){
 void sendComponentInfo()
 {
   if (enableSendComponentInfo){
-       char id[29];
-       componentID.toCharArray(id,29);
-       
-       Serial.print(F("INFO Received Request for Component ID. Sending  "));
-       for (int i = 0; i<28;i++) Serial.print(id[i]);
-       Serial.println();
-       
-       byte transport0[8] = {32,28,0,4,0xFF,0xEB,0xFE,0};
-       byte transport1[8] = {1,id[0],id[1],id[2],id[3],id[4],id[5],id[6]};
-       byte transport2[8] = {2,id[7],id[8],id[9],id[10],id[11],id[12],id[13]};
-       byte transport3[8] = {3,id[14],id[15],id[16],id[17],id[18],id[19],id[20]};
-       byte transport4[8] = {4,id[21],id[22],id[23],id[24],id[25],id[26],id[27]};
-       txmsg.id = 0x1CECFFFA;
-       txmsg.len = 8;
-       memcpy(txmsg.buf,transport0,8);
-       Can0.write(txmsg);
-       delay(3);
-       txmsg.id = 0x1CEBFFFA;
-       memcpy(txmsg.buf,transport1,8);
-       Can0.write(txmsg);
-       memcpy(txmsg.buf,transport2,8);
-       Can0.write(txmsg);
-       memcpy(txmsg.buf,transport3,8);
-       Can0.write(txmsg);
-       memcpy(txmsg.buf,transport4,8);
-       Can0.write(txmsg);
+   uint8_t old_shortest_period = shortest_period;
+   shortest_period = 1;
+   uint16_t id_length = constrain(componentID.length(),0,7*256-1);
+   char id[7*256];
+   componentID.toCharArray(id,id_length+1);
+   uint8_t num_frames = id_length/7;
+   if (id_length % 7 > 0) num_frames++;
+   char bytes_to_send[4]; 
+   sprintf(bytes_to_send,"%02X",id_length);
+   char frames_to_send[3];
+   sprintf(frames_to_send,"%02X",num_frames);
+   commandString = "0,1,0,0,1,0,1,1,1CECFFFA,8,20,";
+   commandString += bytes_to_send;
+   commandString += ",0,";
+   commandString += frames_to_send;
+   commandString += ",FF,EB,FE,00";
+   setupPeriodicCANMessage();
+   
+   char byteEntry[4];
+   for (int i = 0; i < num_frames; i++){
+     commandString = "0,";
+     sprintf(byteEntry,"%d,",num_frames+1);
+     commandString += byteEntry; 
+     sprintf(byteEntry,"%d,",i+1);
+     commandString += byteEntry; 
+     commandString += "0,1,0,";
+     sprintf(byteEntry,"%d,",num_frames+1);
+     commandString += byteEntry; 
+     commandString += ",1,1CEBFFFA,8,";
+     sprintf(byteEntry,"%02X,",i+1);
+     commandString += byteEntry; 
+     for (int j = 7*i; j < 7*i+7;j++){
+       if (j < id_length) sprintf(byteEntry,"%02X,",id[j]);
+       else sprintf(byteEntry,"%02X,",0xFF);
+       commandString += byteEntry;
+     }
+     setupPeriodicCANMessage();
+   }
+   shortest_period = old_shortest_period;
   }     
 }       
+
+
 void parseJ1939(CAN_message_t &rxmsg ){
   uint32_t ID = rxmsg.id;
   uint8_t DLC = rxmsg.len;
@@ -517,7 +533,14 @@ void setup() {
   J1708.flush();
   J1708.clear();
 
+  enableSendComponentInfo = true;
+  sendComponentInfo();
   
+  CANTimer.begin(runCANthreads, 2000);
+}
+
+void runCANthreads(){
+  can_thread_controller.run();
 }
 
 void loop() {
@@ -594,20 +617,12 @@ void loop() {
     else commandString = "";
  
     if      (commandPrefix.toInt() > 0) fastSetSetting();  
-    else if (commandPrefix.equalsIgnoreCase("SM")) {
-      int i=0;
-      while (i < 25){
-          temp_txmsg.id = i;
-          temp_txmsg.buf[0] = 2*i;
-          setupPeriodicCANMessage(i,100);
-          delay(1);
-          can_thread_controller.run();
-          i++;
-
-        }
-    }
+    else if (commandPrefix.equalsIgnoreCase("SM")) setupPeriodicCANMessage();
     else if (commandPrefix.equalsIgnoreCase("J1708")) displayJ1708();
     else if (commandPrefix.equalsIgnoreCase("GO")) startCAN();
+    else if (commandPrefix.equalsIgnoreCase("SP")) set_shortest_period();
+    else if (commandPrefix.equalsIgnoreCase("STOPCAN")) stopCAN();
+    else if (commandPrefix.equalsIgnoreCase("STARTCAN")) goCAN();
     else if (commandPrefix.startsWith("SS") || commandPrefix.startsWith("ss")) changeValue();
     else if (commandPrefix.startsWith("SC") || commandPrefix.startsWith("sc")) Serial.println(F("SC - Not implemented yet."));
     else if (commandPrefix.startsWith("SA") || commandPrefix.startsWith("sa")) saveEEPROM();

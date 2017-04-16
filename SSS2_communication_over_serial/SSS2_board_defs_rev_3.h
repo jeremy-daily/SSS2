@@ -4,9 +4,9 @@
 
 String make = "SYNER";
 String model = "SSS2";
-String revision = scanf("%02d",SSS2_BOARD_REVISION);
+String revision = "03";
 String serial_number ="XXXX";
-String componentID = make + "*" + model + "-" + revision + "*" + serial_number + "*UNIVERSAL";
+String componentID = make + "*" + model + "-" + revision + "*" + serial_number + "*UNIVERSAL-morechares";
 
 /****************************************************************/
 /*                         Pin Defintions                       */

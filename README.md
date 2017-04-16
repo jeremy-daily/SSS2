@@ -1,19 +1,19 @@
 # SSS2
 The code base for the Teensy 3.6 based Smart Sensor Simulator 2. This SSS2 is primarily designed to simulate sensors for heavy vehicle electronic control units; however, it can be used for many other things. It is a multitool for vehicle systems. It can be used in a forensic context to simulate the presence of a vehicle and reduce the number of fault codes present when turning on the system again. 
 
-## Software Design
+# Software Design
 There are three sets of files needed to make the SSS2 work. All the software in this repository is for Arduino.
 
   1. Board Definitions. This file declares the pin settings and defines the functions needed to communicate with the chips on board. For example, there is a difference between the SSS2-R02 boards and the SSS-R03 boards in the way the chip select pin is accessed for the digitial potentiometers. This file is `SSS2_board_defs_rev_X.h`
   2. Settings processor. This file sets up the function calls for all of the commands. This is decoupled from the communications module to enable different ways of communicating with the SSS2. This file is `SSS2_functions.h`
   3. Communications Interface. This the main wrapper file that provides an interface between the user and the SSS2 functions. The primary method of communications is Serial over USB, but CAN, LIN, J1708, WiFi (with the ESP8266) or others are enabled by customizing this main file. This file is usually called `SSS2_communications_over_serial.ino` and contains functions for all SSS2 variants. This means the lower level files need to tolerate differences.
   
-### Board Definitions
+## Board Definitions
 The Schematics for the boards are available in the docs directory. The revision of the board is indicated in the serial number: SSS2-R0X, where X is the board revision. A define statment is at the top of the `SSS2_boards_defs.h` file to use in the programs. The following constants are defined: 
 
 `SSS2_BOARD_REVISION` - an integer representing the board revision.
 
-#### Pin Defintions
+### Pin Defintions
 All pin defintions are `const int8_t` data types so they can take on a value of -1. If the pins are not used for a particular board revision, they should be set to -1.
 
 `greenLEDpin` - output for the pin that drives the green led.
@@ -48,17 +48,128 @@ All pin defintions are `const int8_t` data types so they can take on a value of 
 
 This file defines a `setPinModes()` function to use when initializing the board. It sets all the pin modes and writes default values to them. This is what turns on the red LED at the beginning. 
 
-#### Settings Variables
+### Settings Variables
 There are SPI connected potentiometers in the SSS that all have thier own settings. We define the number of these with `numSPIpots` which is usually 16. Then we can define arrays that holds all the potenetiometer settings. Since these potentiometers have settings for both the wiper position and the terminal connections, there are two arrays: `SPIpotWiperSettings` and `SPIpotTCONSettings`. These SPI potentiometers are labeled U1 through U16 in the schematics.
 
 There are I2C connected potentiometers in the SSS2 Rev 3 and greater boards. These potentiometers use addressing to access the chip controls. The MCP45HV51 digital potentiometer can have up to 4 unique addresses on one I2C line. Three of these potentiometers are used for outward facing ports and the other is used to adjust the voltage on the high current regulator. The arrays that stores these settings are `I2CpotWiperSettings` and `I2CPotTCONSettings`. 
 
 There are also settings for all the switch or boolean variables set up. The PWM values and DAC values are given as well.
  
-### SSS2 Functions
-The SSS2_functions file is a header file that defines all the functions needed to convert a String command into a setting output. There are 2 setting strings that are used: `commandPrefix` and `commandString`. The command prefix is used but the communications module to call a function. The `commandString` variable is parsed by the function to determine what it needs to do. 
+## SSS2 Functions
+The SSS2_functions file is a header file that defines all the functions needed to convert a String command into a setting output. There are 2 setting strings that are used: `commandPrefix` and `commandString`. The command prefix is used but the communications module to call a function. The `commandString` variable is parsed by the function to determine what it needs to do. All command entries end with a newline character ("/n").
 
-### SSS2 Settings
+  **X,Y** where X is one of the SSS2 Settings and Y is its value.
+  
+  **AI,X** where X is a 0 or 1. This turns on and off the analog input display.
+  
+  **C0,X** where X is a 0 or 1. When X is 0, it turns off the display of received CAN messages from the first built-in controller, which is J1939. When X is > 0, it turns on the serial stream.
+  
+  **C1,X** where X is a 0 or 1. When X is 0, it turns off the display of received CAN messages from the first built-in controller, which is J1939. When X is > 0, it turns on the serial stream.
+  
+  **GO,i,X** Starts and stops the can message in the _i_-th slot of the threading queue.
+  
+  **SP,X** Sets the shortest period for a periodic CAN transmission. This sets the lower bound of the inter thread CAN messages.
+  
+  **STARTCAN** Enables all CAN messages that are setup to start.
+  
+  **STOPCAN** Disables the transmission of all CAN messages.
+  
+  **CLEARCAN** Removes all CAN messages setup with the SM command from the transmitting thread.
+  
+  **SM,i,n,j,c,p,d,t,e,ID,DLC,b1,b2,b3,b4,b5,b6,b7,b8** Setup a CAN message where
+  
+  _i_ = index, the CAN message index from 0 to 1024. If the position in the array exists, the command will overwrite that spot. If not, it will create the next new one. This means, you can tell i to be 1000, but is may return 1.
+  
+  _n_ = num_messages, the number of total sub messages.
+  
+  _j_ = sub_index, the CAN message sub index. Default should be 0. This places the message in a list the gets sent as a group.
+  
+  _c_ = channel, the CAN Channel 0 or 1.
+  
+  _p_ = tx_period, the period of transmission from one mesage to the next in milliseconds.
+  
+  _d_ = tx_delay, the delay between repeating the message groups from start to start.
+  
+  _t_ = stop_after_count, the total number of message groups to send. Set to 0 for disabling this count.
+  
+  _e_ = temp_txmsg.ext, the extended ID flag set to 0 for 11-bit IDs or 1 for 29-bit IDs.
+  
+  _ID_ = temp_txmsg.id, the CAN ID HEX characters, (e.g. 18FEF100).
+  
+  _DLC_ = temp_txmsg.len, the data length code.
+
+  _b1_ through _b8_ = temp_txmsg.buf[i], the data bytes in HEX. 
+  
+  
+### Examples:
+  
+  Enter the command
+  
+  ```SM,0,1,0,0,100,0,0,1,18FEF100,8,DE,AD,BE,EF,02,03,04,05```
+  
+  to set up a message in the threading queue. This will be the first message in the list. It is set up to last forever at a rate of 100 milliseconds between each message. Enter ```GO,0,1``` to start the CAN message broadcasting. The following command will overwrite the message in the queue and change its values.
+  
+  ```SM,0,1,0,0,100,0,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,09```
+  
+  Let's say we want to modify the previous message and transmit it at a rate of 25 msec.
+  
+  ```SM,0,1,0,0,25,0,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,09```
+  
+  Let's add a toggle to the last digit of the messag that cycles back and forth for each message. To do this, we'll keep the same rate and ID. We will add a sub_index and increase the number of messages in the single transmit thread. We'll slow it down a little too.
+  
+  ```SM,0,2,1,0,250,0,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,0A```
+  
+  Let's take the toggling message and wait 2 seconds before toggling again. This is done with the tx_delay. 
+  
+  ```SM,0,2,1,0,250,2500,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,0A```
+  
+  We can add another message to the same sequence by increasing the number of messages to 3 and putting the data in the sub_index 2.
+  
+  ```SM,0,3,2,0,250,2500,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,0B```
+  
+  The CAN messages will be broadcast in sequence with an intermessage timing defined by the period, then wait until the delay takes place. If the delay is less than the time needed for all the messages to broadcast, then it is effectively not used. For example, 
+  
+  ```SM,0,4,3,0,250,700,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,0C```
+  
+  adds another message for a total of 4. So witth 250 msec between each message, it takes 1 second to get through all 4 messages and the delay doesn't have any influence. 
+  
+  To send a one time request for component ID in J1939, use the following command to set up the message thread,
+  
+  ```SM,1,1,0,0,0,0,1,1,18EAFFFA,3,EB,FE,00```
+  
+  Keep in mind that this just sets up the message. You have to send a command ```GO,1,1``` which set the message in slot 1 to run. If we wanted to request component ID 3 times 10 ms apart, then do the same thing 5 seconds later and stop after 3 spurts, you would use the commands:
+  
+  
+  ```SM,0,1,0,0,5,5000,9,1,18EAFFFA,3,EB,FE,00```
+  
+  ```SM,0,2,1,0,5,5000,9,1,18EAFFFA,3,EB,FE,00```
+  
+  ```SM,0,3,2,0,5,5000,9,1,18EAFFFA,3,EB,FE,00```
+  
+  ```GO,0,1```
+  
+  Finally, if we wanted to set up a thread to send component ID once. A Component ID may be `SYNER*SSS2-03*XXXX*UNIVERSAL`. This is 28 characters. We will need to set up a broacast annoucement message (BAM) and send the message with 4 CAN Frames. Referencing the J1939-21 document, we have to set up a Transfer Protocol - Connection Management (TP.CM) message before sending the data using 4 Transfer Protocol - Data Transfer (TP.DT) messages. The following setup commands are sent to the SSS2:
+  
+  ```SM,0,5,0,0,10,0,5,1,1CECFFFA,8,20,1C,0,4,FF,EB,FE,0```, which is the connection managmement message.
+  
+  ```SM,0,5,1,0,10,0,5,1,1CEBFFFA,8,01,53,59,4E,45,52,2A,53``` 
+  
+  ```SM,0,5,2,0,10,0,5,1,1CEBFFFA,8,02,53,53,32,2D,30,33,2A```
+  
+  ```SM,0,5,3,0,10,0,5,1,1CEBFFFA,8,03,58,58,58,58,2A,55,4E```
+  
+  ```SM,0,5,4,0,10,0,5,1,1CEBFFFA,8,04,49,56,45,52,53,41,4C```
+  
+  This loads the component ID into the transmit thread queue. The thread in the thread queue in position 0 needs to be enabled to transmit. The can be done by sending the command `GO,0,1`. The enable flag could also be set during a J1939 receive message when the request message for Component ID is received.
+
+### CanThread Class
+The program needs to be able to set up the transmission of groups of messages. It uses the Thread libary to set up 3 controls:
+  
+  1. `can_thread_controller` is the main thread control that gets called on an interupt every and during every loop. This guarantees CAN delivery
+  
+  2. `CanGroupThread` is a container for the threads for 1 or more CAN messages.
+
+## SSS2 Settings
 The following are the enumerated settings for the SSS2. These settings are set using a lookup table, which is a long if-then-else structure. Teh settings are set when the command `setSetting` is called. The function is declared as: 
 
 ```int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay)```

@@ -25,7 +25,7 @@ Adafruit_MCP23017 ConfigExpander; //U21
 Adafruit_MCP23017 PotExpander; //U33
 
 
-//The Unique CHIP ID variable
+//The Unique ID variable that comes from the chip
 uint32_t uid[4];
 
 uint8_t terminationSettings;
@@ -49,15 +49,38 @@ int kounter = 0;
 //Declare a millisecond timer to execute the switching of the LEDs on a set time
 elapsedMillis RXCAN0timer;
 elapsedMillis RXCAN1orJ1708timer;
-elapsedMillis A21TX_Timer;
-elapsedMillis c59timer;
-elapsedMillis c5Btimer;
-elapsedMillis CAN0RXtimer;
-elapsedMillis CAN1RXtimer;
-elapsedMillis transportTimer;
+elapsedMillis analog_tx_timer;
 
+elapsedMicros J1708RXtimer;
 elapsedMicros microsecondsPerSecond;
 
+
+/****************************************************************/
+/*                 Binary Control Variables                       */
+
+boolean ADJUST_MODE_ON  = 0;
+boolean SAFE_TO_ADJUST = 0;
+boolean displayCAN0 = 0;
+boolean displayCAN1 = 0;
+boolean displayCAN2 = 0;
+boolean CAN0baudNotDetected = true;
+boolean CAN1baudNotDetected = true;
+boolean CAN2baudNotDetected = true;
+boolean TXCAN = true;
+boolean enableSendComponentInfo = true;
+boolean sendA21voltage = false;
+boolean showJ1708 = false;
+boolean firstJ1708 = true;
+boolean send_voltage = false;
+uint16_t currentSetting = 0;
+bool newJ1708Char = false;
+
+uint8_t J1708RXbuffer[256];
+uint8_t J1708_index=0;
+
+uint32_t shortest_period = 10;
+
+const int allFFs[8] = {255,255,255,255,255,255,255,255};
 /****************************************************************/
 /*                    Quadrature Knob Setup                     */
 
@@ -69,8 +92,77 @@ int knobHighLimit = 255;
 int knobJump = 1;
 
 
+class SensorThread: public Thread
+{
+public:
+  int reading;
+  int pin;
+   
+  
+  bool shouldRun(unsigned long time){
+    return Thread::shouldRun(time);
+  }
+  
+  void run(){
+   
+    reading = analogRead(pin);
+    Serial.printf("A%d,%d\n",pin,reading);
+    runned(); 
+  }
+};
+
+SensorThread analog1 = SensorThread();
+
+void analogTimerCallback(){
+  analog1.run();
+}
+
+
+
+void displayVoltage(){
+  
+  if (commandString.toInt() > 0){
+    send_voltage = true;
+    Serial.println("SET Stream analog in data on."); 
+  }
+  else {
+    Serial.println("SET Stream analog In data off.");
+    send_voltage = false;
+  }
+}
+
+
 /****************************************************************/
 /*                    CAN Setup                                 */
+//Setup messages
+#define num_default_messages  10
+uint8_t default_can_data[num_default_messages][8] = {
+  {0,0,0,0,0,0,0,0},
+  {0,0,0,0,0,0,0,1},
+  {0,0,0,0,0,0,0,2},
+  {0,0,0,0,0,0,0,3},
+  {0,0,0,0,0,0,0,4},
+  {0,0,0,0,0,0,0,5},
+  {0,0,0,0,0,0,0,6},
+  {0,0,0,0,0,0,0,7},
+  {0,0,0,0,0,0,0,8},
+  {0,0,0,0,0,0,0,9}
+};
+
+uint32_t default_can_ids[num_default_messages] = {
+  0x18FEF10B,
+  0x18FEF10B,
+  0x18FEF10B,
+  0x18FEF10B,
+  0x18FEF10B,
+  0x18FEF10B,
+  0x18FEF10B,
+  0x18FEF10B,
+  0x18FEF10B,
+  0x18FEF10B
+};
+
+
 //Set up the CAN data structures
 static CAN_message_t rxmsg;
 static CAN_message_t txmsg;
@@ -90,7 +182,6 @@ uint8_t baudRateIndex1 = 0;
 
 CAN_filter_t allPassFilter;
 
-byte blankCANdata[8] = {0,0,0,0,0,0,0,0};
 
 // Create a new Class
 ThreadController can_thread_controller = ThreadController();
@@ -99,45 +190,281 @@ class CanThread: public Thread
 {
 public:
   uint32_t stop_after_count;
-  uint32_t transmit_number;
+  uint32_t transmit_number = 0;
+  boolean ok_to_send = true;
+  uint32_t loop_cycles = 0; 
+  uint32_t cycle_count = 0;
+  
   uint8_t channel = 0;
+ 
   CAN_message_t txmsg;
+    
+  uint8_t num_messages = 1; 
+  uint8_t message_index = 0;
+  uint8_t message_list[256][8] = {};
+  uint32_t id_list[256]={};
+ 
   
   
-//  bool shouldRun(){
-//    // Override enabled on thread when pin goes LOW.
-//  //  enabled = ext_enable; //digitalRead(buttonPin);
-//    
-////    if (stop_after_count > 0){
-////      if (transmit_number >= stop_after_count) enabled = false;
-////    }
-//    // Let default method check for it.
-//    return Thread::shouldRun();
-//  }
+  bool shouldRun(unsigned long time){
+    if (stop_after_count > 0){
+      if (transmit_number >= stop_after_count) enabled = false;
+    }
+    return Thread::shouldRun(time);
+  }
   
   void run(){
-    if (channel == 0) Can0.write(txmsg);
-    else if (channel = 1) Can1.write(txmsg);
-    transmit_number++;
-    runned();
+    //Set the CAN message data to the next one in the list.
+    txmsg.id = id_list[message_index];
+    memcpy(txmsg.buf,message_list[message_index],8);
+
+    //Write the data to the CAN bus.
+    if (ok_to_send){
+      if      (channel == 0) Can0.write(txmsg);
+      else if (channel == 1) Can1.write(txmsg);
+      
+      transmit_number++;
+      message_index++;
+    }
+    cycle_count++;
+    if (message_index >= num_messages ) {
+      message_index = 0; 
+    }
+    if (cycle_count >= num_messages) {
+      ok_to_send = false;
+    }
+    if (cycle_count*interval >= loop_cycles){
+      cycle_count = 0;
+      ok_to_send = true;
+    }
+  
+    
+    return Thread::run();
   }
 };
+
+void CANtimerCallback(){
+  can_thread_controller.run();
+}
 
 
 CanThread* can_messages[MAX_THREADS] ={};
 
+void set_shortest_period(){
+  if (commandString.length() > 1){
+    shortest_period = commandString.toInt();
+    Serial.printf("SET Shortest CAN Broadcast Period to %lu milliseconds.\n",shortest_period);
+  }
+  else
+     Serial.printf("INFO Shortest CAN Broadcast Period is %lu milliseconds.\n",shortest_period);
+}
 
-void sendPeriodicCANMessage(uint16_t index){
-  CanThread* can_message = new CanThread(); 
-  can_message->channel = 0;
-  can_message->setInterval(100);
-  can_message->txmsg = temp_txmsg;
-  can_message->stop_after_count = 50;
-  if (can_thread_controller.add(can_message)) Serial.println("Added CAN TX message.");
-  else Serial.println("ERROR failed to add CAN TX message.");
-  can_messages[index] = can_message;
-  int can_count = can_thread_controller.size(false);
-  Serial.printf("can_count: %d\n",can_count);
+int setupPeriodicCANMessage(){
+  CanThread* can_message;
+  int index;
+  int sub_index;
+  int channel;
+  uint32_t tx_period;
+  uint32_t tx_delay;
+  uint8_t num_messages=1;
+  uint32_t stop_after_count;
+   
+  int threadSize =  can_thread_controller.size(false);
+  char commandBytes[70];
+  commandString.toCharArray(commandBytes,69);
+  char delimiter[] = ",";
+  char* commandValues;
+  
+  commandValues = strtok(commandBytes, delimiter);
+  if (commandValues != NULL) {
+    index = constrain(atoi(commandValues),0,threadSize);
+  }
+  else {
+    Serial.println(F("ERROR SM command is missing arguments.")); 
+    return 0;
+  }
+
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL) {
+    num_messages = constrain(atoi(commandValues),1,255);
+  }
+  else {
+    Serial.println(F("ERROR SM command not able to determine the number of sub messages.")); 
+    return 0;
+  }
+
+
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL) {
+     //constrain the sub_index to be one larger than the 
+     sub_index = constrain(atoi(commandValues),0,num_messages-1);
+  }
+  else {
+    Serial.println(F("ERROR SM command missing sub_index.")); 
+    return 0;
+  }
+  
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL) {
+    channel = constrain(atoi(commandValues),0,1);
+  }
+  else {
+    Serial.println(F("ERROR SM command not able to set CAN Channel.")); 
+    return 0;
+  }
+  
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL) {
+    tx_period = constrain(strtoul(commandValues,NULL,10),shortest_period,0xFFFFFFFF);
+  }
+  else {
+    Serial.println(F("ERROR SM command not able to set period information.")); 
+    return 0;
+  }
+
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL) {
+    tx_delay = strtoul(commandValues,NULL,10);
+  }
+  else {
+    Serial.println(F("ERROR SM command not able to set delay information.")); 
+    return 0;
+  }
+  
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL) {
+    stop_after_count = strtoul(commandValues,NULL,10);
+  }
+  else {
+    Serial.println(F("ERROR SM command not able to set the total number count.")); 
+    return 0;
+  }
+  
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL) {
+    temp_txmsg.ext = constrain(atoi(commandValues),0,1);
+  }
+  else {
+    Serial.println(F("ERROR SM command not able to set extended ID flag.")); 
+    temp_txmsg.ext = 1;
+  }
+
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL) {
+    temp_txmsg.id = strtol(commandValues,NULL,16);
+  }
+  else {
+    Serial.println(F("WARNING SM command not able to set CAN ID information."));
+    temp_txmsg.id = 0x3FFFFFFF ;
+  }
+  
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL) {
+    temp_txmsg.len = constrain(atoi(commandValues),0,8);
+  }
+  else {
+    Serial.println(F("WARNING SM command not able to set CAN data length code."));
+    temp_txmsg.len = 8;
+  }
+ 
+  //memset(temp_txmsg.buf,allFFs,8);
+  for (int i = 0; i < temp_txmsg.len; i++){
+    commandValues = strtok(NULL, delimiter);
+    if (commandValues != NULL) {
+      temp_txmsg.buf[i] = constrain(strtol(commandValues,NULL,16),0,255);
+    }
+    else {
+      temp_txmsg.buf[i] = 0xFF;
+      Serial.printf("WARNING SM command not able to set CAN data byte in position %d.\n",i);
+    }
+  }
+  Serial.printf("SET CAN i=%d, n=%d, j=%d, c=%d, p=%d, d=%d, t=%d, e=%d, ID=%08X, DLC=%d, DATA=[",
+                 index, num_messages, sub_index, channel, tx_period, tx_delay, stop_after_count, temp_txmsg.ext, temp_txmsg.id,temp_txmsg.len);
+  for (int i = 0; i < temp_txmsg.len-1; i++){
+    Serial.printf("%02X, ",temp_txmsg.buf[i]);
+  }
+  Serial.printf("%02X]\n",temp_txmsg.buf[temp_txmsg.len-1]);
+  
+  if (index == threadSize) { //Create a new entry
+    Serial.println(F("INFO Creating new entry in thread controller."));
+    CanThread* can_message = new CanThread(); 
+    can_thread_controller.add(can_message);
+    can_messages[index] = can_message;
+    can_messages[index]->enabled = false;
+  }
+  else{
+   Serial.println(F("INFO Using existing entry in thread controller.")); 
+  }
+
+  can_messages[index]->channel = channel;
+  can_messages[index]->txmsg.ext = temp_txmsg.ext;
+  can_messages[index]->txmsg.len = temp_txmsg.len;
+  can_messages[index]->id_list[sub_index] = temp_txmsg.id;
+  for (int i = 0; i < temp_txmsg.len; i++) {
+    can_messages[index]->message_list[sub_index][i] = temp_txmsg.buf[i];
+  }
+  can_messages[index]->stop_after_count = stop_after_count;
+  can_messages[index]->transmit_number = 0;
+  can_messages[index]->cycle_count = 0;
+  can_messages[index]->message_index = 0;
+  can_messages[index]->num_messages = num_messages;  
+  can_messages[index]->setInterval(tx_period);
+  can_messages[index]->loop_cycles =  tx_delay ;
+  return 1;
+}
+
+void stopCAN(){
+  int threadSize =  can_thread_controller.size(false);
+  for (int i = 0; i < threadSize; i++) {
+    can_messages[i]->enabled = false;
+    }
+  Serial.println(F("INFO Stopped all CAN transmission."));
+}
+
+void clearCAN(){
+  can_thread_controller.clear();
+}
+
+void goCAN(){
+  int threadSize =  can_thread_controller.size(false);
+  for (int i = 0; i < threadSize; i++) {
+    can_messages[i]->enabled = true;
+    can_messages[i]->transmit_number = 0;
+    can_messages[i]->message_index = 0;
+    can_messages[i]->cycle_count = 0;
+  }
+  Serial.println(F("INFO Started all CAN transmissions."));
+}
+
+void startCAN (){
+  int threadSize =  can_thread_controller.size(false);
+  if (threadSize > 0){
+    char commandBytes[10];
+    commandString.toCharArray(commandBytes,10);
+    char delimiter[] = ",";
+    char* commandValues;
+    commandValues = strtok(commandBytes, delimiter);
+    int index = constrain(atoi(commandValues),0,threadSize-1);
+    
+    commandValues = strtok(NULL, delimiter);
+    int setting = atoi(commandValues);
+    
+    if (setting > 0) {
+      can_messages[index]->enabled = true;
+      can_messages[index]->transmit_number = 0;
+      can_messages[index]->message_index = 0;
+      can_messages[index]->cycle_count = 0;
+      Serial.printf("SET CAN message %d with ID 0x%08X on.\n",index,can_messages[index]->id_list[0]); 
+    }
+    else  {
+      can_messages[index]->enabled = false;
+      Serial.printf("SET CAN message %d with ID 0x%08X off.\n",index,can_messages[index]->id_list[0]); 
+    }
+  }
+  else
+  {
+     Serial.println("ERROR No CAN Messages Setup to turn on.");
+  }
 }
 
 class settingsData {
@@ -1099,22 +1426,17 @@ void getEEPROMdata () {
   EEPROM.get(componentIDAddress, componentID);
   Serial.printf("LOADED %s\n",componentID);
 }
-/****************************************************************/
-/*                 Binary Control Variables                       */
 
-boolean ADJUST_MODE_ON  = 0;
-boolean SAFE_TO_ADJUST = 0;
-boolean displayCAN0 = 0;
-boolean displayCAN1 = 0;
-boolean displayCAN2 = 0;
-boolean CAN0baudNotDetected = true;
-boolean CAN1baudNotDetected = true;
-boolean CAN2baudNotDetected = true;
-boolean TXCAN = true;
-boolean enableSendComponentInfo = true;
-boolean sendA21voltage = false;
 
-uint16_t currentSetting = 0;
+
+void displayJ1708(){
+  showJ1708 = bool(commandString.toInt());
+  //clear the RX buffer on start. 
+  J1708.clear();
+  J1708_index = 0;
+  newJ1708Char = false;
+  firstJ1708 = true;
+}
 
 void  adjustError() {
   Serial.println(F("INFO SS - Condition not met. Turn adjust mode on by typing AO, then select a setting with CS"));
@@ -1216,23 +1538,6 @@ void saveEEPROM(){
   setDefaultEEPROMdata();
 }
 
-void displayVoltage(){
-  float reading = analogRead(A21);
-  sprintf(displayBuffer,"A21 %10lu,%2.6f",millis(),(reading*reading*.008003873 + 8.894535*reading)*.001);
-  Serial.println(displayBuffer);
-}
-
-void streamVoltage(){
-  
-  if (commandString.toInt() > 0){
-    sendA21voltage = true;
-    Serial.println("SET Stream analog in data on."); 
-  }
-  else {
-    Serial.println("SET Stream analog In data off.");
-    sendA21voltage = false;
-  }
-}
 
 
 /*                End Function Calls for Serial and Knob Commands                           */
