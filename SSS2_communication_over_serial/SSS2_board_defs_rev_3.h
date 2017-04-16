@@ -6,7 +6,7 @@ String make = "SYNER";
 String model = "SSS2";
 String revision = "03";
 String serial_number ="XXXX";
-String componentID = make + "*" + model + "-" + revision + "*" + serial_number + "*UNIVERSAL-morechares";
+String componentID = make + "*" + model + "-" + revision + "*" + serial_number + "*UNIVERSAL";
 
 /****************************************************************/
 /*                         Pin Defintions                       */

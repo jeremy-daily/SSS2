@@ -60,7 +60,17 @@ The SSS2_functions file is a header file that defines all the functions needed t
 
   **X,Y** where X is one of the SSS2 Settings and Y is its value.
   
-  **AI,X** where X is a 0 or 1. This turns on and off the analog input display.
+  **AI,X** where X is a 0 = off or 1 = on. This turns on and off the analog input display.
+  
+  **B0,X** Sets the baudrate for the first FlexCAN controller. If X is ommitted, then the current CAN bit rate is returned. Typical baudrates are 250000, 666000, 500000, and 125000.
+  
+  **B1,X** Sets the baudrate for the second FlexCAN controller. If X is ommitted, then the current CAN bit rate is returned.
+  
+  **DB,** Displays the baud rates. 
+   
+  **CANCOMP,X** Turns on the ability for the SSS2 to respond to component ID requests. The value of X is binary: 0 = do not respond or 1 = respon to J1939 request messages.
+  
+  **ID,** Request the unique Chip ID from the  Freescale K66 chip on the Teensy 3.6.
   
   **C0,X** where X is a 0 or 1. When X is 0, it turns off the display of received CAN messages from the first built-in controller, which is J1939. When X is > 0, it turns on the serial stream.
   
@@ -70,13 +80,33 @@ The SSS2_functions file is a header file that defines all the functions needed t
   
   **SP,X** Sets the shortest period for a periodic CAN transmission. This sets the lower bound of the inter thread CAN messages.
   
-  **STARTCAN** Enables all CAN messages that are setup to start.
+  **STARTCAN,** Enables all CAN messages that are setup to start. This is like sending the command `GO,i,1` for all i.
   
-  **STOPCAN** Disables the transmission of all CAN messages.
+  **STOPCAN,** Disables the transmission of all CAN messages. This is like sending the command `GO,i,0` for all i.
   
-  **CLEARCAN** Removes all CAN messages setup with the SM command from the transmitting thread.
+  **CLEARCAN,** Removes all CAN messages setup with the SM command from the transmitting thread. All messages will be destroyed and need reloaded. 
   
-  **SM,i,n,j,c,p,d,t,e,ID,DLC,b1,b2,b3,b4,b5,b6,b7,b8** Setup a CAN message where
+  **STATS,** Displays the statistics from the FlexCAN controller for both CAN channels.
+  
+  **CLEARSTATS,** Resets the FlexCAN statisitics.
+  
+  **CI,_string_** Display or change SSS2 Component Information. The component information (_string_) should be similar to `SYNER*SSS2-00*XXXX*UNIVERSAL`. If there are not more than 12 characters for the component ID, then the command will just display the current setting. This command also saves the new component ID in EEPROM for non-volitile storage. 
+  
+  **LS,** List Settings. Displays all the numbered settings in the current configuration.
+  
+  **CANNAME,X**  Display the name of the CAN transmit thread as it was entered in the `SM` command.
+  
+  **CANSIZE,** List the number of CAN transmitting threads. The maximum is 1024. 
+  
+  **THREADS,** Display a list of all indexes and names for the CAN transmitting threads.
+  
+  **SOFT,** Display the firmware version running on the SSS2 unit.
+  
+  **J1708,X** Set the streaming of J1708 traffic to  1 = straming on or 0 = streaming off. The format of the displayed messages are ```J1708 Milliseconds MID PID DATA OK``` where OK is the result of the checksum.
+  
+  **SM,name,i,n,j,c,p,d,t,e,ID,DLC,b1,b2,b3,b4,b5,b6,b7,b8** Setup a CAN message with the fiollowing arguments. All arguments are required.
+  
+  _name_ is a string to describe the transmitting thread. Suggested naming scheme would use language from J1939. For example: " CCVS1 from Instrument Cluster."
   
   _i_ = index, the CAN message index from 0 to 1024. If the position in the array exists, the command will overwrite that spot. If not, it will create the next new one. This means, you can tell i to be 1000, but is may return 1.
   
@@ -105,23 +135,23 @@ The SSS2_functions file is a header file that defines all the functions needed t
   
   Enter the command
   
-  ```SM,0,1,0,0,100,0,0,1,18FEF100,8,DE,AD,BE,EF,02,03,04,05```
+  ```SM,Test,0,1,0,0,100,0,0,1,18FEF100,8,DE,AD,BE,EF,02,03,04,05```
   
   to set up a message in the threading queue. This will be the first message in the list. It is set up to last forever at a rate of 100 milliseconds between each message. Enter ```GO,0,1``` to start the CAN message broadcasting. The following command will overwrite the message in the queue and change its values.
   
-  ```SM,0,1,0,0,100,0,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,09```
+  ```SM,Fred,0,1,0,0,100,0,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,09```
   
   Let's say we want to modify the previous message and transmit it at a rate of 25 msec.
   
-  ```SM,0,1,0,0,25,0,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,09```
+  ```SM,Joe,0,1,0,0,25,0,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,09```
   
   Let's add a toggle to the last digit of the messag that cycles back and forth for each message. To do this, we'll keep the same rate and ID. We will add a sub_index and increase the number of messages in the single transmit thread. We'll slow it down a little too.
   
-  ```SM,0,2,1,0,250,0,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,0A```
+  ```SM,Mary,0,2,1,0,250,0,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,0A```
   
   Let's take the toggling message and wait 2 seconds before toggling again. This is done with the tx_delay. 
   
-  ```SM,0,2,1,0,250,2500,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,0A```
+  ```SM,Chuck,0,2,1,0,250,2500,0,1,18FEF10B,8,DE,AD,BE,EF,06,07,08,0A```
   
   We can add another message to the same sequence by increasing the number of messages to 3 and putting the data in the sub_index 2.
   
@@ -162,6 +192,10 @@ The SSS2_functions file is a header file that defines all the functions needed t
   
   This loads the component ID into the transmit thread queue. The thread in the thread queue in position 0 needs to be enabled to transmit. The can be done by sending the command `GO,0,1`. The enable flag could also be set during a J1939 receive message when the request message for Component ID is received.
 
+### Default CAN messages
+  0. Component ID
+  1. 
+  
 ### CanThread Class
 The program needs to be able to set up the transmission of groups of messages. It uses the Thread libary to set up 3 controls:
   

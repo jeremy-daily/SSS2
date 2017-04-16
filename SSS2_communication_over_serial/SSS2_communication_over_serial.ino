@@ -20,10 +20,13 @@
 IntervalTimer CANTimer;
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*0.5*CAN-Fixes*d05f5f9df9027442f473471a37743c64a8cdbd42"; //Hash of the previous git commit
+String softwareVersion = "SSS2*REV" + revision + "*0.6b*master*d05f5f9df9027442f473471a37743c64a8cdbd42"; //Hash of the previous git commit
 
 
-
+void listSoftware(){
+  Serial.print("FIRMWARE ");
+  Serial.println(softwareVersion);
+}
 
 
 
@@ -38,18 +41,20 @@ String softwareVersion = "SSS2*REV" + revision + "*0.5*CAN-Fixes*d05f5f9df902744
 void listInfo() {
   Serial.print("INFO SSS2 Component ID (Make*Model*Serial*Unit): ");
   Serial.println(componentID);
-}
-
-void getSoftwareVersion() {
-  Serial.print("INFO SSS2 Firmware version: ");
-  Serial.println(softwareVersion);
+  
 }
 
 void changeComponentID() {
-  if (commandString.length() > 5) componentID = commandString;
-  Serial.print(F("SET SSS2 Component ID: "));
-  Serial.println(componentID);
-  if (commandString.length() <= 5 && commandString.length() > 0) Serial.println(F("Please make the component ID longer than 5 characters to change it."));
+  if (commandString.length() < 12) {
+    Serial.print(F("INFO SSS2 Component ID: "));
+    Serial.println(componentID);
+  }
+  else{
+    componentID = commandString;
+    setCompIdEEPROMdata();
+    Serial.print(F("SET SSS2 Component ID: "));
+    Serial.println(componentID);
+  } 
 }
 
 
@@ -142,6 +147,7 @@ void setEnableComponentInfo(){
   else{
     enableSendComponentInfo = false;
     Serial.print(F("SET Disable CAN transmission of Component ID"));  
+    can_messages[comp_id_index]->enabled = false;
   }
   
 }
@@ -256,9 +262,8 @@ void sendMessage(){
 /*                 End Function calls for User input data                             */
 /**************************************************************************************/
 
-void sendComponentInfo()
-{
-  if (enableSendComponentInfo){
+void setupComponentInfo(){
+   char byteEntry[4];
    uint8_t old_shortest_period = shortest_period;
    shortest_period = 1;
    uint16_t id_length = constrain(componentID.length(),0,7*256-1);
@@ -270,16 +275,21 @@ void sendComponentInfo()
    sprintf(bytes_to_send,"%02X",id_length);
    char frames_to_send[3];
    sprintf(frames_to_send,"%02X",num_frames);
-   commandString = "0,1,0,0,1,0,1,1,1CECFFFA,8,20,";
+   commandString = "CI from SSS2,0,1,0,0,1,0,1,1,1CECFF";
+   sprintf(byteEntry,"%02X,",source_address);
+   commandString += byteEntry; 
+   commandString += "8,20,";
    commandString += bytes_to_send;
    commandString += ",0,";
    commandString += frames_to_send;
    commandString += ",FF,EB,FE,00";
+   Serial.println(commandString);
+   
    setupPeriodicCANMessage();
    
-   char byteEntry[4];
+   
    for (int i = 0; i < num_frames; i++){
-     commandString = "0,";
+     commandString = "CI from SSS2,0,";
      sprintf(byteEntry,"%d,",num_frames+1);
      commandString += byteEntry; 
      sprintf(byteEntry,"%d,",i+1);
@@ -287,7 +297,10 @@ void sendComponentInfo()
      commandString += "0,1,0,";
      sprintf(byteEntry,"%d,",num_frames+1);
      commandString += byteEntry; 
-     commandString += ",1,1CEBFFFA,8,";
+     commandString += "1,1CEBFF";
+     sprintf(byteEntry,"%02X,",source_address);
+     commandString += byteEntry; 
+     commandString += "8,";
      sprintf(byteEntry,"%02X,",i+1);
      commandString += byteEntry; 
      for (int j = 7*i; j < 7*i+7;j++){
@@ -295,12 +308,14 @@ void sendComponentInfo()
        else sprintf(byteEntry,"%02X,",0xFF);
        commandString += byteEntry;
      }
-     setupPeriodicCANMessage();
+     Serial.println(commandString);
+   
+     comp_id_index = setupPeriodicCANMessage();
    }
    shortest_period = old_shortest_period;
-  }     
+  
+    
 }       
-
 
 void parseJ1939(CAN_message_t &rxmsg ){
   uint32_t ID = rxmsg.id;
@@ -322,43 +337,10 @@ void parseJ1939(CAN_message_t &rxmsg ){
   if (PGN == 0xEA00){
     //request message
     if (rxmsg.buf[0] == 0xEB && rxmsg.buf[1] == 0xFE){
-      //Component ID 
-      sendComponentInfo();
-      //sendJ1939(0,6,0xFEEB,0xFF,sourceAddress,strlen(componentID),componentID);
+      if (enableSendComponentInfo){
+        listInfo();   
+      }
     }
-  }
-  else if (PGN == 0xEB00){
-    //Transport Protocol - Data
-    
-  }
-  else if (PGN == 0xEC00){
-    //Transport Protocol - Connection Management
-    uint8_t controlByte = rxmsg.buf[0];
-    if (controlByte == 16){
-      //Connection Mode - Request to Send
-      uint16_t totalMessageSize = rxmsg.buf[1] + rxmsg.buf[2]*256;
-      uint8_t totalPackets = rxmsg.buf[3];
-      uint8_t numPacketsToBeSent = rxmsg.buf[4];
-      uint32_t requestedPGN = rxmsg.buf[5] + (rxmsg.buf[6] << 8) + (rxmsg.buf[7] << 16);
-      //TODO: Set up a response
-    }
-    else if (controlByte == 17){
-      //Connection Mode - Clear to Send 
-      uint8_t numPacketsToBeSent = rxmsg.buf[1];
-    }
-    else {
-      uint16_t totalMessageSize = rxmsg.buf[1] + rxmsg.buf[2]*256;
-      uint8_t totalPackets = rxmsg.buf[3];
-      uint8_t numPacketsToBeSent = rxmsg.buf[4];
-      uint8_t maxNumOfPackets =rxmsg.buf[5];
-      uint8_t nextPacketToBeSent =rxmsg.buf[6];
-      uint8_t sequenceNumber =rxmsg.buf[7];
-    }
-
-
-    
-    
-    
   }
 }
 
@@ -500,9 +482,7 @@ void setup() {
     setSetting(i, currentSetting ,DEBUG_ON);
   }
   
-  currentSetting = 1;
-  knobLowLimit = 1;
-  knobHighLimit = numSettings - 1;
+  
   
   Can0.begin(BAUDRATE0);
   Can1.begin(BAUDRATE1);
@@ -534,18 +514,29 @@ void setup() {
   J1708.clear();
 
   enableSendComponentInfo = true;
-  sendComponentInfo();
+  setupComponentInfo();
   
-  CANTimer.begin(runCANthreads, 2000);
-}
+  for (int i = 0; i < num_default_messages; i++){
+    commandString = default_messages[i];
+    setupPeriodicCANMessage();
+    delay(1);
+  }
+  
+  CANTimer.begin(runCANthreads, 500); // Run can threads on an interrupt. Produces very little jitter.
 
-void runCANthreads(){
-  can_thread_controller.run();
+  currentSetting = 1;
+  knobLowLimit = 1;
+  knobHighLimit = numSettings - 1;
+
+  commandString = "1";
+  goCAN();
+  
+  getCompIdEEPROMdata();
 }
 
 void loop() {
   //Always do this 
-  can_thread_controller.run();
+  //can_thread_controller.run();
   
   //Check CAN messages
   while (Can0.available()) {
@@ -581,7 +572,7 @@ void loop() {
     if (firstJ1708) firstJ1708 = false; 
     else{
       uint8_t j1708_checksum = 0;
-      Serial.print("J1708 ");
+      Serial.printf("J1708 %d",millis());
       for (int i = 0; i<J1708_index;i++){
         j1708_checksum += J1708RXbuffer[i];
         Serial.printf("%02X ", J1708RXbuffer[i]);
@@ -616,39 +607,39 @@ void loop() {
     if (Serial.available()) commandString = Serial.readStringUntil('\n');
     else commandString = "";
  
-    if      (commandPrefix.toInt() > 0) fastSetSetting();  
-    else if (commandPrefix.equalsIgnoreCase("SM")) setupPeriodicCANMessage();
-    else if (commandPrefix.equalsIgnoreCase("J1708")) displayJ1708();
-    else if (commandPrefix.equalsIgnoreCase("GO")) startCAN();
-    else if (commandPrefix.equalsIgnoreCase("SP")) set_shortest_period();
-    else if (commandPrefix.equalsIgnoreCase("STOPCAN")) stopCAN();
-    else if (commandPrefix.equalsIgnoreCase("STARTCAN")) goCAN();
-    else if (commandPrefix.startsWith("SS") || commandPrefix.startsWith("ss")) changeValue();
-    else if (commandPrefix.startsWith("SC") || commandPrefix.startsWith("sc")) Serial.println(F("SC - Not implemented yet."));
-    else if (commandPrefix.startsWith("SA") || commandPrefix.startsWith("sa")) saveEEPROM();
-    else if (commandPrefix.startsWith("AO") || commandPrefix.startsWith("ao")) turnOnAdjustMode();
-    else if (commandPrefix.startsWith("AF") || commandPrefix.startsWith("af")) turnOffAdjustMode();
-    else if (commandPrefix.startsWith("CS") || commandPrefix.startsWith("cs")) changeSetting(); //Select setting to change
-    else if (commandPrefix.startsWith("CI") || commandPrefix.startsWith("ci")) changeComponentID();
-    else if (commandPrefix.startsWith("LS") || commandPrefix.startsWith("ls")) listSettings();
-    else if (commandPrefix.startsWith("LI") || commandPrefix.startsWith("li")) listInfo();
-    else if (commandPrefix.startsWith("B0") || commandPrefix.startsWith("b0")) autoBaud0();
-    else if (commandPrefix.startsWith("B1") || commandPrefix.startsWith("b1")) autoBaud1();
-    else if (commandPrefix.startsWith("DB") || commandPrefix.startsWith("db")) displayBaud();
-    else if (commandPrefix.startsWith("C0") || commandPrefix.startsWith("c0")) startStopCAN0Streaming();
-    else if (commandPrefix.startsWith("C1") || commandPrefix.startsWith("c1")) startStopCAN1Streaming();
-    else if (commandPrefix.startsWith("C2") || commandPrefix.startsWith("c2")) startStopCAN2Streaming();
-    else if (commandPrefix.startsWith("AI") || commandPrefix.startsWith("ai")) displayVoltage();
-    else if (commandPrefix.startsWith("MK") || commandPrefix.startsWith("mk")) setEnableComponentInfo();
-    else if (commandPrefix.startsWith("ID") || commandPrefix.startsWith("id")) print_uid();
-    else if (commandPrefix.startsWith("SV") || commandPrefix.startsWith("sv")) displayVoltage();
-    else if (commandPrefix.startsWith("OK") || commandPrefix.startsWith("ok")) checkAgainstUID();
-    else if (commandPrefix.startsWith("ST") || commandPrefix.startsWith("st")) displayStats();
-    else if (commandPrefix.startsWith("CL") || commandPrefix.startsWith("cl")) clearStats();
-
+    if      (commandPrefix.toInt() > 0)                   fastSetSetting();  
+    else if (commandPrefix.equalsIgnoreCase("AI"))        displayVoltage();
+    else if (commandPrefix.equalsIgnoreCase("B0"))        autoBaud0();
+    else if (commandPrefix.equalsIgnoreCase("B1"))        autoBaud1();
+    else if (commandPrefix.equalsIgnoreCase("DB"))        displayBaud();
+    else if (commandPrefix.equalsIgnoreCase("CANCOMP"))   setEnableComponentInfo();
+    else if (commandPrefix.equalsIgnoreCase("ID"))        print_uid();
+    else if (commandPrefix.equalsIgnoreCase("C0"))        startStopCAN0Streaming();
+    else if (commandPrefix.equalsIgnoreCase("C1"))        startStopCAN1Streaming();
+    else if (commandPrefix.equalsIgnoreCase("C2"))        startStopCAN2Streaming();
+    else if (commandPrefix.equalsIgnoreCase("GO"))        startCAN();
+    else if (commandPrefix.equalsIgnoreCase("SP"))        set_shortest_period();
+    else if (commandPrefix.equalsIgnoreCase("STOPCAN"))   stopCAN();
+    else if (commandPrefix.equalsIgnoreCase("STARTCAN"))  goCAN();
+    else if (commandPrefix.equalsIgnoreCase("CLEARCAN"))  clearCAN();
+    else if (commandPrefix.equalsIgnoreCase("STATS"))     displayStats();
+    else if (commandPrefix.equalsIgnoreCase("CLEARSTATS"))clearStats();
+    else if (commandPrefix.equalsIgnoreCase("CI"))        changeComponentID();
+    else if (commandPrefix.equalsIgnoreCase("LS"))        listSettings();
+    else if (commandPrefix.equalsIgnoreCase("OK"))        checkAgainstUID();
+    else if (commandPrefix.equalsIgnoreCase("CANNAME"))   getThreadName();
+    else if (commandPrefix.equalsIgnoreCase("CANSIZE"))   getThreadSize();
+    else if (commandPrefix.equalsIgnoreCase("THREADS"))   getAllThreadNames();
+    else if (commandPrefix.equalsIgnoreCase("SOFT"))      listSoftware();
+    else if (commandPrefix.equalsIgnoreCase("J1708"))     displayJ1708();
+    else if (commandPrefix.equalsIgnoreCase("SM"))        setupPeriodicCANMessage();
+    
    
     
-    else Serial.println(F("ERROR Unrecognized Command Characters. Use a comma after the command.\nERROR Known commands are CN, B0, B1, DS, VI, SW, PN, PD, PB, PF, LI, LS, CI, CS, AF, AO, SA, SC, SS, or SM."));
+    else {
+      Serial.println(F("ERROR Unrecognized Command Characters. Use a comma after the command."));
+      Serial.println(F("INFO Known commands are setting numbers, GO, SP, J1708, STOPCAN, STARTCAN, B0, B1, C0, C1, C2, DS, SW, OK, ID, STATS, CLEAR, MK, LI, LS, CI, CS, SA, SS, or SM."));
+    }
   
   }
   //Serial.clear();
@@ -708,53 +699,3 @@ void loop() {
   /*             End LED Indicators for messages                        */
   /**********************************************************************/
 }
-
-/*
-
-void loop(){
- can_thread_controller.run();
-
-/****************************************************************/
-  /*            Begin Serial Command Processing                  
-  if (Serial.available() >= 2 && Serial.available() < 140) {
-    commandPrefix = Serial.readStringUntil(',');
-    if (Serial.available()) commandString = Serial.readStringUntil('\n');
-    
-    if (commandPrefix.startsWith("SM") || commandPrefix.startsWith("sm")) {
-        temp_txmsg.id =  commandString.toInt();
-       
-        
-        while (i < 25){
-          temp_txmsg.id = i;
-          temp_txmsg.buf[0] = 2*i;
-          sendMessage();
-          delay(1);
-          can_thread_controller.run();
-          i++;
-
-        }
-      }
-    else if (commandPrefix.toLowerCase().startsWith("stop")){
-      int index = commandString.toInt();
-      Serial.printf("Stop,%d\n",index);
-      can_messages[index]->enabled = false;
-      can_messages[index]->txmsg.buf[1] = index;
-      
-      can_thread_controller.remove(index);
-      //can_thread_controller.clear();
-    }
-    else if (commandPrefix.toLowerCase().startsWith("go")){
-      int index = commandString.toInt();
-      Serial.printf("Go,%d\n",index);
-      can_messages[index]->enabled = true;
-      //can_thread_controller.remove(index);
-      //can_thread_controller.clear();
-    }
-    else if (commandPrefix.toLowerCase().startsWith("list")){
-      for (int j = 0; j < can_thread_controller.size();j++){
-         Serial.printf("ID: %X, enabled: %d \n", can_messages[j] -> txmsg.id,can_messages[j] -> enabled);
-         can_thread_controller.run();
-      }
-    }
-  }
-   */

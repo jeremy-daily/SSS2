@@ -24,6 +24,9 @@
 Adafruit_MCP23017 ConfigExpander; //U21
 Adafruit_MCP23017 PotExpander; //U33
 
+boolean LIN_slave = true;
+uint8_t LIN_address = 0xda;
+elapsedMicros LINtimer;
 
 //The Unique ID variable that comes from the chip
 uint32_t uid[4];
@@ -35,9 +38,9 @@ String commandPrefix;
 String commandString;
 
 #define numSettings  85
-uint8_t sourceAddress = 0xFA; 
+uint8_t source_address = 0xFA; 
 
-
+int comp_id_index = 0;
 
 //Sequential CAN message counters
 uint8_t DM13_00_Count = 0;
@@ -135,32 +138,36 @@ void displayVoltage(){
 /****************************************************************/
 /*                    CAN Setup                                 */
 //Setup messages
-#define num_default_messages  10
-uint8_t default_can_data[num_default_messages][8] = {
-  {0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,0,1},
-  {0,0,0,0,0,0,0,2},
-  {0,0,0,0,0,0,0,3},
-  {0,0,0,0,0,0,0,4},
-  {0,0,0,0,0,0,0,5},
-  {0,0,0,0,0,0,0,6},
-  {0,0,0,0,0,0,0,7},
-  {0,0,0,0,0,0,0,8},
-  {0,0,0,0,0,0,0,9}
+#define num_default_messages  25
+String default_messages[num_default_messages] = {
+ "DDEC TCM 01,1,1,0,1,  10,0,0,1, CF00203,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC13 Transmission controler message, CAN1
+ "DDEC MCM 01,2,1,0,1,  10,0,0,1, 8FF0001,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC 13 MCM message, CAN1
+ "DDEC TCM 02,3,1,0,1,  10,0,0,1, 8FF0303,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC 13 TCM message, CAN1
+ "HRW from Brake Controller,4,1,0,0,  20,0,0,1, CFE6E0B,8, 0, 0, 0, 0, 0, 0, 0, 0", //High Resolution wheel speed message from SA=11 (brake controller)
+ "EBC1 from Cab Controller,5,1,0,0, 100,0,0,1,18F00131,8, 0, 0, 0, 0, 0, 0, 0, 0", // Electronic Brake Controller from SA=49
+ "EBC1 from Brake Controller,6,1,0,0, 100,0,0,1,18F0010B,8, 0, 0, 0, 0, 0, 0, 0, 0", // Electronic Brake Controller from SA=11
+ "CCVS1 from Instrument Cluster,7,1,0,0, 100,0,0,1,18FEF117,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=23
+ "CCVS1 from Cab Display 1,8,1,0,0, 100,0,0,1,18FEF128,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=40
+ "CCVS1 from Body Controller,9,1,0,0, 100,0,0,1,18FEF121,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=33
+ "CCVS1 from Cab Controller,10,1,0,0, 100,0,0,1,18FEF131,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=49
+ "CM1 from Instrument Cluster,11,0,0, 100,0,0,1,18E00017,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=23
+ "CM1 from Climate Control 1,12,1,0,0, 100,0,0,1,18E00019,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=25
+ "CM1 from Body Controller,13,1,0,0, 100,0,0,1,18E00021,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=33
+ "CM1 from Cab Display,14,1,0,0, 100,0,0,1,18E00028,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=40
+ "CM1 from Cab Controller,15,1,0,0, 100,0,0,1,18E00031,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=49
+ "PTO from Instrument Cluster,16,1,0,0, 100,0,0,1,18FEF017,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=23
+ "PTO from Body Controller,17,1,0,0, 100,0,0,1,18FEF021,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=33
+ "PTO from Cab Display,18,1,0,0, 100,0,0,1,18FEF028,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=40
+ "PTO from Cab Controller,19,1,0,0, 100,0,0,1,18FEF031,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=49
+ "DDEC TCM 03,20,1,0,1, 100,0,0,1,18F00503,8, 0, 0, 0, 0, 0, 0, 0, 0", //Transmission on DDEC 13
+ "DDEC Fault Codes from MCM,21,2,0,1,5,1000,0,1,10ECFF01,8,20,0E,00,01,FF,CA,FE,00", //TP.CM Session Control Message for DDEC
+ "DDEC Fault Codes from MCM,21,2,1,1,5,1000,0,1,10EBFF01,8,01, 0, 0, 0, 0, 0, 0, 0", //TP.DT
+ "DDEC Fault Codes from ACM,22,2,0,1,5,1000,0,1,10ECFF3D,8,20,0E,00,01,FF,CA,FE,00", //TP.CM Session Control Message for DDEC
+ "DDEC Fault Codes from ACM,22,2,1,1,5,1000,0,1,10EBFF3D,8,01, 0, 0, 0, 0, 0, 0, 0", //TP.DT
+ "AMB from Body Controller,23,1,0,1,1000,0,0,1,18FEF521,8, 0, 0, 0, 0, 0, 0, 0, 0" //Ambient Conditions
 };
 
-uint32_t default_can_ids[num_default_messages] = {
-  0x18FEF10B,
-  0x18FEF10B,
-  0x18FEF10B,
-  0x18FEF10B,
-  0x18FEF10B,
-  0x18FEF10B,
-  0x18FEF10B,
-  0x18FEF10B,
-  0x18FEF10B,
-  0x18FEF10B
-};
+
 
 
 //Set up the CAN data structures
@@ -182,9 +189,13 @@ uint8_t baudRateIndex1 = 0;
 
 CAN_filter_t allPassFilter;
 
-
-// Create a new Class
+// Create a thread controller class
 ThreadController can_thread_controller = ThreadController();
+
+void runCANthreads(){
+  can_thread_controller.run();
+}
+
 
 class CanThread: public Thread
 {
@@ -219,7 +230,7 @@ public:
     memcpy(txmsg.buf,message_list[message_index],8);
 
     //Write the data to the CAN bus.
-    if (ok_to_send){
+    if (ok_to_send && ignitionCtlState){
       if      (channel == 0) Can0.write(txmsg);
       else if (channel == 1) Can1.write(txmsg);
       
@@ -243,11 +254,7 @@ public:
   }
 };
 
-void CANtimerCallback(){
-  can_thread_controller.run();
-}
-
-
+//Setup a container to keep track of the individual CAN threads
 CanThread* can_messages[MAX_THREADS] ={};
 
 void set_shortest_period(){
@@ -257,6 +264,24 @@ void set_shortest_period(){
   }
   else
      Serial.printf("INFO Shortest CAN Broadcast Period is %lu milliseconds.\n",shortest_period);
+}
+
+void getThreadName(){
+  int index = commandString.toInt();
+  Serial.printf("NAME of CAN Thread %d: ",index); 
+  Serial.println(can_messages[index]->ThreadName);
+}
+void getAllThreadNames(){
+  int threadSize =  can_thread_controller.size(false);
+  for(int i = 0; i<threadSize; i++){
+    Serial.printf("NAME of CAN Thread %d: ",i); 
+    Serial.println(can_messages[i]->ThreadName);
+  }
+  
+}
+void getThreadSize(){
+  int threadSize =  can_thread_controller.size(false);
+  Serial.printf("INFO Size of CAN Thread = %d\n",threadSize); 
 }
 
 int setupPeriodicCANMessage(){
@@ -270,18 +295,22 @@ int setupPeriodicCANMessage(){
   uint32_t stop_after_count;
    
   int threadSize =  can_thread_controller.size(false);
-  char commandBytes[70];
-  commandString.toCharArray(commandBytes,69);
+  char commandBytes[256];
+  commandString.toCharArray(commandBytes,256);
   char delimiter[] = ",";
   char* commandValues;
-  
+
   commandValues = strtok(commandBytes, delimiter);
+  String threadName = commandValues;
+  
+  
+  commandValues = strtok(NULL, delimiter);
   if (commandValues != NULL) {
     index = constrain(atoi(commandValues),0,threadSize);
   }
   else {
     Serial.println(F("ERROR SM command is missing arguments.")); 
-    return 0;
+    return -1;
   }
 
   commandValues = strtok(NULL, delimiter);
@@ -290,7 +319,7 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(F("ERROR SM command not able to determine the number of sub messages.")); 
-    return 0;
+    return -2;
   }
 
 
@@ -301,7 +330,7 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(F("ERROR SM command missing sub_index.")); 
-    return 0;
+    return -3;
   }
   
   commandValues = strtok(NULL, delimiter);
@@ -310,7 +339,7 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(F("ERROR SM command not able to set CAN Channel.")); 
-    return 0;
+    return -4;
   }
   
   commandValues = strtok(NULL, delimiter);
@@ -319,7 +348,7 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(F("ERROR SM command not able to set period information.")); 
-    return 0;
+    return -5;
   }
 
   commandValues = strtok(NULL, delimiter);
@@ -328,7 +357,7 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(F("ERROR SM command not able to set delay information.")); 
-    return 0;
+    return -6;
   }
   
   commandValues = strtok(NULL, delimiter);
@@ -337,7 +366,7 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(F("ERROR SM command not able to set the total number count.")); 
-    return 0;
+    return -7;
   }
   
   commandValues = strtok(NULL, delimiter);
@@ -378,22 +407,25 @@ int setupPeriodicCANMessage(){
       Serial.printf("WARNING SM command not able to set CAN data byte in position %d.\n",i);
     }
   }
-  Serial.printf("SET CAN i=%d, n=%d, j=%d, c=%d, p=%d, d=%d, t=%d, e=%d, ID=%08X, DLC=%d, DATA=[",
-                 index, num_messages, sub_index, channel, tx_period, tx_delay, stop_after_count, temp_txmsg.ext, temp_txmsg.id,temp_txmsg.len);
+  char threadNameChars[256]; 
+  threadName.toCharArray(threadNameChars,threadName.length()+1);
+  
+  Serial.printf("SET CAN name=%s, i=%d, n=%d, j=%d, c=%d, p=%d, d=%d, t=%d, e=%d, ID=%08X, DLC=%d, DATA=[",
+                 threadNameChars,index, num_messages, sub_index, channel, tx_period, tx_delay, stop_after_count, temp_txmsg.ext, temp_txmsg.id,temp_txmsg.len);
   for (int i = 0; i < temp_txmsg.len-1; i++){
     Serial.printf("%02X, ",temp_txmsg.buf[i]);
   }
   Serial.printf("%02X]\n",temp_txmsg.buf[temp_txmsg.len-1]);
   
   if (index == threadSize) { //Create a new entry
-    Serial.println(F("INFO Creating new entry in thread controller."));
+    Serial.printf("INFO Creating new entry in thread controller named %s.\n",threadNameChars);
     CanThread* can_message = new CanThread(); 
     can_thread_controller.add(can_message);
     can_messages[index] = can_message;
     can_messages[index]->enabled = false;
   }
   else{
-   Serial.println(F("INFO Using existing entry in thread controller.")); 
+   Serial.printf("INFO Using existing entry in thread controller named %s.\n",threadNameChars); 
   }
 
   can_messages[index]->channel = channel;
@@ -410,7 +442,8 @@ int setupPeriodicCANMessage(){
   can_messages[index]->num_messages = num_messages;  
   can_messages[index]->setInterval(tx_period);
   can_messages[index]->loop_cycles =  tx_delay ;
-  return 1;
+  can_messages[index]->ThreadName = threadName;
+  return index;
 }
 
 void stopCAN(){
@@ -423,6 +456,7 @@ void stopCAN(){
 
 void clearCAN(){
   can_thread_controller.clear();
+  Serial.println(F("INFO Cleared the CAN transmission thread. All messages must be reloaded."));
 }
 
 void goCAN(){
@@ -825,7 +859,7 @@ char settingNames[numSettings][40] = {
 };
 
 char settingPins[numSettings][40] = {
-  "",
+  "\n",
   "Port  1 (J24- 1)",
   "Port  2 (J24- 2)",
   "Port  3 (J24- 3)",
@@ -1416,15 +1450,21 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
 
 
 
-void setDefaultEEPROMdata () {
-  EEPROM.put(componentIDAddress, componentID);
-  Serial.printf("SAVED %s\n",componentID);
+void setCompIdEEPROMdata () {
+  char id[256];
+  componentID.toCharArray(id,255);
+  EEPROM.put(componentIDAddress,id);
+  Serial.print("SAVED ");
+  Serial.println(componentID);
 }
 
 
-void getEEPROMdata () {
-  EEPROM.get(componentIDAddress, componentID);
-  Serial.printf("LOADED %s\n",componentID);
+void getCompIdEEPROMdata () {
+  char id[256];
+  EEPROM.get(componentIDAddress, id);
+  componentID = String(id);
+  Serial.print("LOADED ");
+  Serial.println(componentID);
 }
 
 
@@ -1532,11 +1572,11 @@ void changeValue(){
   }
 }
 
-void saveEEPROM(){
-  //Save settings to EEPROM
-  Serial.println(F("INFO SA - Saving Settings to EEPROM."));
-  setDefaultEEPROMdata();
-}
+//void saveEEPROM(){
+//  //Save settings to EEPROM
+//  Serial.println(F("INFO SA - Saving Settings to EEPROM."));
+//  setDefaultEEPROMdata();
+//}
 
 
 
@@ -1553,11 +1593,11 @@ void saveEEPROM(){
 OneButton button(buttonPin, true);
 
 void longPressStart() {
-  setSetting(50, !ignitionCtlState, DEBUG_OFF);
-  digitalWrite(ignitionCtlPin, ignitionCtlState);
-  digitalWrite(greenLEDpin, ignitionCtlState);
-  DM13_00_Count = 0;
-  DM13_FF_Count = 0;
+  ignitionCtlState = !ignitionCtlState;
+  commandPrefix = "50";
+  if (ignitionCtlState) commandString = "1";
+  else commandString = "0";
+  fastSetSetting();
 }
 
 void myClickFunction() {
