@@ -24,6 +24,8 @@
 Adafruit_MCP23017 ConfigExpander; //U21
 Adafruit_MCP23017 PotExpander; //U33
 
+IntervalTimer CANTimer;
+
 boolean LIN_slave = true;
 uint8_t LIN_address = 0xda;
 elapsedMicros LINtimer;
@@ -56,6 +58,7 @@ elapsedMillis analog_tx_timer;
 
 elapsedMicros J1708RXtimer;
 elapsedMicros microsecondsPerSecond;
+
 
 
 /****************************************************************/
@@ -94,6 +97,103 @@ int knobLowLimit = 0;
 int knobHighLimit = 255;
 int knobJump = 1;
 
+int LINbaud = 19200;
+uint8_t LINIndex = 0;
+boolean firstLINtime;
+uint32_t serialSend0Micros;
+uint32_t serialSend1Micros;
+uint32_t serialSend2Micros;
+uint32_t serialSend3Micros;
+uint32_t serialSend4Micros;
+uint8_t outByte[4];
+boolean LIN0send;
+boolean LIN1send;
+boolean LIN2send;
+boolean LIN3send;
+boolean LIN4send;
+
+void sendLINResponse(){
+  uint32_t currentMicros = micros();
+  if (LIN.available()>=3) 
+  {
+    byte firstChar = LIN.read();
+    byte secondChar = LIN.read() ;
+    byte thirdChar = LIN.read() ;
+    if (firstChar == 0x00 && secondChar == 0xF0){
+      //Serial.println("LIN Start");
+      LIN.write(0xF0);
+    }
+    else if (firstChar == 0x00 && secondChar == 0x55 && thirdChar == 0x20 && firstLINtime){
+        firstLINtime =false;
+         LIN.write(0xFF);
+         LIN.write(0xF);
+         LIN.write(0xFF);
+         LIN.write(0x3F);
+         LIN.write(0x91);
+         //Serial.println("first LIN Pass");
+    }
+    else if (firstChar == 0x00 && secondChar == 0x55 && thirdChar == 0x20 && !firstLINtime)//Serial.print(micros());
+    {
+      outByte[0] = 0x14;
+      outByte[1] = (LINIndex << 4) + 0x01;
+      LINIndex++;
+      outByte[2] = 0x02;
+      outByte[3] = 0x0D;
+
+      //A bad way to calculate checksums
+      if      (outByte[1]==0x01) outByte[4] =0xBB;
+      else if (outByte[1]==0x11) outByte[4] =0xAB;
+      else if (outByte[1]==0x21) outByte[4] =0x9B;
+      else if (outByte[1]==0x31) outByte[4] =0x8B;
+      else if (outByte[1]==0x41) outByte[4] =0x7B;
+      else if (outByte[1]==0x51) outByte[4] =0x6B;
+      else if (outByte[1]==0x61) outByte[4] =0x5B;
+      else if (outByte[1]==0x71) outByte[4] =0x4B;
+      else if (outByte[1]==0x81) outByte[4] =0x3B;
+      else if (outByte[1]==0x91) outByte[4] =0x2B;
+      else if (outByte[1]==0xA1) outByte[4] =0x1B;
+      else if (outByte[1]==0xB1) outByte[4] =0x0B;
+      else if (outByte[1]==0xC1) outByte[4] =0xFA;
+      else if (outByte[1]==0xD1) outByte[4] =0xEA;
+      else if (outByte[1]==0xE1) outByte[4] =0xDA;
+      else if (outByte[1]==0xF1) outByte[4] =0xCA;
+
+      serialSend0Micros = currentMicros+500;
+      LIN0send = true;
+      serialSend1Micros = currentMicros+1000;
+      LIN1send = true;
+      serialSend2Micros = currentMicros+1500;
+      LIN2send = true;
+      serialSend3Micros = currentMicros+2000;
+      LIN3send = true;
+      serialSend4Micros = currentMicros+2500;
+      LIN4send = true;
+      
+
+    }
+  }    
+
+  if (currentMicros - serialSend0Micros >=0 && LIN0send) {
+    LIN.write(outByte[0]);
+    LIN0send=false;
+  }
+  if (currentMicros - serialSend1Micros >=0 && LIN1send) {
+    LIN.write(outByte[1]);
+    LIN1send=false;
+  }
+  if (currentMicros - serialSend2Micros >=0 && LIN2send) {
+    LIN.write(outByte[2]);
+    LIN2send=false;
+  }
+  if (currentMicros - serialSend3Micros >=0 && LIN3send){
+    LIN.write(outByte[3]);
+    LIN3send=false;
+  }
+  if (currentMicros - serialSend4Micros >=0 && LIN4send) {
+    LIN.write(outByte[4]);
+    LIN4send=false;
+  }
+}
 
 class SensorThread: public Thread
 {
@@ -140,31 +240,31 @@ void displayVoltage(){
 //Setup messages
 #define num_default_messages  25
 String default_messages[num_default_messages] = {
- "DDEC TCM 01,1,1,0,1,  10,0,0,1, CF00203,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC13 Transmission controler message, CAN1
- "DDEC MCM 01,2,1,0,1,  10,0,0,1, 8FF0001,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC 13 MCM message, CAN1
- "DDEC TCM 02,3,1,0,1,  10,0,0,1, 8FF0303,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC 13 TCM message, CAN1
- "HRW from Brake Controller,4,1,0,0,  20,0,0,1, CFE6E0B,8, 0, 0, 0, 0, 0, 0, 0, 0", //High Resolution wheel speed message from SA=11 (brake controller)
- "EBC1 from Cab Controller,5,1,0,0, 100,0,0,1,18F00131,8, 0, 0, 0, 0, 0, 0, 0, 0", // Electronic Brake Controller from SA=49
- "EBC1 from Brake Controller,6,1,0,0, 100,0,0,1,18F0010B,8, 0, 0, 0, 0, 0, 0, 0, 0", // Electronic Brake Controller from SA=11
- "CCVS1 from Instrument Cluster,7,1,0,0, 100,0,0,1,18FEF117,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=23
- "CCVS1 from Cab Display 1,8,1,0,0, 100,0,0,1,18FEF128,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=40
- "CCVS1 from Body Controller,9,1,0,0, 100,0,0,1,18FEF121,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=33
- "CCVS1 from Cab Controller,10,1,0,0, 100,0,0,1,18FEF131,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=49
- "CM1 from Instrument Cluster,11,0,0, 100,0,0,1,18E00017,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=23
- "CM1 from Climate Control 1,12,1,0,0, 100,0,0,1,18E00019,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=25
- "CM1 from Body Controller,13,1,0,0, 100,0,0,1,18E00021,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=33
- "CM1 from Cab Display,14,1,0,0, 100,0,0,1,18E00028,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=40
- "CM1 from Cab Controller,15,1,0,0, 100,0,0,1,18E00031,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=49
- "PTO from Instrument Cluster,16,1,0,0, 100,0,0,1,18FEF017,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=23
- "PTO from Body Controller,17,1,0,0, 100,0,0,1,18FEF021,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=33
- "PTO from Cab Display,18,1,0,0, 100,0,0,1,18FEF028,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=40
- "PTO from Cab Controller,19,1,0,0, 100,0,0,1,18FEF031,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=49
- "DDEC TCM 03,20,1,0,1, 100,0,0,1,18F00503,8, 0, 0, 0, 0, 0, 0, 0, 0", //Transmission on DDEC 13
- "DDEC Fault Codes from MCM,21,2,0,1,5,1000,0,1,10ECFF01,8,20,0E,00,01,FF,CA,FE,00", //TP.CM Session Control Message for DDEC
- "DDEC Fault Codes from MCM,21,2,1,1,5,1000,0,1,10EBFF01,8,01, 0, 0, 0, 0, 0, 0, 0", //TP.DT
- "DDEC Fault Codes from ACM,22,2,0,1,5,1000,0,1,10ECFF3D,8,20,0E,00,01,FF,CA,FE,00", //TP.CM Session Control Message for DDEC
- "DDEC Fault Codes from ACM,22,2,1,1,5,1000,0,1,10EBFF3D,8,01, 0, 0, 0, 0, 0, 0, 0", //TP.DT
- "AMB from Body Controller,23,1,0,1,1000,0,0,1,18FEF521,8, 0, 0, 0, 0, 0, 0, 0, 0" //Ambient Conditions
+ "DDEC MCM 01,                   1,1,0,1,  10,   0,0,1, 8FF0001,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC 13 MCM message, CAN1
+ "DDEC TCM 01,                   2,1,0,1,  10,   0,0,1, CF00203,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC13 Transmission controler message, CAN1
+ "DDEC TCM 02,                   3,1,0,1,  10,   0,0,1, 8FF0303,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC 13 TCM message, CAN1
+ "DDEC TCM 03,                   4,1,0,1, 100,   0,0,1,18F00503,8, 0, 0, 0, 0, 0, 0, 0, 0", //Transmission on DDEC 13
+ "HRW from Brake Controller,     5,1,0,0,  20,   0,0,1, CFE6E0B,8, 0, 0, 0, 0, 0, 0, 0, 0", //High Resolution wheel speed message from SA=11 (brake controller)
+ "EBC1 from Cab Controller,      6,1,0,0, 100,   0,0,1,18F00131,8, 0, 0, 0, 0, 0, 0, 0, 0", // Electronic Brake Controller from SA=49
+ "EBC1 from Brake Controller,    7,1,0,0, 100,   0,0,1,18F0010B,8, 0, 0, 0, 0, 0, 0, 0, 0", // Electronic Brake Controller from SA=11
+ "CCVS1 from Instrument Cluster, 8,1,0,0, 100,   0,0,1,18FEF117,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=23
+ "CCVS1 from Cab Display 1,      9,1,0,0, 100,   0,0,1,18FEF128,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=40
+ "CCVS1 from Body Controller,   10,1,0,0, 100,   0,0,1,18FEF121,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=33
+ "CCVS1 from Cab Controller,    11,1,0,0, 100,   0,0,1,18FEF131,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=49
+ "CM1 from Instrument Cluster,  12,1,0,0, 100,   0,0,1,18E00017,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=23
+ "CM1 from Climate Control 1,   13,1,0,0, 100,   0,0,1,18E00019,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=25
+ "CM1 from Body Controller,     14,1,0,0, 100,   0,0,1,18E00021,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=33
+ "CM1 from Cab Display,         15,1,0,0, 100,   0,0,1,18E00028,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=40
+ "CM1 from Cab Controller,      16,1,0,0, 100,   0,0,1,18E00031,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=49
+ "PTO from Instrument Cluster,  17,1,0,0, 100,   0,0,1,18FEF017,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=23
+ "PTO from Body Controller,     18,1,0,0, 100,   0,0,1,18FEF021,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=33
+ "PTO from Cab Display,         19,1,0,0, 100,   0,0,1,18FEF028,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=40
+ "PTO from Cab Controller,      20,1,0,0, 100,   0,0,1,18FEF031,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=49
+ "DDEC Fault Codes from MCM,    21,2,0,1,   5,1000,0,1,10ECFF01,8,20,0E,00,01,FF,CA,FE,00", //TP.CM Session Control Message for DDEC
+ "DDEC Fault Codes from MCM,    21,2,1,1,   5,1000,0,1,10EBFF01,8,01, 0, 0, 0, 0, 0, 0, 0", //TP.DT
+ "DDEC Fault Codes from ACM,    22,2,0,1,   5,1000,0,1,10ECFF3D,8,20,0E,00,01,FF,CA,FE,00", //TP.CM Session Control Message for DDEC
+ "DDEC Fault Codes from ACM,    22,2,1,1,   5,1000,0,1,10EBFF3D,8,01, 0, 0, 0, 0, 0, 0, 0", //TP.DT
+ "AMB from Body Controller,     23,1,0,1,1000,   0,0,1,18FEF521,8, 0, 0, 0, 0, 0, 0, 0, 0" //Ambient Conditions
 };
 
 
@@ -258,7 +358,7 @@ public:
 CanThread* can_messages[MAX_THREADS] ={};
 
 void set_shortest_period(){
-  if (commandString.length() > 1){
+  if (commandString.length() > 0){
     shortest_period = commandString.toInt();
     Serial.printf("SET Shortest CAN Broadcast Period to %lu milliseconds.\n",shortest_period);
   }
@@ -279,12 +379,15 @@ void getAllThreadNames(){
   }
   
 }
+
+
 void getThreadSize(){
   int threadSize =  can_thread_controller.size(false);
   Serial.printf("INFO Size of CAN Thread = %d\n",threadSize); 
 }
 
 int setupPeriodicCANMessage(){
+  CANTimer.end();
   CanThread* can_message;
   int index;
   int sub_index;
@@ -418,14 +521,14 @@ int setupPeriodicCANMessage(){
   Serial.printf("%02X]\n",temp_txmsg.buf[temp_txmsg.len-1]);
   
   if (index == threadSize) { //Create a new entry
-    Serial.printf("INFO Creating new entry in thread controller named %s.\n",threadNameChars);
+    Serial.printf("THREAD %lu, %s (NEW)\n",index,threadNameChars); 
     CanThread* can_message = new CanThread(); 
     can_thread_controller.add(can_message);
     can_messages[index] = can_message;
     can_messages[index]->enabled = false;
   }
   else{
-   Serial.printf("INFO Using existing entry in thread controller named %s.\n",threadNameChars); 
+   Serial.printf("THREAD %lu, %s (EXISTING)\n",index,threadNameChars); 
   }
 
   can_messages[index]->channel = channel;
@@ -443,6 +546,8 @@ int setupPeriodicCANMessage(){
   can_messages[index]->setInterval(tx_period);
   can_messages[index]->loop_cycles =  tx_delay ;
   can_messages[index]->ThreadName = threadName;
+  
+  CANTimer.begin(runCANthreads, 500);
   return index;
 }
 
@@ -455,6 +560,10 @@ void stopCAN(){
 }
 
 void clearCAN(){
+  int threadSize =  can_thread_controller.size(false);
+  for (int i = 0; i < sizeof(can_messages); i++) {
+    delete can_messages[i] ;
+    }
   can_thread_controller.clear();
   Serial.println(F("INFO Cleared the CAN transmission thread. All messages must be reloaded."));
 }

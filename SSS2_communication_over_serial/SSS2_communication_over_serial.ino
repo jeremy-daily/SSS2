@@ -17,10 +17,9 @@
 #include "SSS2_board_defs_rev_3.h"
 #include "SSS2_functions.h"
 
-IntervalTimer CANTimer;
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*0.6b*master*d05f5f9df9027442f473471a37743c64a8cdbd42"; //Hash of the previous git commit
+String softwareVersion = "SSS2*REV" + revision + "*0.6b*master*ccffe274ceb590405481ee9ed72708c0252106cf"; //Hash of the previous git commit
 
 
 void listSoftware(){
@@ -54,6 +53,7 @@ void changeComponentID() {
     setCompIdEEPROMdata();
     Serial.print(F("SET SSS2 Component ID: "));
     Serial.println(componentID);
+    setupComponentInfo();
   } 
 }
 
@@ -142,14 +142,14 @@ void startStopCAN2Streaming(){
 void setEnableComponentInfo(){
   if (commandString.toInt() > 0){
     enableSendComponentInfo = true;
-    Serial.print(F("SET Enable CAN transmission of Component ID"));
+    Serial.println(F("SET Enable CAN transmission of Component ID"));
   }
   else{
     enableSendComponentInfo = false;
-    Serial.print(F("SET Disable CAN transmission of Component ID"));  
+    Serial.println(F("SET Disable CAN transmission of Component ID"));  
     can_messages[comp_id_index]->enabled = false;
   }
-  
+  setupComponentInfo();
 }
 
 void checkAgainstUID(){
@@ -171,7 +171,7 @@ void sendMessage(){
   boolean goodID = false;
   boolean goodData = false;
   
-  //Serial.println(F("SM - Send Message."));
+  //Serial.println(F("CANSEND - Send Message."));
   //Serial.println(commandString);
   char commandCharBuffer[100];
   char IdCharBuffer[9];
@@ -243,11 +243,11 @@ void sendMessage(){
       else if (channel == 1){
         Can1.write(txmsg);
       }
-      else Serial.println("ERROR Invalid Channel for SM.");
+      else Serial.println("ERROR Invalid Channel for CANSEND.");
     }
     
     else
-      Serial.println(F("ERROR Invalid input data for SM. Input should be using hex characters with no spaces in the form SM,channel,ID,data/n"));
+      Serial.println(F("ERROR Invalid input data for CANSEND. Input should be using hex characters with no spaces in the form SM,channel,ID,data/n"));
   }
   else
   {
@@ -317,6 +317,17 @@ void setupComponentInfo(){
     
 }       
 
+void reloadCAN(){
+  setupComponentInfo();
+  
+  for (int i = 0; i < num_default_messages; i++){
+    commandString = default_messages[i];
+    setupPeriodicCANMessage();
+    delay(1);
+  }
+  commandString = "1";
+  goCAN();
+}
 void parseJ1939(CAN_message_t &rxmsg ){
   uint32_t ID = rxmsg.id;
   uint8_t DLC = rxmsg.len;
@@ -514,13 +525,8 @@ void setup() {
   J1708.clear();
 
   enableSendComponentInfo = true;
-  setupComponentInfo();
   
-  for (int i = 0; i < num_default_messages; i++){
-    commandString = default_messages[i];
-    setupPeriodicCANMessage();
-    delay(1);
-  }
+  reloadCAN();
   
   CANTimer.begin(runCANthreads, 500); // Run can threads on an interrupt. Produces very little jitter.
 
@@ -528,8 +534,7 @@ void setup() {
   knobLowLimit = 1;
   knobHighLimit = numSettings - 1;
 
-  commandString = "1";
-  goCAN();
+  
   
   getCompIdEEPROMdata();
 }
@@ -633,12 +638,14 @@ void loop() {
     else if (commandPrefix.equalsIgnoreCase("SOFT"))      listSoftware();
     else if (commandPrefix.equalsIgnoreCase("J1708"))     displayJ1708();
     else if (commandPrefix.equalsIgnoreCase("SM"))        setupPeriodicCANMessage();
-    
+    else if (commandPrefix.equalsIgnoreCase("CANSEND"))   sendMessage();
+    else if (commandPrefix.equalsIgnoreCase("RELOAD"))    reloadCAN();
+   
    
     
     else {
       Serial.println(F("ERROR Unrecognized Command Characters. Use a comma after the command."));
-      Serial.println(F("INFO Known commands are setting numbers, GO, SP, J1708, STOPCAN, STARTCAN, B0, B1, C0, C1, C2, DS, SW, OK, ID, STATS, CLEAR, MK, LI, LS, CI, CS, SA, SS, or SM."));
+      //Serial.println(F("INFO Known commands are setting numbers, GO, SP, J1708, STOPCAN, STARTCAN, B0, B1, C0, C1, C2, DS, SW, OK, ID, STATS, CLEAR, MK, LI, LS, CI, CS, SA, SS, or SM."));
     }
   
   }
