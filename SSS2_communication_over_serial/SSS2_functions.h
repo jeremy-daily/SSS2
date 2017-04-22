@@ -44,11 +44,6 @@ uint8_t source_address = 0xFA;
 
 int comp_id_index = 0;
 
-//Sequential CAN message counters
-uint8_t DM13_00_Count = 0;
-uint8_t DM13_FF_Count = 0;
-
-int kounter = 0;
 /****************************************************************/
 /*              Setup millisecond timers and intervals          */
 //Declare a millisecond timer to execute the switching of the LEDs on a set time

@@ -360,45 +360,11 @@ void parseJ1939(CAN_message_t &rxmsg ){
 //A generic CAN Frame print function for the Serial terminal
 void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCount)
 { 
-//  uint32_t currentMicros = micros();
-//  uint8_t *idPointer = (uint8_t *)&rxmsg.id;
-//  uint8_t *RXCountPointer = (uint8_t *)&RXCount;
-//  uint8_t *microsPointer = (uint8_t *)&currentMicros;
-//  char outMessage[27] ={};
-//  outMessage[0]='C';
-//  outMessage[1]='A';
-//  outMessage[2]='N';
-//  outMessage[3]=channel;
-//  outMessage[4]=RXCountPointer[0];
-//  outMessage[5]=RXCountPointer[1];
-//  outMessage[6]=RXCountPointer[2];
-//  outMessage[7]=RXCountPointer[3];
-//  outMessage[8]=microsPointer[0];
-//  outMessage[9]=microsPointer[1];
-//  outMessage[10]=microsPointer[2];
-//  outMessage[11]=microsPointer[3];
-//  outMessage[12]=idPointer[0];
-//  outMessage[13]=idPointer[1];
-//  outMessage[14]=idPointer[2];
-//  outMessage[15]=idPointer[3];
-//  outMessage[16]=rxmsg.len;
-//  outMessage[17]=rxmsg.buf[0];
-//  outMessage[18]=rxmsg.buf[1];
-//  outMessage[19]=rxmsg.buf[2];
-//  outMessage[20]=rxmsg.buf[3];
-//  outMessage[21]=rxmsg.buf[4];
-//  outMessage[22]=rxmsg.buf[5];
-//  outMessage[23]=rxmsg.buf[6];
-//  outMessage[24]=rxmsg.buf[7];
-//  outMessage[25]=0x0A;
-//  Serial.write(outMessage,26);
-  
 
-  Serial.printf("CAN%d %10lu %10lu %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X\n",
-          channel,RXCount,micros(),rxmsg.id,rxmsg.ext,rxmsg.len,
+ Serial.printf("CAN%d %10lu.%06lu %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X\n",
+          channel,now(),uint32_t(microsecondsPerSecond),rxmsg.id,rxmsg.ext,rxmsg.len,
           rxmsg.buf[0],rxmsg.buf[1],rxmsg.buf[2],rxmsg.buf[3],
           rxmsg.buf[4],rxmsg.buf[5],rxmsg.buf[6],rxmsg.buf[7]);
-
 }
 
 
@@ -407,6 +373,36 @@ time_t getTeensy3Time(){
   return Teensy3Clock.get();
 }
 
+const uint32_t DEFAULT_TIME = 10; // Jan 1 2013
+char timeStamp[45];
+
+uint32_t processSyncMessage() {
+  char timeChar[15];
+  memset(timeChar,0,15);
+  commandString.toCharArray(timeChar,15);
+  time_t pctime = atol(timeChar);
+  Serial.println(pctime);
+  if (pctime > DEFAULT_TIME){
+    return pctime;
+  }
+  else if (pctime == 0) {
+    Serial.printf("INFO Time is %04d-%02d-%02d %02d:%02d:%02d\n",year(),month(),day(),hour(),minute(),second());
+    return 0L;
+  }
+  else{
+    Serial.println("ERROR Time value is invalid.");
+    return 0L;
+  }
+}
+
+void displayTime() {
+  time_t t = processSyncMessage();
+  if (t != 0) {
+    Teensy3Clock.set(t); // set the RTC
+    setTime(t);
+    Serial.printf("SET Time to %04d-%02d-%02d %02d:%02d:%02d\n",year(),month(),day(),hour(),minute(),second());
+  }
+}
 
 void print_uid()  {  
   Serial.printf("ID: %s\n", kinetisUID());
@@ -535,7 +531,6 @@ void setup() {
   knobHighLimit = numSettings - 1;
 
   
-  
   getCompIdEEPROMdata();
 }
 
@@ -577,7 +572,7 @@ void loop() {
     if (firstJ1708) firstJ1708 = false; 
     else{
       uint8_t j1708_checksum = 0;
-      Serial.printf("J1708 %d",millis());
+      Serial.printf("J1708 %10lu.%06lu",now(),uint32_t(microsecondsPerSecond));
       for (int i = 0; i<J1708_index;i++){
         j1708_checksum += J1708RXbuffer[i];
         Serial.printf("%02X ", J1708RXbuffer[i]);
@@ -588,8 +583,7 @@ void loop() {
     J1708_index = 0;
     newJ1708Char = false;
   }
-
-  
+    
   /************************************************************************/
   /*            Begin PERIODIC CAN Message Transmission                            */
   if (analog_tx_timer >= analog_display_period ){
@@ -608,13 +602,9 @@ void loop() {
   /*            Begin Serial Command Processing                   */
   if (Serial.available() >= 2 && Serial.available() < 256) {
     commandPrefix = Serial.readStringUntil(',');
-    Serial.println(commandPrefix);
     commandString = Serial.readStringUntil('\n');
-    commandString.trim();
-    Serial.println(commandString);
-//    if (Serial.available()) 
-//    else commandString = "";
- 
+    //commandString.trim();
+    
     if      (commandPrefix.toInt() > 0)                   fastSetSetting();  
     else if (commandPrefix.equalsIgnoreCase("AI"))        displayVoltage();
     else if (commandPrefix.equalsIgnoreCase("B0"))        autoBaud0();
@@ -643,6 +633,8 @@ void loop() {
     else if (commandPrefix.equalsIgnoreCase("SM"))        setupPeriodicCANMessage();
     else if (commandPrefix.equalsIgnoreCase("CANSEND"))   sendMessage();
     else if (commandPrefix.equalsIgnoreCase("RELOAD"))    reloadCAN();
+    else if (commandPrefix.equalsIgnoreCase("TIME"))      displayTime();
+    else if (commandPrefix.equalsIgnoreCase("GETTIME"))   Serial.printf("INFO Timestamp: %D\n",now());
    
    
     
