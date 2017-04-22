@@ -436,7 +436,7 @@ void setup() {
   Serial.begin(9600);
   Serial1.begin(19200);
   
-  commandString.reserve(200);
+  commandString.reserve(256);
   commandPrefix.reserve(20);
   
   kinetisUID(uid);
@@ -602,11 +602,14 @@ void loop() {
    
   /****************************************************************/
   /*            Begin Serial Command Processing                   */
-  if (Serial.available() >= 2 && Serial.available() < 140) {
+  if (Serial.available() >= 2 && Serial.available() < 256) {
     commandPrefix = Serial.readStringUntil(',');
- 
-    if (Serial.available()) commandString = Serial.readStringUntil('\n');
-    else commandString = "";
+    Serial.println(commandPrefix);
+    commandString = Serial.readStringUntil('\n');
+    commandString.trim();
+    Serial.println(commandString);
+//    if (Serial.available()) 
+//    else commandString = "";
  
     if      (commandPrefix.toInt() > 0)                   fastSetSetting();  
     else if (commandPrefix.equalsIgnoreCase("AI"))        displayVoltage();
