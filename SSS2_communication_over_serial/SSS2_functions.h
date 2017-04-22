@@ -8,7 +8,6 @@
 #define ENCODER_OPTIMIZE_INTERRUPTS
 
 #include <SPI.h>
-#include <SdFat.h>
 #include <i2c_t3.h>
 #include <Encoder.h>
 #include "OneButton.h"
@@ -22,12 +21,6 @@
 #include "FlexCAN.h"
 
 
-SdFatSdioEX sd;
-File file;
-
-char filename[15];
-int filenumber = 0;
-
 Adafruit_MCP23017 ConfigExpander; //U21
 Adafruit_MCP23017 PotExpander; //U33
 
@@ -37,21 +30,11 @@ boolean LIN_slave = true;
 uint8_t LIN_address = 0xda;
 elapsedMicros LINtimer;
 
-#define numRequests 4
-const uint16_t PGNRequestList[numRequests] = {
-  65259, // Component Identification
-  65242, // Software Identification
-  64965, // ECU Identification Information
-  65260 // Vehicle Identification
-};
 //The Unique ID variable that comes from the chip
 uint32_t uid[4];
 
 uint8_t terminationSettings;
 
-boolean ok_to_log = false;
-
-#define FILE_BASE_NAME "SSS2_"
 
 String commandPrefix;
 String commandString;
@@ -61,7 +44,11 @@ uint8_t source_address = 0xFA;
 
 int comp_id_index = 0;
 
+//Sequential CAN message counters
+uint8_t DM13_00_Count = 0;
+uint8_t DM13_FF_Count = 0;
 
+int kounter = 0;
 /****************************************************************/
 /*              Setup millisecond timers and intervals          */
 //Declare a millisecond timer to execute the switching of the LEDs on a set time
