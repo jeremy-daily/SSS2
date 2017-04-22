@@ -28,9 +28,29 @@ void listSoftware(){
 }
 
 
+void startLogging(){
+  file.close();
+  
+  sd.begin();
+  sd.chvol();
 
+  sprintf(filename,"SSS2%04d.csv",filenumber++);
+  if (file.open(filename, O_RDWR | O_CREAT)){
+      //file.truncate(0);
+      Serial.printf("INFO Log started with file name: %s\n",filename);
+      ok_to_log = true;
+  }
+  else {
+    Serial.println("ERROR Log file failed to open. Check SD Card.");
+      ok_to_log = false;
+  }
+}
 
-
+void stopLogging(){
+  file.close();
+  ok_to_log = false;
+  Serial.printf("INFO Logging to %s stopped.\n",filename);
+}
 
 
 /**************************************************************************************/
@@ -358,47 +378,17 @@ void parseJ1939(CAN_message_t &rxmsg ){
 
 
 //A generic CAN Frame print function for the Serial terminal
+char LOGdisplayBuffer[64];
+char J1708displayBuffer[128];
+
 void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCount)
 { 
-//  uint32_t currentMicros = micros();
-//  uint8_t *idPointer = (uint8_t *)&rxmsg.id;
-//  uint8_t *RXCountPointer = (uint8_t *)&RXCount;
-//  uint8_t *microsPointer = (uint8_t *)&currentMicros;
-//  char outMessage[27] ={};
-//  outMessage[0]='C';
-//  outMessage[1]='A';
-//  outMessage[2]='N';
-//  outMessage[3]=channel;
-//  outMessage[4]=RXCountPointer[0];
-//  outMessage[5]=RXCountPointer[1];
-//  outMessage[6]=RXCountPointer[2];
-//  outMessage[7]=RXCountPointer[3];
-//  outMessage[8]=microsPointer[0];
-//  outMessage[9]=microsPointer[1];
-//  outMessage[10]=microsPointer[2];
-//  outMessage[11]=microsPointer[3];
-//  outMessage[12]=idPointer[0];
-//  outMessage[13]=idPointer[1];
-//  outMessage[14]=idPointer[2];
-//  outMessage[15]=idPointer[3];
-//  outMessage[16]=rxmsg.len;
-//  outMessage[17]=rxmsg.buf[0];
-//  outMessage[18]=rxmsg.buf[1];
-//  outMessage[19]=rxmsg.buf[2];
-//  outMessage[20]=rxmsg.buf[3];
-//  outMessage[21]=rxmsg.buf[4];
-//  outMessage[22]=rxmsg.buf[5];
-//  outMessage[23]=rxmsg.buf[6];
-//  outMessage[24]=rxmsg.buf[7];
-//  outMessage[25]=0x0A;
-//  Serial.write(outMessage,26);
-  
-
-  Serial.printf("CAN%d %10lu %10lu %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X\n",
+  sprintf(LOGdisplayBuffer,"CAN%d,%10lu,%10lu,%08X,%d,%d,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X\n",
           channel,RXCount,micros(),rxmsg.id,rxmsg.ext,rxmsg.len,
           rxmsg.buf[0],rxmsg.buf[1],rxmsg.buf[2],rxmsg.buf[3],
           rxmsg.buf[4],rxmsg.buf[5],rxmsg.buf[6],rxmsg.buf[7]);
-
+  if (displayCAN0 && channel == 0) Serial.print(LOGdisplayBuffer);
+  if (displayCAN1 && channel == 1) Serial.print(LOGdisplayBuffer);
 }
 
 
@@ -548,7 +538,8 @@ void loop() {
     Can0.read(rxmsg);
     RXCount0++;
     RXCAN0timer = 0;
-    if (displayCAN0) printFrame(rxmsg, -1, 0, RXCount0);
+    printFrame(rxmsg, -1, 0, RXCount0);
+    if (ok_to_log) file.write(LOGdisplayBuffer,64);
     redLEDstate = !redLEDstate;
     digitalWrite(redLEDpin, redLEDstate);
   }
@@ -556,7 +547,8 @@ void loop() {
     Can1.read(rxmsg);
     RXCount1++;
     RXCAN1orJ1708timer = 0;
-    if (displayCAN1) printFrame(rxmsg, -1, 1, RXCount1);
+    printFrame(rxmsg, -1, 1, RXCount1);
+    if (ok_to_log) file.write(LOGdisplayBuffer,64);
     if (ignitionCtlState){
       greenLEDstate = !greenLEDstate;
       digitalWrite(greenLEDpin, greenLEDstate);
@@ -572,21 +564,25 @@ void loop() {
     J1708_index++;
     if (J1708_index > sizeof(J1708RXbuffer)) J1708_index = 0;
   }
-  if (showJ1708 && newJ1708Char && J1708RXtimer > 1150) { //At least 11 bit times must pass
+  if (newJ1708Char && J1708RXtimer > 1250) { //At least 11 bit times must pass
     //Check to see if this is the first displayed message. If so, discard and start showing subsequent messages.
     if (firstJ1708) firstJ1708 = false; 
     else{
       uint8_t j1708_checksum = 0;
-      Serial.printf("J1708 %d",millis());
+      sprintf(J1708displayBuffer,"J1708,%lu",millis());
       for (int i = 0; i<J1708_index;i++){
         j1708_checksum += J1708RXbuffer[i];
-        Serial.printf("%02X ", J1708RXbuffer[i]);
+        sprintf(J1708displayBuffer,"%s,%02X",J1708displayBuffer,J1708RXbuffer[i]);
       }
-      if (j1708_checksum == 0) Serial.println("OK");
-      else Serial.println("Checksum Failed.");
+      if (j1708_checksum == 0) sprintf(J1708displayBuffer,"%s,OK\n",J1708displayBuffer);
+      else sprintf(J1708displayBuffer,"%s,Checksum Failed.\n",J1708displayBuffer);
     }
     J1708_index = 0;
     newJ1708Char = false;
+    if (showJ1708) Serial.print(J1708displayBuffer);
+    if (ok_to_log) file.write(J1708displayBuffer,strlen(J1708displayBuffer));
+    memset(J1708displayBuffer,0,128);
+    
   }
 
   
@@ -624,6 +620,8 @@ void loop() {
     else if (commandPrefix.equalsIgnoreCase("C2"))        startStopCAN2Streaming();
     else if (commandPrefix.equalsIgnoreCase("GO"))        startCAN();
     else if (commandPrefix.equalsIgnoreCase("SP"))        set_shortest_period();
+    else if (commandPrefix.equalsIgnoreCase("STOPLOG"))   stopLogging();
+    else if (commandPrefix.equalsIgnoreCase("STARTLOG"))  startLogging();
     else if (commandPrefix.equalsIgnoreCase("STOPCAN"))   stopCAN();
     else if (commandPrefix.equalsIgnoreCase("STARTCAN"))  goCAN();
     else if (commandPrefix.equalsIgnoreCase("CLEARCAN"))  clearCAN();
