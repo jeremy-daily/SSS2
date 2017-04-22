@@ -19,7 +19,7 @@
 
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*0.6b*master*ccffe274ceb590405481ee9ed72708c0252106cf"; //Hash of the previous git commit
+String softwareVersion = "SSS2*REV" + revision + "*0.6b*master*4c74a802173bf309ba337338d79a8e64535cccbc"; //Hash of the previous git commit
 
 
 void listSoftware(){

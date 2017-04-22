@@ -1566,10 +1566,16 @@ void setCompIdEEPROMdata () {
 void getCompIdEEPROMdata () {
   char id[256];
   EEPROM.get(componentIDAddress, id);
-  componentID = String(id);
-  Serial.print("LOADED ");
-  Serial.println(componentID);
+  if (id[0]==255) {
+    setCompIdEEPROMdata ();
+  }
+  else{
+    componentID = String(id);
+    Serial.print("LOADED ");
+    Serial.println(componentID);
+  }
 }
+
 
 
 
