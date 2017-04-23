@@ -19,7 +19,7 @@
 
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*0.6b*master*4c74a802173bf309ba337338d79a8e64535cccbc"; //Hash of the previous git commit
+String softwareVersion = "SSS2*REV" + revision + "*0.9b*master*3e22de7f419b3e862572b782ad92168e4c82bd14"; //Hash of the previous git commit
 
 
 void listSoftware(){
@@ -572,7 +572,7 @@ void loop() {
     if (firstJ1708) firstJ1708 = false; 
     else{
       uint8_t j1708_checksum = 0;
-      Serial.printf("J1708 %10lu.%06lu",now(),uint32_t(microsecondsPerSecond));
+      Serial.printf("J1708 %10lu.%06lu ",now(),uint32_t(microsecondsPerSecond));
       for (int i = 0; i<J1708_index;i++){
         j1708_checksum += J1708RXbuffer[i];
         Serial.printf("%02X ", J1708RXbuffer[i]);
