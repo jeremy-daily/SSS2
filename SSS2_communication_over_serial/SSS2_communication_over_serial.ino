@@ -373,7 +373,7 @@ time_t getTeensy3Time(){
   return Teensy3Clock.get();
 }
 
-const uint32_t DEFAULT_TIME = 10; // Jan 1 2013
+const uint32_t DEFAULT_TIME = 10; 
 char timeStamp[45];
 
 uint32_t processSyncMessage() {
@@ -381,7 +381,6 @@ uint32_t processSyncMessage() {
   memset(timeChar,0,15);
   commandString.toCharArray(timeChar,15);
   time_t pctime = atol(timeChar);
-  Serial.println(pctime);
   if (pctime > DEFAULT_TIME){
     return pctime;
   }
