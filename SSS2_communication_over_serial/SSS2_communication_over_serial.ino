@@ -590,7 +590,7 @@ void loop() {
     if (send_voltage){
       Serial.print("ANALOG");
       for (uint8_t j = 0; j < numADCs; j++){
-        Serial.printf(", A%d:%d",analogInPins[j],analogRead(analogInPins[j]));
+        Serial.printf(" %lu:%d",uint32_t(analogMillis),analogRead(analogInPins[j]));
       }
       Serial.print("\n");
     }

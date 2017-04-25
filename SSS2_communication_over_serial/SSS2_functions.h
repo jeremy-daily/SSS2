@@ -50,7 +50,7 @@ int comp_id_index = 0;
 elapsedMillis RXCAN0timer;
 elapsedMillis RXCAN1orJ1708timer;
 elapsedMillis analog_tx_timer;
-
+elapsedMillis analogMillis;
 elapsedMicros J1708RXtimer;
 elapsedMicros microsecondsPerSecond;
 
@@ -190,37 +190,38 @@ void sendLINResponse(){
   }
 }
 
-class SensorThread: public Thread
-{
-public:
-  int reading;
-  int pin;
-   
-  
-  bool shouldRun(unsigned long time){
-    return Thread::shouldRun(time);
-  }
-  
-  void run(){
-   
-    reading = analogRead(pin);
-    Serial.printf("A%d,%d\n",pin,reading);
-    runned(); 
-  }
-};
-
-SensorThread analog1 = SensorThread();
-
-void analogTimerCallback(){
-  analog1.run();
-}
+//class SensorThread: public Thread
+//{
+//public:
+//  int reading;
+//  int pin;
+//   
+//  
+//  bool shouldRun(unsigned long time){
+//    return Thread::shouldRun(time);
+//  }
+//  
+//  void run(){
+//   
+//    reading = analogRead(pin);
+//    Serial.printf("A%d,%d\n",pin,reading);
+//    runned(); 
+//  }
+//};
+//
+//SensorThread analog1 = SensorThread();
+//
+//void analogTimerCallback(){
+//  analog1.run();
+//}
 
 
 
 void displayVoltage(){
-  
+  analogMillis = 0;
   if (commandString.toInt() > 0){
     send_voltage = true;
+    
     Serial.println("SET Stream analog in data on."); 
   }
   else {
@@ -259,7 +260,7 @@ String default_messages[num_default_messages] = {
  "DDEC Fault Codes from MCM,    21,2,1,1,   5,1000,0,1,10EBFF01,8,01, 0, 0, 0, 0, 0, 0, 0", //TP.DT
  "DDEC Fault Codes from ACM,    22,2,0,1,   5,1000,0,1,10ECFF3D,8,20,0E,00,01,FF,CA,FE,00", //TP.CM Session Control Message for DDEC
  "DDEC Fault Codes from ACM,    22,2,1,1,   5,1000,0,1,10EBFF3D,8,01, 0, 0, 0, 0, 0, 0, 0", //TP.DT
- "AMB from Body Controller,     23,1,0,1,1000,   0,0,1,18FEF521,8, 0, 0, 0, 0, 0, 0, 0, 0" //Ambient Conditions
+ "AMB from Body Controller,     23,1,0,0,1000,   0,0,1,18FEF521,8, 0, 0, 0, 0, 0, 0, 0, 0" //Ambient Conditions
 };
 
 
