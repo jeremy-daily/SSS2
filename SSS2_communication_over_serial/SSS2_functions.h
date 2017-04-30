@@ -89,7 +89,6 @@ int knobLowLimit = 0;
 int knobHighLimit = 255;
 int knobJump = 1;
 
-int LINbaud = 19200;
 //uint8_t LINcounter = 0;
 //boolean firstLINtime = true;
 //uint32_t serialSend0Micros;
@@ -135,10 +134,12 @@ void sendLINselect(){
   }
 }
 
-const uint8_t linRXpin = 0;
+
 
 elapsedMicros LINtimer;
 elapsedMicros LINsyncTimer;
+elapsedMicros LINsendtimer;
+int LINbaud = 19200;
 bool LINbreak;
 int LINtransitionCount;
 uint32_t LINbitTime=52;
@@ -160,10 +161,10 @@ uint8_t k;
 
 void determineSync(){
   if(LINtimer > LINsyncPause) {
-    //Serial.println("Break");
     detachInterrupt(linRXpin);
     LIN.begin(LINbaud,SERIAL_8N1);
     readyForLINsync=true;
+    if (printLIN) Serial.println("Break");
   }
 }
 
@@ -175,24 +176,28 @@ void resetLINtimer(){
 
 void sendLINResponse(){
   if( LIN.available() ){
+    
     if (readyForLINsync){
-      okToTimeout=true;
       readyForLINsync=false;
-      uint8_t LIN_Sync = LIN.read();
+      uint8_t LIN_Sync = 0; 
+      while (LIN_Sync != 0x55 && LINtimer < 4000){
+        LIN_Sync = LIN.read();
+      }
       if (LIN_Sync == 0x55){
         readyForLINid = true;
         if (printLIN) Serial.printf("LIN Sync: %02X\n",LIN_Sync);
       }
       else{
-        if (printLIN) Serial.printf("ERROR: LIN Sync: %02X\n",LIN_Sync);
         LINfinished = true;
+        if (printLIN) Serial.printf("ERROR: LIN Sync: %02X\n",LIN_Sync);
       }
     }
     else if (readyForLINid ){
       LIN_ID = LIN.read();
+      readyForLINdata = true;
       readyForLINid = false;
       LINindex = 0;
-      LINtimer = 0;
+      
       
       bool ID0 = (LIN_ID & 0b00000001) >> 0;
       bool ID1 = (LIN_ID & 0b00000010) >> 1; 
@@ -204,17 +209,6 @@ void sendLINResponse(){
       bool LINparity1 = (LIN_ID & 0b10000000) >> 7;
       LINaddress = (LIN_ID & 0x0F) >> 0;
 
-     
-//      bool ID0   = bool((LIN_ID & 0b10000000) >> 7);
-//      bool ID1   = bool((LIN_ID & 0b01000000) >> 6); 
-//      bool ID2   = bool((LIN_ID & 0b00100000) >> 5);
-//      bool ID3   = bool((LIN_ID & 0b00010000) >> 4); 
-//      bool ID4   = bool((LIN_ID & 0b00001000) >> 3); 
-//      bool ID5   = bool((LIN_ID & 0b00000100) >> 2); 
-//      bool LINparity0 = (LIN_ID & 0b00000010) >> 1;
-//      bool LINparity1 = (LIN_ID & 0b00000001) >> 0;
-//      LINaddress = (LIN_ID & 0xF0) >> 4;
-
       if (ID4 && ID5) LINlength = 8;
       else if (!ID4 && ID5) LINlength = 4;
       else if (ID4 && !ID5) LINlength = 2;
@@ -223,6 +217,7 @@ void sendLINResponse(){
       
       if (LIN_ID == 0x20){
         readyToTransmitShifter = true; 
+        LINsendtimer = 0;
         outByte[0] = 0x14;
         outByte[1] = (k << 4) + 0x01;
         k+=1;
@@ -233,27 +228,18 @@ void sendLINResponse(){
         for (int i = 0; i<4;i++){
           calculatedChecksum +=outByte[i];
         }
-        outByte[3] = uint8_t(~(calculatedChecksum % 255) );
-          
+        outByte[4] = uint8_t(~(calculatedChecksum % 255) );
       }
-      
-      if (LINlength > 0){
-        readyForLINdata = true;
-      }
-      else {
-        LINfinished = true;
-      }
-      
-     
-      
     }
     else if (readyForLINdata){
+      
       LINbuffer[LINindex] = LIN.read();
       if (printLIN)Serial.printf("%02X ",LINbuffer[LINindex]);
       LINindex++;
       if (LINindex == LINlength){
         readyForLINdata = false;
         readyForLINchecksum = true;
+         LINindex = 0;
       }
     }
     else if (readyForLINchecksum ){
@@ -271,16 +257,17 @@ void sendLINResponse(){
       readyForLINchecksum = false;
       LINfinished = true;
     }
-//    else {
-//      if (printLIN) Serial.printf("%02X\n",LIN.read());
-//      else LIN.read();
-//    }
+    else {
+      if (printLIN) Serial.printf("%02X\n",LIN.read());
+      else LIN.read();
+    }
     
   }
+  if( LINtimer > 20000) LINfinished=true;
    
-  if (LINfinished){
-      LIN.clear();
-      LIN.flush();     
+  if (LINfinished && LINtimer > 9000){
+      //LIN.clear();
+      //LIN.flush();     
       pinMode(linRXpin,INPUT);
       attachInterrupt(linRXpin,resetLINtimer,FALLING);
       LINfinished = false;
@@ -289,27 +276,36 @@ void sendLINResponse(){
       readyForLINdata = false;
       readyForLINsync = false;
       readyForLINid = false;
+      okToTimeout = false;
       
     }
 
-  if(LINtimer > 15*LINbitTime && okToTimeout){
-    LINfinished = true;
-    if (printLIN) Serial.println("LIN Reset.");
-    okToTimeout=false;
-  }
+//  if(LINtimer > 15*LINbitTime && okToTimeout){
+//    LINfinished = true;
+//    if (printLIN) Serial.println("LIN Reset.");
+//    okToTimeout=false;
+//  }
    
-  if (readyToTransmitShifter){
-      if (LINtimer >= (10*LINbitTime + 500)*(LINindex+1)){
-        if (sendLIN) LIN.write(outByte[LINindex]);
-        LINindex++;
-        if (LINindex == 5) {
-          readyToTransmitShifter = false;
-          LINfinished = true;
-          LINtimer = 0;
-          LINindex = 0;
-       }
-     }
-   }
+  if (readyToTransmitShifter && LINsendtimer >= 0){
+    for (LINindex = 0; LINindex <= LINlength; LINindex++){
+      if (sendLIN) LIN.write(outByte[LINindex]);
+      //LIN.flush();
+    }
+    readyToTransmitShifter = false;
+    LINfinished = true;
+  }
+      
+////     // if (LINsendtimer >= 300 + (11*LINbitTime)*LINindex){
+////        if (sendLIN) LIN.write(outByte[LINindex]);
+////        LINindex++;
+////        if (LINindex == 5) {
+////          readyToTransmitShifter = false;
+////          LINfinished = true;
+////          LINsendtimer = 0;
+////          LINindex = 0;
+////      // }
+//     }
+//   }
       
 }
 

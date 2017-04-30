@@ -516,7 +516,6 @@ void setup() {
 
 
   J1708.begin(9600);
-  J1708.flush();
   J1708.clear();
 
   enableSendComponentInfo = true;

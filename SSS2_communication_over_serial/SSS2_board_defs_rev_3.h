@@ -1,6 +1,7 @@
 #define SSS2_BOARD_REVISION 3
 #define J1708 Serial3
 #define LIN Serial1
+#define linRXpin 0
 
 String make = "SYNER";
 String model = "SSS2";
@@ -96,6 +97,7 @@ void setPinModes(){
     pinMode(IL1Pin,          OUTPUT);
     pinMode(IL2Pin,          OUTPUT);
     pinMode(ignitionCtlPin,  OUTPUT);
+    pinMode(linRXpin,        INPUT);
      
     if (CSCANPin      > -1) digitalWrite(CSCANPin,     HIGH);
     if (CStouchPin    > -1) digitalWrite(CStouchPin,   HIGH);
