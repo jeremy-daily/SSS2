@@ -26,9 +26,6 @@ Adafruit_MCP23017 PotExpander; //U33
 
 IntervalTimer CANTimer;
 
-boolean LIN_slave = true;
-uint8_t LIN_address = 0xda;
-elapsedMicros LINtimer;
 
 //The Unique ID variable that comes from the chip
 uint32_t uid[4];
@@ -93,101 +90,227 @@ int knobHighLimit = 255;
 int knobJump = 1;
 
 int LINbaud = 19200;
-uint8_t LINIndex = 0;
-boolean firstLINtime;
-uint32_t serialSend0Micros;
-uint32_t serialSend1Micros;
-uint32_t serialSend2Micros;
-uint32_t serialSend3Micros;
-uint32_t serialSend4Micros;
-uint8_t outByte[4];
-boolean LIN0send;
-boolean LIN1send;
-boolean LIN2send;
-boolean LIN3send;
-boolean LIN4send;
+//uint8_t LINcounter = 0;
+//boolean firstLINtime = true;
+//uint32_t serialSend0Micros;
+//uint32_t serialSend1Micros;
+//uint32_t serialSend2Micros;
+//uint32_t serialSend3Micros;
+//uint32_t serialSend4Micros;
+//
+//boolean LIN0send;
+//boolean LIN1send;
+//boolean LIN2send;
+//boolean LIN3send;
+//boolean LIN4send;
+//
+//boolean LIN_slave = true;
+//uint8_t LIN_address = 0xda;
+boolean printLIN;
+uint8_t LINindex=0;
+//uint8_t LINmessage[256];
+//uint32_t lastLINmessage;
+boolean sendLIN=false;
+
+void displayLIN(){
+  if (commandString.toInt() > 0){
+    printLIN = true;
+    
+    Serial.println("SET Stream LIN data on."); 
+  }
+  else {
+    Serial.println("SET Stream LIN data off.");
+    printLIN  = false;
+  }
+}
+void sendLINselect(){
+  if (commandString.toInt() > 0){
+    sendLIN = true;
+    
+    Serial.println("SET Turn on LIN data."); 
+  }
+  else {
+    Serial.println("SET Turn off LIN data.");
+    sendLIN  = false;
+  }
+}
+
+const uint8_t linRXpin = 0;
+
+elapsedMicros LINtimer;
+elapsedMicros LINsyncTimer;
+bool LINbreak;
+int LINtransitionCount;
+uint32_t LINbitTime=52;
+uint16_t LINsyncPause = 13*LINbitTime; //microseconds
+bool readyForLINsync;
+bool readyForLINid;
+bool readyForLINdata;
+bool LINfinished;
+bool readyForLINchecksum;
+bool readyToTransmitShifter;
+bool okToTimeout;
+uint8_t LINbuffer[8];
+uint8_t LINchecksum;
+uint8_t LINaddress;
+uint8_t LINlength;
+uint8_t LIN_ID;
+uint8_t outByte[256]; 
+uint8_t k;
+
+void determineSync(){
+  if(LINtimer > LINsyncPause) {
+    //Serial.println("Break");
+    detachInterrupt(linRXpin);
+    LIN.begin(LINbaud,SERIAL_8N1);
+    readyForLINsync=true;
+  }
+}
+
+void resetLINtimer(){
+  LINtimer = 0;
+  attachInterrupt(linRXpin,determineSync,RISING);
+}
+
 
 void sendLINResponse(){
-  uint32_t currentMicros = micros();
-  if (LIN.available()>=3) 
-  {
-    byte firstChar = LIN.read();
-    byte secondChar = LIN.read() ;
-    byte thirdChar = LIN.read() ;
-    if (firstChar == 0x00 && secondChar == 0xF0){
-      //Serial.println("LIN Start");
-      LIN.write(0xF0);
+  if( LIN.available() ){
+    if (readyForLINsync){
+      okToTimeout=true;
+      readyForLINsync=false;
+      uint8_t LIN_Sync = LIN.read();
+      if (LIN_Sync == 0x55){
+        readyForLINid = true;
+        if (printLIN) Serial.printf("LIN Sync: %02X\n",LIN_Sync);
+      }
+      else{
+        if (printLIN) Serial.printf("ERROR: LIN Sync: %02X\n",LIN_Sync);
+        LINfinished = true;
+      }
     }
-    else if (firstChar == 0x00 && secondChar == 0x55 && thirdChar == 0x20 && firstLINtime){
-        firstLINtime =false;
-         LIN.write(0xFF);
-         LIN.write(0xF);
-         LIN.write(0xFF);
-         LIN.write(0x3F);
-         LIN.write(0x91);
-         //Serial.println("first LIN Pass");
-    }
-    else if (firstChar == 0x00 && secondChar == 0x55 && thirdChar == 0x20 && !firstLINtime)//Serial.print(micros());
-    {
-      outByte[0] = 0x14;
-      outByte[1] = (LINIndex << 4) + 0x01;
-      LINIndex++;
-      outByte[2] = 0x02;
-      outByte[3] = 0x0D;
-
-      //A bad way to calculate checksums
-      if      (outByte[1]==0x01) outByte[4] =0xBB;
-      else if (outByte[1]==0x11) outByte[4] =0xAB;
-      else if (outByte[1]==0x21) outByte[4] =0x9B;
-      else if (outByte[1]==0x31) outByte[4] =0x8B;
-      else if (outByte[1]==0x41) outByte[4] =0x7B;
-      else if (outByte[1]==0x51) outByte[4] =0x6B;
-      else if (outByte[1]==0x61) outByte[4] =0x5B;
-      else if (outByte[1]==0x71) outByte[4] =0x4B;
-      else if (outByte[1]==0x81) outByte[4] =0x3B;
-      else if (outByte[1]==0x91) outByte[4] =0x2B;
-      else if (outByte[1]==0xA1) outByte[4] =0x1B;
-      else if (outByte[1]==0xB1) outByte[4] =0x0B;
-      else if (outByte[1]==0xC1) outByte[4] =0xFA;
-      else if (outByte[1]==0xD1) outByte[4] =0xEA;
-      else if (outByte[1]==0xE1) outByte[4] =0xDA;
-      else if (outByte[1]==0xF1) outByte[4] =0xCA;
-
-      serialSend0Micros = currentMicros+500;
-      LIN0send = true;
-      serialSend1Micros = currentMicros+1000;
-      LIN1send = true;
-      serialSend2Micros = currentMicros+1500;
-      LIN2send = true;
-      serialSend3Micros = currentMicros+2000;
-      LIN3send = true;
-      serialSend4Micros = currentMicros+2500;
-      LIN4send = true;
+    else if (readyForLINid ){
+      LIN_ID = LIN.read();
+      readyForLINid = false;
+      LINindex = 0;
+      LINtimer = 0;
       
+      bool ID0 = (LIN_ID & 0b00000001) >> 0;
+      bool ID1 = (LIN_ID & 0b00000010) >> 1; 
+      bool ID2 = (LIN_ID & 0b00000100) >> 2;
+      bool ID3 = (LIN_ID & 0b00001000) >> 3; 
+      bool ID4 = (LIN_ID & 0b00010000) >> 4; 
+      bool ID5 = (LIN_ID & 0b00100000) >> 5; 
+      bool LINparity0 = (LIN_ID & 0b01000000) >> 6;
+      bool LINparity1 = (LIN_ID & 0b10000000) >> 7;
+      LINaddress = (LIN_ID & 0x0F) >> 0;
 
+     
+//      bool ID0   = bool((LIN_ID & 0b10000000) >> 7);
+//      bool ID1   = bool((LIN_ID & 0b01000000) >> 6); 
+//      bool ID2   = bool((LIN_ID & 0b00100000) >> 5);
+//      bool ID3   = bool((LIN_ID & 0b00010000) >> 4); 
+//      bool ID4   = bool((LIN_ID & 0b00001000) >> 3); 
+//      bool ID5   = bool((LIN_ID & 0b00000100) >> 2); 
+//      bool LINparity0 = (LIN_ID & 0b00000010) >> 1;
+//      bool LINparity1 = (LIN_ID & 0b00000001) >> 0;
+//      LINaddress = (LIN_ID & 0xF0) >> 4;
+
+      if (ID4 && ID5) LINlength = 8;
+      else if (!ID4 && ID5) LINlength = 4;
+      else if (ID4 && !ID5) LINlength = 2;
+      else if (!ID4 && !ID5) LINlength = 2;
+      if (printLIN)Serial.printf("%02X, Address: %d, Length: %d, P0: %d=%d, ~P1: %d=%d\n",LIN_ID,LINaddress,LINlength,LINparity0,(ID0 | ID1 | ID2 | ID4),LINparity1,!(ID1 | ID3 | ID4 | ID5) );
+      
+      if (LIN_ID == 0x20){
+        readyToTransmitShifter = true; 
+        outByte[0] = 0x14;
+        outByte[1] = (k << 4) + 0x01;
+        k+=1;
+        outByte[2] = 0x02;
+        outByte[3] = 0x0D;
+        int calculatedChecksum = 0;
+        calculatedChecksum += 0x20;
+        for (int i = 0; i<4;i++){
+          calculatedChecksum +=outByte[i];
+        }
+        outByte[3] = uint8_t(~(calculatedChecksum % 255) );
+          
+      }
+      
+      if (LINlength > 0){
+        readyForLINdata = true;
+      }
+      else {
+        LINfinished = true;
+      }
+      
+     
+      
     }
-  }    
+    else if (readyForLINdata){
+      LINbuffer[LINindex] = LIN.read();
+      if (printLIN)Serial.printf("%02X ",LINbuffer[LINindex]);
+      LINindex++;
+      if (LINindex == LINlength){
+        readyForLINdata = false;
+        readyForLINchecksum = true;
+      }
+    }
+    else if (readyForLINchecksum ){
+      LINchecksum = LIN.read();
+      int calculatedChecksum = 0;
+      calculatedChecksum += LIN_ID & 0x3F;
+      //calculatedChecksum += LINchecksum;
+      //the inverted module-256 checksum
+      for (LINindex = 0; LINindex < LINlength; LINindex++){
+        calculatedChecksum += LINbuffer[LINindex];
+      }
+      uint8_t checksumValue = uint8_t(~(calculatedChecksum % 255) );
+      if (printLIN) Serial.printf("Checksum: %02X = %02X\n",LINchecksum,checksumValue);
 
-  if (currentMicros - serialSend0Micros >=0 && LIN0send) {
-    LIN.write(outByte[0]);
-    LIN0send=false;
+      readyForLINchecksum = false;
+      LINfinished = true;
+    }
+//    else {
+//      if (printLIN) Serial.printf("%02X\n",LIN.read());
+//      else LIN.read();
+//    }
+    
   }
-  if (currentMicros - serialSend1Micros >=0 && LIN1send) {
-    LIN.write(outByte[1]);
-    LIN1send=false;
+   
+  if (LINfinished){
+      LIN.clear();
+      LIN.flush();     
+      pinMode(linRXpin,INPUT);
+      attachInterrupt(linRXpin,resetLINtimer,FALLING);
+      LINfinished = false;
+      readyToTransmitShifter = false;
+      readyForLINchecksum = false;
+      readyForLINdata = false;
+      readyForLINsync = false;
+      readyForLINid = false;
+      
+    }
+
+  if(LINtimer > 15*LINbitTime && okToTimeout){
+    LINfinished = true;
+    if (printLIN) Serial.println("LIN Reset.");
+    okToTimeout=false;
   }
-  if (currentMicros - serialSend2Micros >=0 && LIN2send) {
-    LIN.write(outByte[2]);
-    LIN2send=false;
-  }
-  if (currentMicros - serialSend3Micros >=0 && LIN3send){
-    LIN.write(outByte[3]);
-    LIN3send=false;
-  }
-  if (currentMicros - serialSend4Micros >=0 && LIN4send) {
-    LIN.write(outByte[4]);
-    LIN4send=false;
-  }
+   
+  if (readyToTransmitShifter){
+      if (LINtimer >= (10*LINbitTime + 500)*(LINindex+1)){
+        if (sendLIN) LIN.write(outByte[LINindex]);
+        LINindex++;
+        if (LINindex == 5) {
+          readyToTransmitShifter = false;
+          LINfinished = true;
+          LINtimer = 0;
+          LINindex = 0;
+       }
+     }
+   }
+      
 }
 
 //class SensorThread: public Thread
@@ -234,7 +357,7 @@ void displayVoltage(){
 /****************************************************************/
 /*                    CAN Setup                                 */
 //Setup messages
-#define num_default_messages  25
+#define num_default_messages  21
 String default_messages[num_default_messages] = {
  "DDEC MCM 01,                   1,1,0,1,  10,   0,0,1, 8FF0001,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC 13 MCM message, CAN1
  "DDEC TCM 01,                   2,1,0,1,  10,   0,0,1, CF00203,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC13 Transmission controler message, CAN1
@@ -256,11 +379,7 @@ String default_messages[num_default_messages] = {
  "PTO from Body Controller,     18,1,0,0, 100,   0,0,1,18FEF021,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=33
  "PTO from Cab Display,         19,1,0,0, 100,   0,0,1,18FEF028,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=40
  "PTO from Cab Controller,      20,1,0,0, 100,   0,0,1,18FEF031,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=49
- "DDEC Fault Codes from MCM,    21,2,0,1,   5,1000,0,1,10ECFF01,8,20,0E,00,01,FF,CA,FE,00", //TP.CM Session Control Message for DDEC
- "DDEC Fault Codes from MCM,    21,2,1,1,   5,1000,0,1,10EBFF01,8,01, 0, 0, 0, 0, 0, 0, 0", //TP.DT
- "DDEC Fault Codes from ACM,    22,2,0,1,   5,1000,0,1,10ECFF3D,8,20,0E,00,01,FF,CA,FE,00", //TP.CM Session Control Message for DDEC
- "DDEC Fault Codes from ACM,    22,2,1,1,   5,1000,0,1,10EBFF3D,8,01, 0, 0, 0, 0, 0, 0, 0", //TP.DT
- "AMB from Body Controller,     23,1,0,0,1000,   0,0,1,18FEF521,8, 0, 0, 0, 0, 0, 0, 0, 0" //Ambient Conditions
+ "AMB from Body Controller,     21,1,0,0,1000,   0,0,1,18FEF521,8, 0, 0, 0, 0, 0, 0, 0, 0" //Ambient Conditions
 };
 
 
@@ -1541,19 +1660,9 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
 
   else return -1;
-  
-  
 }
-
-
-
 /*               End Define Settings                              */
 /******************************************************************/
-
-
-
-
-
 
 void setCompIdEEPROMdata () {
   char id[256];
@@ -1576,8 +1685,6 @@ void getCompIdEEPROMdata () {
     Serial.println(componentID);
   }
 }
-
-
 
 
 void displayJ1708(){
@@ -1682,20 +1789,6 @@ void changeValue(){
     adjustError();
   }
 }
-
-//void saveEEPROM(){
-//  //Save settings to EEPROM
-//  Serial.println(F("INFO SA - Saving Settings to EEPROM."));
-//  setDefaultEEPROMdata();
-//}
-
-
-
-/*                End Function Calls for Serial and Knob Commands                           */
-/********************************************************************************************/
-
-
-
 
 
 /********************************************************************************************/

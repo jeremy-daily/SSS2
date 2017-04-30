@@ -19,7 +19,7 @@
 
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*0.9b*master*3e22de7f419b3e862572b782ad92168e4c82bd14"; //Hash of the previous git commit
+String softwareVersion = "SSS2*REV" + revision + "*0.9b*master*ba0a8086dd81c49fabaef8e67cdd8f24762d2d9d"; //Hash of the previous git commit
 
 
 void listSoftware(){
@@ -439,7 +439,7 @@ void clearStats(){
     
 void setup() {
   Serial.begin(9600);
-  Serial1.begin(19200);
+  LIN.begin(19200);
   
   commandString.reserve(256);
   commandPrefix.reserve(20);
@@ -510,9 +510,9 @@ void setup() {
 
   setConfigSwitches();
     
-  LIN.begin(19200);
-  LIN.flush();
-  LIN.clear();
+  LIN.begin(19200,SERIAL_8N2);
+  //LIN.flush();
+  //LIN.clear();
 
 
   J1708.begin(9600);
@@ -529,7 +529,7 @@ void setup() {
   knobLowLimit = 1;
   knobHighLimit = numSettings - 1;
 
-  
+  LINfinished = true;
   getCompIdEEPROMdata();
 }
 
@@ -595,8 +595,11 @@ void loop() {
       Serial.print("\n");
     }
   }
+
   
-   
+
+  sendLINResponse();
+
   /****************************************************************/
   /*            Begin Serial Command Processing                   */
   if (Serial.available() >= 2 && Serial.available() < 256) {
@@ -634,8 +637,9 @@ void loop() {
     else if (commandPrefix.equalsIgnoreCase("RELOAD"))    reloadCAN();
     else if (commandPrefix.equalsIgnoreCase("TIME"))      displayTime();
     else if (commandPrefix.equalsIgnoreCase("GETTIME"))   Serial.printf("INFO Timestamp: %D\n",now());
-   
-   
+    else if (commandPrefix.equalsIgnoreCase("LIN"))       displayLIN();
+    else if (commandPrefix.equalsIgnoreCase("SENDLIN"))   sendLINselect();
+    
     
     else {
       Serial.println(F("ERROR Unrecognized Command Characters. Use a comma after the command."));
