@@ -19,7 +19,7 @@
 
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*0.9b*master*260a5e8589aaecd1acf3b210e4ce33090b22057f"; //Hash of the previous git commit
+String softwareVersion = "SSS2*REV" + revision + "*0.91b*master*18887b06f7f46973e403baf2cbbdc876b832adba"; //Hash of the previous git commit
 
 
 void listSoftware(){
@@ -141,15 +141,26 @@ void startStopCAN2Streaming(){
 
 void setEnableComponentInfo(){
   if (commandString.toInt() > 0){
+    setupComponentInfo();
     enableSendComponentInfo = true;
     Serial.println(F("SET Enable CAN transmission of Component ID"));
+    if (canComponentIDtimer >5000){
+      canComponentIDtimer = 0;
+      can_messages[comp_id_index]->enabled = true;
+      can_messages[comp_id_index]->transmit_number = 0;
+      can_messages[comp_id_index]->ok_to_send = true;
+      can_messages[comp_id_index]->loop_cycles = 0; 
+      can_messages[comp_id_index]->cycle_count = 0;
+      can_messages[comp_id_index]->message_index = 0;
+    }
+  
   }
   else{
     enableSendComponentInfo = false;
     Serial.println(F("SET Disable CAN transmission of Component ID"));  
     can_messages[comp_id_index]->enabled = false;
   }
-  setupComponentInfo();
+  
 }
 
 void checkAgainstUID(){
@@ -275,7 +286,7 @@ void setupComponentInfo(){
    sprintf(bytes_to_send,"%02X",id_length);
    char frames_to_send[3];
    sprintf(frames_to_send,"%02X",num_frames);
-   commandString = "CI from SSS2,0,1,0,0,1,0,1,1,1CECFF";
+   commandString = "CI from SSS2,0,1,0,0,1,0,1,1,18ECFF";
    sprintf(byteEntry,"%02X,",source_address);
    commandString += byteEntry; 
    commandString += "8,20,";
@@ -297,7 +308,7 @@ void setupComponentInfo(){
      commandString += "0,1,0,";
      sprintf(byteEntry,"%d,",num_frames+1);
      commandString += byteEntry; 
-     commandString += "1,1CEBFF";
+     commandString += "1,18EBFF";
      sprintf(byteEntry,"%02X,",source_address);
      commandString += byteEntry; 
      commandString += "8,";
@@ -319,7 +330,7 @@ void setupComponentInfo(){
 
 void reloadCAN(){
   setupComponentInfo();
-  
+        
   for (int i = 0; i < num_default_messages; i++){
     commandString = default_messages[i];
     setupPeriodicCANMessage();
@@ -345,11 +356,20 @@ void parseJ1939(CAN_message_t &rxmsg ){
     DA = (ID & 0x00000FF00);
   }
   
-  if (PGN == 0xEA00){
+  if (PGN == 0xEA00 && DA == 0xFF){
     //request message
     if (rxmsg.buf[0] == 0xEB && rxmsg.buf[1] == 0xFE){
       if (enableSendComponentInfo){
-        listInfo();   
+        if (canComponentIDtimer >5000){
+          canComponentIDtimer = 0;
+          can_messages[comp_id_index]->enabled = true;
+          can_messages[comp_id_index]->transmit_number = 0;
+          can_messages[comp_id_index]->ok_to_send = true;
+          can_messages[comp_id_index]->loop_cycles = 0; 
+          can_messages[comp_id_index]->cycle_count = 0;
+          can_messages[comp_id_index]->message_index = 0;
+        }
+  
       }
     }
   }
@@ -518,11 +538,8 @@ void setup() {
   J1708.begin(9600);
   J1708.clear();
 
-  enableSendComponentInfo = true;
   
-  reloadCAN();
-  
-  CANTimer.begin(runCANthreads, 500); // Run can threads on an interrupt. Produces very little jitter.
+  CANTimer.begin(runCANthreads, 1500); // Run can threads on an interrupt. Produces very little jitter.
 
   currentSetting = 1;
   knobLowLimit = 1;
@@ -530,6 +547,11 @@ void setup() {
 
   LINfinished = true;
   getCompIdEEPROMdata();
+ 
+  commandString="1";
+  setEnableComponentInfo();
+  reloadCAN();
+ 
 }
 
 void loop() {
@@ -539,6 +561,7 @@ void loop() {
   //Check CAN messages
   while (Can0.available()) {
     Can0.read(rxmsg);
+    //parseJ1939(rxmsg);
     RXCount0++;
     RXCAN0timer = 0;
     if (displayCAN0) printFrame(rxmsg, -1, 0, RXCount0);
@@ -595,7 +618,17 @@ void loop() {
     }
   }
 
-  
+  if (enableSendComponentInfo){
+    if (canComponentIDtimer >5000){
+      canComponentIDtimer = 0;
+      can_messages[comp_id_index]->enabled = true;
+      can_messages[comp_id_index]->transmit_number = 0;
+      can_messages[comp_id_index]->ok_to_send = true;
+      can_messages[comp_id_index]->loop_cycles = 0; 
+      can_messages[comp_id_index]->cycle_count = 0;
+      can_messages[comp_id_index]->message_index = 0;
+    }
+  }
 
   sendLINResponse();
 
@@ -642,12 +675,10 @@ void loop() {
     
     else {
       Serial.println(F("ERROR Unrecognized Command Characters. Use a comma after the command."));
+      Serial.clear();
       //Serial.println(F("INFO Known commands are setting numbers, GO, SP, J1708, STOPCAN, STARTCAN, B0, B1, C0, C1, C2, DS, SW, OK, ID, STATS, CLEAR, MK, LI, LS, CI, CS, SA, SS, or SM."));
     }
-  
   }
-  //Serial.clear();
-  //Serial.flush();
   /*              End Serial Command Processing                   */
   /****************************************************************/
 

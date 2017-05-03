@@ -50,7 +50,7 @@ elapsedMillis analog_tx_timer;
 elapsedMillis analogMillis;
 elapsedMicros J1708RXtimer;
 elapsedMicros microsecondsPerSecond;
-
+elapsedMillis canComponentIDtimer;
 
 
 /****************************************************************/
@@ -135,9 +135,6 @@ void sendLINselect(){
   }
 }
 
-
-
-
 void determineSync(){
   if(LINtimer > LINsyncPause) {
     detachInterrupt(linRXpin);
@@ -150,7 +147,6 @@ void resetLINtimer(){
   LINtimer = 0;
   attachInterrupt(linRXpin,determineSync,RISING);
 }
-
 
 void sendLINResponse(){
   if( LIN.available() ){
@@ -175,8 +171,7 @@ void sendLINResponse(){
       readyForLINdata = true;
       readyForLINid = false;
       LINindex = 0;
-      
-      
+       
       bool ID0 = (LIN_ID & 0b00000001) >> 0;
       bool ID1 = (LIN_ID & 0b00000010) >> 1; 
       bool ID2 = (LIN_ID & 0b00000100) >> 2;
@@ -256,8 +251,7 @@ void sendLINResponse(){
     readyForLINdata = false;
     readyForLINsync = false;
     readyForLINid = false;
-  }
-  
+  } 
 }
 
 void displayVoltage(){
