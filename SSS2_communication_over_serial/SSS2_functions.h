@@ -1,24 +1,62 @@
-/*************************************************** 
-  This is a library for the Smart Sensor Simulator 2
-  Revision 3
-
-  Written by Jeremy Daily for Synercon Technologies, LLC.  
-  
- ****************************************************/
+/*
+ * Smart Sensor Simulator 2
+ * 
+ * Arduino Sketch to define the Smart Sensor Simulator 2 Functions
+ * Uses the Teensy 3.6
+ * This file needs to be included in the main program.
+ * 
+ * Written By Dr. Jeremy S. Daily
+ * The University of Tulsa
+ * Department of Mechanical Engineering
+ * 
+ * 06 May 2017
+ * 
+ * Released under the MIT License
+ *
+ * Copyright (c) 2017        Jeremy S. Daily
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ * 
+ * All libraried and packages are available by installing the following: 
+ * Arduino v1.8 https://www.arduino.cc/en/Main/Software
+ * Teensyduino 1.35 https://www.pjrc.com/teensy/td_download.html
+ * 
+ * Libraries not included in the Arduino and Teensyduino environment include:
+ * Adafruit_MCP23017 - https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library
+ * OneButton - https://github.com/mathertel/OneButton
+ * FlexCAN - https://github.com/collin80/FlexCAN_Library
+ * Thread - https://github.com/ivanseidel/ArduinoThread
+ * TeensyID - https://github.com/sstaub/TeensyID
+*/
 #define ENCODER_OPTIMIZE_INTERRUPTS
 
 #include <SPI.h>
 #include <i2c_t3.h>
 #include <Encoder.h>
 #include "OneButton.h"
-#include "Adafruit_MCP23017.h"
+#include "Adafruit_MCP23017.h" 
 #include <EEPROM.h>
 #include <FlexCAN.h>
 #include <TimeLib.h>
 #include <TeensyID.h>
 #include "Thread.h"
 #include "ThreadController.h"
-#include "FlexCAN.h"
 
 
 Adafruit_MCP23017 ConfigExpander; //U21
@@ -1728,3 +1766,421 @@ void longPressStop() {}
 /********************************************************************************************/
 
 
+
+void startStopCAN0Streaming(){
+  if (commandString.toInt() > 0) displayCAN0 = true;
+  else  displayCAN0 = false;
+}
+
+void startStopCAN1Streaming(){
+  if (commandString.toInt() > 0) displayCAN1 = true;
+  else  displayCAN1 = false;
+}
+
+void startStopCAN2Streaming(){
+  if (commandString.toInt() > 0) displayCAN2 = true;
+  else  displayCAN2 = false;
+}
+
+
+
+
+
+void sendMessage(){
+  /* Sends a CAN message from the following string fields:
+   *  channel,id,data
+   *  channel is 0 for CAN0 and 1 for CAN1
+   *  id is the CAN ID. if the ID is less than 11 bits and the first bit is set, then it will be transmitted as an extended id
+   *  data length code is determined by the length of the data
+   *  data is the hex representation in ascii with no spaces. there will be 16 hex characters for 8 bytes. Data longer than 8 bytes will be ignored. 
+   */
+  boolean goodID = false;
+  boolean goodData = false;
+  
+  //Serial.println(F("CANSEND - Send Message."));
+  //Serial.println(commandString);
+  char commandCharBuffer[100];
+  char IdCharBuffer[9];
+  char dataCharBuffer[17];
+  char *endptr;
+  if (commandString.length() > 0) {
+    commandString.toCharArray(commandCharBuffer,commandString.length());
+    int channel;
+    if (commandCharBuffer[0]=='1') channel = 1;
+    else if (commandCharBuffer[0]=='0') channel = 0;
+    else channel = -1;
+    
+    //Serial.print(channel);  
+    
+    int commaIndex0 = commandString.indexOf(',');
+    int commaIndex1 = commandString.indexOf(',',commaIndex0+1);
+    if (commaIndex0 > 0 && commaIndex1 > 1){
+      String idString = commandString.substring(commaIndex0+1,commaIndex1);
+      //Serial.print("idString = ");
+      //Serial.println(idString);
+      idString.toCharArray(IdCharBuffer,9);
+      for (uint8_t i = 0; i < strlen(IdCharBuffer) ; i++){
+        //Serial.print(IdCharBuffer[i]);
+        if (isxdigit(IdCharBuffer[i])) goodID = true; 
+        else { goodID = false; break; }
+      }
+      if (goodID){
+        uint32_t tempID = strtoul(IdCharBuffer,&endptr,16);
+        //Serial.print(" ");
+        //Serial.print(tempID,HEX);
+        if (  (tempID >> 11) > 0){
+          txmsg.ext = 1;
+          txmsg.id = (0x3FFFFFFF & tempID); //29 bit ID
+        }
+        else {
+          txmsg.ext = 0;
+          txmsg.id = (0x7FF & tempID); //11 bit ID
+        }
+        //Serial.print(" ");
+        //Serial.print(txmsg.id,HEX);
+      }
+      else Serial.println("ERROR Invalid ID format");
+      
+      String dataString = commandString.substring(commaIndex1+1);
+      
+      dataString.toCharArray(dataCharBuffer,17);
+      txmsg.len = strlen(dataCharBuffer)/2;
+      //Serial.print(" ");
+      //Serial.print(txmsg.len,HEX);
+      // Serial.print(" ");
+      for (uint8_t i = 0; i < txmsg.len*2 ; i++){
+        if (isxdigit(dataCharBuffer[i])) goodData = true; 
+        else { goodData = false; Serial.println("ERROR Non Hex Characters or Odd number of nibbles or ID is too long"); break; }
+      } 
+      if (goodData){
+        for (int i = 0; i <  txmsg.len ; i++){
+          char byteStringChars[3] = {dataCharBuffer[2*i],dataCharBuffer[2*i+1],0x00};
+          txmsg.buf[i] = strtol(byteStringChars,&endptr,16);
+          //Serial.print(txmsg.buf[i],HEX);
+          //Serial.print(" ");
+        }
+      }
+    }
+    
+    if (goodData && goodID ){
+      if (channel == 0) {
+        Can0.write(txmsg);
+      }
+      else if (channel == 1){
+        Can1.write(txmsg);
+      }
+      else Serial.println("ERROR Invalid Channel for CANSEND.");
+    }
+    
+    else
+      Serial.println(F("ERROR Invalid input data for CANSEND. Input should be using hex characters with no spaces in the form SM,channel,ID,data/n"));
+  }
+  else
+  {
+    Serial.println(F("ERROR Missing or invalid data to send."));
+  }
+  txmsg.ext = 1; //set default
+  txmsg.len = 8;
+}
+
+
+void setupComponentInfo(){
+   char byteEntry[4];
+   uint8_t old_shortest_period = shortest_period;
+   shortest_period = 1;
+   uint16_t id_length = constrain(componentID.length(),0,7*256-1);
+   char id[7*256];
+   componentID.toCharArray(id,id_length+1);
+   uint8_t num_frames = id_length/7;
+   if (id_length % 7 > 0) num_frames++;
+   char bytes_to_send[4]; 
+   sprintf(bytes_to_send,"%02X",id_length);
+   char frames_to_send[3];
+   sprintf(frames_to_send,"%02X",num_frames);
+   commandString = "CI from SSS2,0,1,0,0,1,0,1,1,18ECFF";
+   sprintf(byteEntry,"%02X,",source_address);
+   commandString += byteEntry; 
+   commandString += "8,20,";
+   commandString += bytes_to_send;
+   commandString += ",0,";
+   commandString += frames_to_send;
+   commandString += ",FF,EB,FE,00";
+   Serial.println(commandString);
+   
+   setupPeriodicCANMessage();
+   
+   
+   for (int i = 0; i < num_frames; i++){
+     commandString = "CI from SSS2,0,";
+     sprintf(byteEntry,"%d,",num_frames+1);
+     commandString += byteEntry; 
+     sprintf(byteEntry,"%d,",i+1);
+     commandString += byteEntry; 
+     commandString += "0,1,0,";
+     sprintf(byteEntry,"%d,",num_frames+1);
+     commandString += byteEntry; 
+     commandString += "1,18EBFF";
+     sprintf(byteEntry,"%02X,",source_address);
+     commandString += byteEntry; 
+     commandString += "8,";
+     sprintf(byteEntry,"%02X,",i+1);
+     commandString += byteEntry; 
+     for (int j = 7*i; j < 7*i+7;j++){
+       if (j < id_length) sprintf(byteEntry,"%02X,",id[j]);
+       else sprintf(byteEntry,"%02X,",0xFF);
+       commandString += byteEntry;
+     }
+     Serial.println(commandString);
+   
+     comp_id_index = setupPeriodicCANMessage();
+   }
+   shortest_period = old_shortest_period;
+  
+    
+}       
+
+void reloadCAN(){
+  setupComponentInfo();
+        
+  for (int i = 0; i < num_default_messages; i++){
+    commandString = default_messages[i];
+    setupPeriodicCANMessage();
+    delay(1);
+  }
+  commandString = "1";
+  goCAN();
+}
+void parseJ1939(CAN_message_t &rxmsg ){
+  uint32_t ID = rxmsg.id;
+  uint8_t DLC = rxmsg.len;
+  uint8_t SA = (ID & 0xFF);
+  uint8_t PF = (ID & 0x03FF0000) >> 16;
+  uint8_t PRIORITY = (ID & 0x3C000000) >> 26;
+  uint8_t DA = 0xFF;
+  uint32_t PGN;
+  if (PF >= 240){
+     PGN = (ID & 0x03FFFF00) >> 8;
+  }
+  else{
+    //pdu1 format
+    PGN = (ID & 0x03FF0000) >> 8;
+    DA = (ID & 0x00000FF00);
+  }
+  
+  if (PGN == 0xEA00 && DA == 0xFF){
+    //request message
+    if (rxmsg.buf[0] == 0xEB && rxmsg.buf[1] == 0xFE){
+      if (enableSendComponentInfo){
+        if (canComponentIDtimer >5000){
+          canComponentIDtimer = 0;
+          can_messages[comp_id_index]->enabled = true;
+          can_messages[comp_id_index]->transmit_number = 0;
+          can_messages[comp_id_index]->ok_to_send = true;
+          can_messages[comp_id_index]->loop_cycles = 0; 
+          can_messages[comp_id_index]->cycle_count = 0;
+          can_messages[comp_id_index]->message_index = 0;
+        }
+  
+      }
+    }
+  }
+}
+
+
+
+//A generic CAN Frame print function for the Serial terminal
+void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCount)
+{ 
+
+ Serial.printf("CAN%d %10lu.%06lu %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X\n",
+          channel,now(),uint32_t(microsecondsPerSecond),rxmsg.id,rxmsg.ext,rxmsg.len,
+          rxmsg.buf[0],rxmsg.buf[1],rxmsg.buf[2],rxmsg.buf[3],
+          rxmsg.buf[4],rxmsg.buf[5],rxmsg.buf[6],rxmsg.buf[7]);
+}
+
+
+time_t getTeensy3Time(){
+  microsecondsPerSecond = 0;
+  return Teensy3Clock.get();
+}
+
+const uint32_t DEFAULT_TIME = 10; 
+char timeStamp[45];
+
+uint32_t processSyncMessage() {
+  char timeChar[15];
+  memset(timeChar,0,15);
+  commandString.toCharArray(timeChar,15);
+  time_t pctime = atol(timeChar);
+  if (pctime > DEFAULT_TIME){
+    return pctime;
+  }
+  else if (pctime == 0) {
+    Serial.printf("INFO Time is %04d-%02d-%02d %02d:%02d:%02d\n",year(),month(),day(),hour(),minute(),second());
+    return 0L;
+  }
+  else{
+    Serial.println("ERROR Time value is invalid.");
+    return 0L;
+  }
+}
+
+void displayTime() {
+  time_t t = processSyncMessage();
+  if (t != 0) {
+    Teensy3Clock.set(t); // set the RTC
+    setTime(t);
+    Serial.printf("SET Time to %04d-%02d-%02d %02d:%02d:%02d\n",year(),month(),day(),hour(),minute(),second());
+  }
+}
+
+void print_uid()  {  
+  Serial.printf("ID: %s\n", kinetisUID());
+}
+ 
+void printStats(CAN_stats_t currentStats,int channel){
+  Serial.printf("STATS for CAN%d: Enabled:%d, RingRXHighWater: %ul, ringRXFramesLost: %lu, ringTXHighWater: %lu, mailbox use count:[%lu",
+                            channel,currentStats.enabled,currentStats.ringRxHighWater,currentStats.ringRxFramesLost,currentStats.ringTxHighWater,currentStats.mb[0].refCount);
+  for (int i=1;i<16;i++){
+    Serial.printf(", %lu",currentStats.mb[i].refCount); 
+  }
+  Serial.printf("], overrunCount: [%lu",currentStats.mb[0].overrunCount);
+  for (int i=1; i<16; i++){
+    Serial.printf(", %lu",currentStats.mb[i].overrunCount); 
+  }
+  Serial.println("]");
+}
+
+void displayStats(){
+  CAN_stats_t currentStats = Can0.getStats();
+  printStats(currentStats,0);
+  currentStats = Can1.getStats();
+  printStats(currentStats,1);
+}
+
+
+void clearStats(){
+  Can0.clearStats();
+  Can1.clearStats();
+  
+  Can0.startStats();
+  Can1.startStats();
+  
+  Serial.println("INFO Cleared CAN Statisitics");
+}
+
+void listInfo() {
+  Serial.print("INFO SSS2 Component ID (Make*Model*Serial*Unit): ");
+  Serial.println(componentID);
+  
+}
+
+void changeComponentID() {
+  if (commandString.length() < 12) {
+    Serial.print(F("INFO SSS2 Component ID: "));
+    Serial.println(componentID);
+  }
+  else{
+    componentID = commandString;
+    setCompIdEEPROMdata();
+    Serial.print(F("SET SSS2 Component ID: "));
+    Serial.println(componentID);
+    setupComponentInfo();
+  } 
+}
+
+
+void autoBaud0(){
+  Serial.println(F("B0 - Set the baudrate for CAN 0 or select AutoBaud"));
+  char baudstring[9];
+  if (commandString.length() > 0){
+    commandString.toCharArray(baudstring,9);
+    BAUDRATE0 = strtoul(baudstring,0,10);
+    Serial.print("SET CAN0 baudrate set to ");
+    Serial.println(BAUDRATE0);
+    for (uint8_t baudRateIndex = 0; baudRateIndex<sizeof(baudRateList); baudRateIndex++){
+      if (BAUDRATE0 == baudRateList[baudRateIndex]){
+        Can0.begin(BAUDRATE0);
+        for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can0.setFilter(allPassFilter,filterNum);
+        CAN0baudNotDetected = false;
+        break; 
+      }
+      else{
+        CAN0baudNotDetected = true;
+      }
+      
+    }
+  }
+  else {
+    BAUDRATE0 = 0;
+  } 
+  if (BAUDRATE0 == 0){
+    CAN0baudNotDetected = true;
+    Serial.println("INFO CAN0 set to automatically set baudrate.");
+  }
+}
+
+void autoBaud1(){
+  Serial.println(F("INFO B1 - Set the baudrate for CAN 1 or select AutoBaud"));
+  char baudstring[9];
+  if (commandString.length() > 0){
+    commandString.toCharArray(baudstring,9);
+    BAUDRATE1 = strtoul(baudstring,0,10);
+    Serial.print("INFO CAN1 baudrate set to ");
+    Serial.println(BAUDRATE1);
+    for (uint8_t baudRateIndex = 0; baudRateIndex<sizeof(baudRateList); baudRateIndex++){
+      if (BAUDRATE1 == baudRateList[baudRateIndex]){
+          Can1.begin(BAUDRATE1);
+          for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can1.setFilter(allPassFilter,filterNum);
+          CAN1baudNotDetected = false;
+          break;
+        }
+        else{
+         CAN1baudNotDetected = true;
+        }
+      }
+  }
+  else {
+    BAUDRATE1 = 0;
+  } 
+  if (BAUDRATE1 == 0){
+    CAN1baudNotDetected = true;
+    Serial.println(F("INFO CAN1 set to automatically set baudrate."));
+  }
+}
+
+void displayBaud(){
+  Serial.print("SET CAN0 Baudrate");
+  Serial.println(BAUDRATE0);
+  Serial.print("SET CAN1 Baudrate");
+  Serial.println(BAUDRATE1);  
+}
+void setEnableComponentInfo(){
+  if (commandString.toInt() > 0){
+    setupComponentInfo();
+    enableSendComponentInfo = true;
+    Serial.println(F("SET Enable CAN transmission of Component ID"));
+    if (canComponentIDtimer >5000){
+      canComponentIDtimer = 0;
+      can_messages[comp_id_index]->enabled = true;
+      can_messages[comp_id_index]->transmit_number = 0;
+      can_messages[comp_id_index]->ok_to_send = true;
+      can_messages[comp_id_index]->loop_cycles = 0; 
+      can_messages[comp_id_index]->cycle_count = 0;
+      can_messages[comp_id_index]->message_index = 0;
+    }
+  
+  }
+  else{
+    enableSendComponentInfo = false;
+    Serial.println(F("SET Disable CAN transmission of Component ID"));  
+    can_messages[comp_id_index]->enabled = false;
+  }
+  
+}
+
+void checkAgainstUID(){
+  String secret = kinetisUID();
+  if(commandString==secret) Serial.println("OK:Authenticated");
+  else Serial.println("OK:Denied");
+}
