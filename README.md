@@ -68,17 +68,17 @@ The SSS2_functions file is a header file that defines all the functions needed t
   
   **DB,** Displays the baud rates. 
    
-  **CANCOMP,X** Turns on the ability for the SSS2 to respond to component ID requests. The value of X is binary: 0 = do not respond or 1 = respon to J1939 request messages.
+  **CANCOMP,X** Turns on the ability for the SSS2 to respond to component ID requests. The value of X is binary: 0 = do not respond or 1 = respond to J1939 request messages.
   
-  **ID,** Request the unique Chip ID from the  Freescale K66 chip on the Teensy 3.6.
+  **ID,** Request the unique Chip ID from the Freescale K66 chip on the Teensy 3.6.
   
-  **C0,X** where X is a 0 or 1. When X is 0, it turns off the display of received CAN messages from the first built-in controller, which is J1939. When X is > 0, it turns on the serial stream.
+  **C0,X** where X is a 0 or 1. When X is 0, it turns off the display of received CAN messages from the first built-in controller, which is J1939. When X is > 0, it turns on the serial stream. The CAN messages can arrive faster than the USB stack can send.
   
   **C1,X** where X is a 0 or 1. When X is 0, it turns off the display of received CAN messages from the first built-in controller, which is J1939. When X is > 0, it turns on the serial stream.
   
-  **GO,i,X** Starts and stops the can message in the _i_-th slot of the threading queue.
+  **GO,i,X** Starts and stops the can message in the _i_-th slot of the threading queue. The value of X is binary: 0 = stop message or 1 = start message.
   
-  **SP,X** Sets the shortest period for a periodic CAN transmission. This sets the lower bound of the inter thread CAN messages.
+  **SP,X** Sets the shortest period in milliseconds for a periodic CAN transmission. This sets the lower bound of the interthread CAN messages. 
   
   **STARTCAN,** Enables all CAN messages that are setup to start. This is like sending the command `GO,i,1` for all i.
   
@@ -103,6 +103,24 @@ The SSS2_functions file is a header file that defines all the functions needed t
   **SOFT,** Display the firmware version running on the SSS2 unit.
   
   **J1708,X** Set the streaming of J1708 traffic to  1 = straming on or 0 = streaming off. The format of the displayed messages are ```J1708 Milliseconds MID PID DATA OK``` where OK is the result of the checksum.
+  
+  **RELOAD,** Resets the threads that send CAN messages.
+  
+  **TIME,X** Sets the time on the SSS2 to _X_, where _X_ the UNIX timestamp (number of seconds from 1 Jan 1970). If _X_ is omitted, then the current time is returned in a human readable form. 
+  
+  **GETTIME,** Displays the time on the SSS2 as a UNIX timestamp (number of seconds from 1 Jan 1970).
+  
+  **LIN,X** Toggles the streaming display of LIN messages. This streams the data on the LIN bus to the USB Serial. The value of X is binary: 0 = stop streaming message. or 1 = start streaming messages.
+  
+  **SENDLIN,X**  Toggles the build in LIN message for a shifter lever on DDEC13 ECUs. The value of X is binary: 0 = disable LIN or 1 = enable LIN.
+  
+  **CANSEND,message** Send a 1 time CAN message with the following structure for _message_: C,XXXX,YYYY
+  
+  _C_ is the channel number, 0 = CAN0 and 1 = CAN1
+    
+  _XXXX_ is the CAN ID in hex. If XXXX is greater than 0x7FF, then it will use an extended id. The most significant bit of the UINT32 is masked away, so if you want an 29-bit ID with a value of 5, then enter the ID field as '80000005'. For an 11-bit ID, just use '5'. 
+    
+  _YYYY_ are the message data in an even number hex digits (up to 16 nibble characters). 
   
   **SM,name,i,n,j,c,p,d,t,e,ID,DLC,b1,b2,b3,b4,b5,b6,b7,b8** Setup a CAN message with the fiollowing arguments. All arguments are required.
   
