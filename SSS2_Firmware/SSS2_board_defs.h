@@ -35,19 +35,30 @@
 */
 
 
-#define SSS2_BOARD_REVISION 3
-#define J1708 Serial3
-#define LIN Serial1
-#define linRXpin 0
+#define SSS2_BOARD_REVISION_2 
 
 String make = "SYNER";
 String model = "SSS2";
+#ifdef SSS2_BOARD_REVISION_3
 String revision = "03";
+#define LIN Serial1
+#define linRXpin 0
+#define J1708 Serial3
+#endif
+
+#ifdef SSS2_BOARD_REVISION_2
+String revision = "02";
+#define LIN Serial6
+#define linRXpin 47
+#define J1708 Serial3
+#endif
+
 String serial_number ="XXXX";
 String componentID = make + "*" + model + "-" + revision + "*" + serial_number + "*UNIVERSAL";
 
 /****************************************************************/
 /*                         Pin Defintions                       */
+#ifdef SSS2_BOARD_REVISION_3
 const int8_t greenLEDpin       = 2;
 const int8_t redLEDpin         = 5;
 const int8_t CSCANPin          = 15;
@@ -64,6 +75,36 @@ const int8_t IH2Pin            = 36;
 const int8_t IL1Pin            = 37;
 const int8_t IL2Pin            = 38;
 const int8_t ignitionCtlPin    = 39;
+#endif
+
+#ifdef SSS2_BOARD_REVISION_2
+const int greenLEDpin       = 2;
+const int redLEDpin         = 5;
+const int CSdispPin         = 9;
+const int CSpotsPin         = 15;
+const int CSanalogPin       = 31;
+const int CShvadjPin        = 55;
+const int CStermPin         = 21; //41;
+const int CSVoutPin         = 26; //42;
+const int CSCANPin          = 54;
+const int ignitionCtlPin    = 53;
+const int buttonPin         = 24;
+const int pwm1              = 16;
+const int pwm2              = 17;
+const int pwm3              = 22;
+const int pwm4              = 23;
+const int8_t IH1Pin            = 35;
+const int8_t IH2Pin            = 36;
+const int8_t IL1Pin            = 37;
+const int8_t IL2Pin            = 38;
+const int CAN1SwitchPin     = 50;
+const int CAN2SwitchPin     = 51;
+const int8_t CSconfigAPin      = 21;
+const int8_t CSconfigBPin      = -1;
+const int8_t encoderAPin       = 28;
+const int8_t encoderBPin       = 25;
+
+#endif
 
 const uint8_t numPWMs = 4;
 const int8_t PWMPins[numPWMs]     = {16,17,22,23};
@@ -128,7 +169,7 @@ void setPinModes(){
     pinMode(CSconfigAPin,    OUTPUT);
     pinMode(CSconfigBPin,    OUTPUT);
     pinMode(buttonPin, INPUT_PULLUP);
-    pinMode(CStouchPin,      OUTPUT);
+    //pinMode(CStouchPin,      OUTPUT);
     pinMode(IH1Pin,          OUTPUT);
     pinMode(IH2Pin,          OUTPUT);
     pinMode(IL1Pin,          OUTPUT);
@@ -137,14 +178,14 @@ void setPinModes(){
     pinMode(linRXpin,        INPUT);
      
     if (CSCANPin      > -1) digitalWrite(CSCANPin,     HIGH);
-    if (CStouchPin    > -1) digitalWrite(CStouchPin,   HIGH);
+//    if (CStouchPin    > -1) digitalWrite(CStouchPin,   HIGH);
     if (CStermPin     > -1) digitalWrite(CStermPin,    HIGH);
     if (CSconfigAPin  > -1) digitalWrite(CSconfigAPin, HIGH);
     if (CSconfigBPin  > -1) digitalWrite(CSconfigBPin, HIGH);
     if (redLEDpin     > -1) digitalWrite(redLEDpin,    HIGH);
     if (greenLEDpin   > -1) digitalWrite(greenLEDpin,  LOW);
     digitalWrite(CSanalogPin,HIGH);
-    digitalWrite(CStouchPin,HIGH);
+//    digitalWrite(CStouchPin,HIGH);
     digitalWrite(IH1Pin,LOW);
     digitalWrite(IH2Pin,LOW);
     digitalWrite(IL1Pin,LOW);

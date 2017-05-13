@@ -33,7 +33,7 @@
  * 
 */
 
-#include "SSS2_board_defs_rev_3.h"
+#include "SSS2_board_defs.h"
 #include "SSS2_functions.h"
 
 //softwareVersion
