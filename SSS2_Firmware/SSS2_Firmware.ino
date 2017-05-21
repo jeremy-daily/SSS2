@@ -33,7 +33,7 @@
  * 
 */
 
-#include "SSS2_board_defs_rev_3.h"
+#include "SSS2_board_defs_rev_5.h"
 #include "SSS2_functions.h"
 
 //softwareVersion
@@ -73,7 +73,8 @@ void setup() {
   ConfigExpander.writeGPIOAB(0xFFFF);
   
   SPI.begin();
-  terminationSettings = setTerminationSwitches();
+  setTerminationSwitches();
+  setPWMSwitches();
   
   Serial.print("Configration Switches (U21): ");
   uint16_t configSwitchSettings = setConfigSwitches();
@@ -186,8 +187,9 @@ void loop() {
     if (analog_tx_timer >= analog_display_period ){
       analog_tx_timer=0;
       Serial.print("ANALOG");
+      Serial.printf(" %lu",uint32_t(analogMillis));
       for (uint8_t j = 0; j < numADCs; j++){
-        Serial.printf(" %lu:%d",uint32_t(analogMillis),analogRead(analogInPins[j]));
+        Serial.printf(" %d",analogRead(analogInPins[j]));
       }
       Serial.print("\n");
     }

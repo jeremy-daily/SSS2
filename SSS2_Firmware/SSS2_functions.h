@@ -46,11 +46,8 @@
 */
 #define ENCODER_OPTIMIZE_INTERRUPTS
 
-#include <SPI.h>
-#include <i2c_t3.h>
 #include <Encoder.h>
 #include "OneButton.h"
-#include "Adafruit_MCP23017.h" 
 #include <EEPROM.h>
 #include <FlexCAN.h>
 #include <TimeLib.h>
@@ -58,17 +55,12 @@
 #include "Thread.h"
 #include "ThreadController.h"
 
-
-Adafruit_MCP23017 ConfigExpander; //U21
-Adafruit_MCP23017 PotExpander; //U33
-
 IntervalTimer CANTimer;
 
 
 //The Unique ID variable that comes from the chip
 uint32_t uid[4];
 
-uint8_t terminationSettings;
 
 
 String commandPrefix;
@@ -726,66 +718,7 @@ void terminalString(uint8_t setting) {
 }
 
 
-/**********************************************************************/
-/*   Utility functions to manipulate Ports                            */
 
-uint8_t setTerminationSwitches() {
-  //Set the termination Switches of U29 on Rev 3
-
-  uint8_t terminationSettings =  uint8_t( CAN0term | CAN1term << 1 | CAN2term << 2 |  LINmaster << 3 | 
-                                 PWM1Out << 4 | PWM2Out << 5 | PWM3Out << 6 | PWM4Out << 7);
-  digitalWrite(CStermPin, LOW);
-  SPI.transfer(terminationSettings);
-  digitalWrite(CStermPin, HIGH);
-  return terminationSettings;
-}
-
-void getTerminationSwitches(uint8_t terminationSettings) {
-  //Set the termination Switches for U21
-  CAN0term  = (terminationSettings & 0b00000001) >> 0;
-  CAN1term  = (terminationSettings & 0b00000010) >> 1;
-  CAN2term  = (terminationSettings & 0b00000100) >> 2;
-  LINmaster = (terminationSettings & 0b00001000) >> 3;
-  PWM1Out   = (terminationSettings & 0b00010000) >> 4;
-  PWM2Out   = (terminationSettings & 0b00100000) >> 5;
-  PWM3Out   = (terminationSettings & 0b01000000) >> 6;
-  PWM4Out   = (terminationSettings & 0b10000000) >> 7;
-}
-
-
-uint16_t setConfigSwitches() {
-  //Set the termination Switches of U21 on Rev 3 based on the boolean values of the variables representing the GPIO pins of U21
-
-  uint16_t configSwitchSettings =  
-              LIN1Switch | LIN2Switch  << 1 | P10or19Switch << 2 |  P15or18Switch << 3 | !U1though8Enable << 4 | !U9though16Enable << 5 |
-              CAN1Switch << 6 | CAN2Switch << 7 | U1U2P0ASwitch << 8 |  U3U4P0ASwitch  << 9 |  U5U6P0ASwitch  << 10 | U7U8P0ASwitch << 11 |
-              U9U10P0ASwitch << 12 | U11U12P0ASwitch << 13 | U13U14P0ASwitch << 14 | U15U16P0ASwitch << 15;
-  ConfigExpander.writeGPIOAB(configSwitchSettings);
-  return configSwitchSettings;
-}
-
-void getConfigSwitches(uint16_t configSwitchSettings) {
-  //get the termination Switches for U21 from the config switch settings. 
-  //Requires a 16 bit number that represents the GPIO Pins on chip U21
-  //the Booleans must be previously declared
-  
-  LIN1Switch        = (configSwitchSettings & 0b0000000000000001) >> 0;
-  LIN2Switch        = (configSwitchSettings & 0b0000000000000010) >> 1;
-  P10or19Switch     = (configSwitchSettings & 0b0000000000000100) >> 2;
-  P15or18Switch     = (configSwitchSettings & 0b0000000000001000) >> 3;
-  U1though8Enable   = (configSwitchSettings & 0b0000000000010000) >> 4;
-  U9though16Enable  = (configSwitchSettings & 0b0000000000100000) >> 5;
-  CAN1Switch        = (configSwitchSettings & 0b0000000001000000) >> 6;
-  CAN2Switch        = (configSwitchSettings & 0b0000000010000000) >> 7;
-  U1U2P0ASwitch     = (configSwitchSettings & 0b0000000100000000) >> 9;
-  U3U4P0ASwitch     = (configSwitchSettings & 0b0000001000000000) >> 9;
-  U5U6P0ASwitch     = (configSwitchSettings & 0b0000010000000000) >> 10;
-  U7U8P0ASwitch     = (configSwitchSettings & 0b0000100000000000) >> 11;
-  U9U10P0ASwitch    = (configSwitchSettings & 0b0001000000000000) >> 12;
-  U11U12P0ASwitch   = (configSwitchSettings & 0b0010000000000000) >> 13;
-  U13U14P0ASwitch   = (configSwitchSettings & 0b0100000000000000) >> 14;
-  U15U16P0ASwitch   = (configSwitchSettings & 0b1000000000000000) >> 15;
-}
 
 
 /****************************************************************/
