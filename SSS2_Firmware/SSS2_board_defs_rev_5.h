@@ -8,7 +8,7 @@
  * The University of Tulsa
  * Department of Mechanical Engineering
  * 
- * 06 May 2017
+ * 22 May 2017
  * 
  * Released under the MIT License
  *
@@ -34,6 +34,7 @@
  * 
 */
 
+
 #include <SPI.h>
 #include <i2c_t3.h>
 #include "Adafruit_MCP23017.h" 
@@ -54,7 +55,7 @@ Adafruit_MCP23017 ConfigExpander; //U21
 Adafruit_MCP23017 PotExpander; //U33
 uint8_t terminationSettings;
 
-
+ 
 
 /****************************************************************/
 /*                         Pin Defintions                       */
@@ -75,9 +76,9 @@ const int8_t IL2Pin            = 38;
 const int8_t ignitionCtlPin    = 39;
 
 const uint8_t numPWMs = 6;
-const int8_t PWMPins[numPWMs]     = {16,17,22,23,29,30};
-uint16_t pwmValue[numPWMs] = {25,100,19,222,100,100};
-uint16_t pwmFrequency[numPWMs] = {200,200,200,200,200,200};
+const int8_t PWMPins[numPWMs]     = {16,17,22,23,35,36};
+uint16_t pwmValue[numPWMs] = {500,1000,1500,2000,2500,3000};
+uint16_t pwmFrequency[numPWMs] = {200,210,220,230,240,250};
 
 const uint8_t numADCs = 6;
 const int8_t analogInPins[numADCs]= {A21,A22,A0,A1,A6,A11};
@@ -99,7 +100,6 @@ const uint8_t I2CpotAddr[numI2Cpots] = {0x3C,0x3F,0x3D};
 
 const uint8_t numDACs = 8;
 uint16_t DAC2value[numDACs] = {0,0,0,0,512,512,0,0};
-uint16_t DAC3value[numDACs] {0,0,0,0,4095,4095,4095,4095}; 
 
 
 
@@ -124,6 +124,11 @@ const uint8_t configExpanderAddr = 3;
 
 const uint16_t componentIDAddress = 1000;
 
+long unsigned int rxId;
+unsigned char len = 0;
+unsigned char rxBuf[8];
+char msgString[128];        
+
 //set up a display buffer
 char displayBuffer[100];
 
@@ -140,7 +145,7 @@ void setPinModes(){
     pinMode(IL2Pin,          OUTPUT);
     pinMode(ignitionCtlPin,  OUTPUT);
     pinMode(linRXpin,        INPUT);
-     
+    pinMode(INTCANPin,        INPUT);
     digitalWrite(CSconfigAPin, HIGH);
     digitalWrite(CSconfigBPin, HIGH);
     digitalWrite(redLEDpin,    HIGH);
@@ -174,24 +179,24 @@ bool greenLEDstate      = false;
 bool redLEDstate        = true;
 bool IH1State           = false;
 bool IH2State           = false;
-bool IL1State           = false;
+bool IL1State           = true;
 bool IL2State           = false;
 bool LIN1Switch         = false;
 bool LIN2Switch         = true;
 bool P10or19Switch      = false;
 bool P15or18Switch      = false;
-bool U1though8Enable    = false;
-bool U9though16Enable   = false;
+bool U1though8Enable    = true;
+bool U9though16Enable   = true;
 bool CAN1Switch         = true;
 bool CAN2Switch         = false;
-bool U1U2P0ASwitch      = true;
-bool U3U4P0ASwitch      = true;
-bool U5U6P0ASwitch      = true;
-bool U7U8P0ASwitch      = true;
-bool U9U10P0ASwitch     = true;
-bool U11U12P0ASwitch    = true;
-bool U13U14P0ASwitch    = true;
-bool U15U16P0ASwitch    = true;
+bool U1U2P0ASwitch      = false;
+bool U3U4P0ASwitch      = false;
+bool U5U6P0ASwitch      = false;
+bool U7U8P0ASwitch      = false;
+bool U9U10P0ASwitch     = false;
+bool U11U12P0ASwitch    = false;
+bool U13U14P0ASwitch    = false;
+bool U15U16P0ASwitch    = false;
 bool CAN0term           = true;
 bool CAN1term           = true;
 bool CAN2term           = true;
@@ -199,14 +204,14 @@ bool CAN0term1          = false;
 bool CAN1term1          = false;
 bool CAN2term1          = false;
 bool LINmaster          = false;
-bool PWM1Out            = true;
-bool PWM2Out            = true;
+bool PWM1Out            = false;
+bool PWM2Out            = false;
 bool PWM3Out            = true;
-bool PWM4Out            = true;
-bool PWM5Out            = true;
-bool PWM6Out            = true;
+bool PWM4Out            = false;
+bool PWM5Out            = false;
+bool PWM6Out            = false;
 bool PWM4Out_28         = false;
-bool CAN1out            = true;
+bool CAN1out            = false;
 bool ignitionCtlState   = false;
 
 
@@ -225,14 +230,13 @@ uint8_t setTerminationSwitches() {
 }
 
 void getTerminationSwitches(uint8_t terminationSettings) {
-  CAN0term  = (terminationSettings & 0b00000001) >> 0;
-  CAN1term  = (terminationSettings & 0b00000010) >> 1;
-  CAN2term  = (terminationSettings & 0b00000100) >> 2;
-  LINmaster = (terminationSettings & 0b00001000) >> 3;
-  PWM1Out   = (terminationSettings & 0b00010000) >> 4;
-  PWM2Out   = (terminationSettings & 0b00100000) >> 5;
-  PWM3Out   = (terminationSettings & 0b01000000) >> 6;
-  PWM4Out   = (terminationSettings & 0b10000000) >> 7;
+  CAN0term1 = (terminationSettings & 0b00000001) >> 0;
+  CAN1term1 = (terminationSettings & 0b00000010) >> 1;
+  CAN2term1 = (terminationSettings & 0b00000100) >> 2;
+  PWM4Out_28= (terminationSettings & 0b00001000) >> 3;
+  CAN1out   = (terminationSettings & 0b00010000) >> 4;
+  PWM5Out   = (terminationSettings & 0b01000000) >> 6;
+  PWM6Out   = (terminationSettings & 0b10000000) >> 7;
 }
 
 
@@ -247,9 +251,9 @@ uint8_t setPWMSwitches() {
 
 void getPWMSwitches(uint8_t terminationSettings) {
   //Set the termination Switches for U21
-  CAN0term1  = (terminationSettings & 0b00000001) >> 0;
-  CAN1term1  = (terminationSettings & 0b00000010) >> 1;
-  CAN2term1  = (terminationSettings & 0b00000100) >> 2;
+  CAN0term   = (terminationSettings & 0b00000001) >> 0;
+  CAN1term   = (terminationSettings & 0b00000010) >> 1;
+  CAN2term   = (terminationSettings & 0b00000100) >> 2;
   LINmaster  = (terminationSettings & 0b00001000) >> 3;
   PWM1Out    = (terminationSettings & 0b00010000) >> 4;
   PWM2Out    = (terminationSettings & 0b00100000) >> 5;
@@ -291,4 +295,6 @@ void getConfigSwitches(uint16_t configSwitchSettings) {
   U13U14P0ASwitch   = (configSwitchSettings & 0b0100000000000000) >> 14;
   U15U16P0ASwitch   = (configSwitchSettings & 0b1000000000000000) >> 15;
 }
+
+
 

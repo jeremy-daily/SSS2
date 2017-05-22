@@ -4,7 +4,7 @@ The code base for the Teensy 3.6 based Smart Sensor Simulator 2. This SSS2 is pr
 # Software Design
 There are three sets of files needed to make the SSS2 work. All the software in this repository is for Arduino.
 
-  1. Board Definitions. This file declares the pin settings and defines the functions needed to communicate with the chips on board. For example, there is a difference between the SSS2-R02 boards and the SSS-R03 boards in the way the chip select pin is accessed for the digitial potentiometers. This file is `SSS2_board_defs_rev_X.h`
+  1. Board Definitions. This file declares the pin settings and defines the functions needed to communicate with the chips on board. For example, there is a difference between the SSS2-R02, SSS-R03, and SSS-R05 boards in the way the chip select pin is accessed for the digital potentiometers. This file is `SSS2_board_defs_rev_X.h` (TODO: a definitions file is needed for the Rev2 board.)
   2. Settings processor. This file sets up the function calls for all of the commands. This is decoupled from the communications module to enable different ways of communicating with the SSS2. This file is `SSS2_functions.h`
   3. Communications Interface. This the main wrapper file that provides an interface between the user and the SSS2 functions. The primary method of communications is Serial over USB, but CAN, LIN, J1708, WiFi (with the ESP8266) or others are enabled by customizing this main file. This file is usually called `SSS2_communications_over_serial.ino` and contains functions for all SSS2 variants. This means the lower level files need to tolerate differences.
   
@@ -48,6 +48,10 @@ All pin defintions are `const int8_t` data types so they can take on a value of 
 
 This file defines a `setPinModes()` function to use when initializing the board. It sets all the pin modes and writes default values to them. This is what turns on the red LED at the beginning. 
 
+The revision 5 hardware has an MCP2515 CAN controller on SPI1. #define spi_readwrite SPI1.transfer
+
+
+
 ### Settings Variables
 There are SPI connected potentiometers in the SSS that all have thier own settings. We define the number of these with `numSPIpots` which is usually 16. Then we can define arrays that holds all the potenetiometer settings. Since these potentiometers have settings for both the wiper position and the terminal connections, there are two arrays: `SPIpotWiperSettings` and `SPIpotTCONSettings`. These SPI potentiometers are labeled U1 through U16 in the schematics.
 
@@ -65,6 +69,8 @@ The SSS2_functions file is a header file that defines all the functions needed t
   **B0,X** Sets the baudrate for the first FlexCAN controller. If X is ommitted, then the current CAN bit rate is returned. Typical baudrates are 250000, 666000, 500000, and 125000.
   
   **B1,X** Sets the baudrate for the second FlexCAN controller. If X is ommitted, then the current CAN bit rate is returned.
+  
+  **BMCP,X** Sets the baudrate for the MCP2515 controller. If X is ommitted or is not valid, then the current CAN bit rate is returned. Possible baudrates are: 250000, 500000, 666666, 125000, 1000000, 5000, 10000, 20000, 31520, 333333, 40000, 50000, 80000, 100000, 200000. 
   
   **DB,** Displays the baud rates. 
    
@@ -260,10 +266,10 @@ The following are the enumerated settings for the SSS2. These settings are set u
   30. U11 & U12 P0A, Ports 11 and 12
   31. U13 & U14 P0A, Ports 13 and 14
   32. U15 & U16 P0A, Ports 15 and 16
-  33. PWM 1, Ports 13 (J24-13) and 31 (J18-15)
-  34. PWM 2, Ports 14 (J24-14) and 32 (J18-16)
-  35. PWM 3, Port 27 (J18-10)
-  36. PWM 4, Port 17 (J18-1)
+  33. PWM 1 Connect, Ports 13 (J24-13) and 31 (J18-15)
+  34. PWM 2 Connect, Ports 14 (J24-14) and 32 (J18-16)
+  35. PWM 3 Connect, Port 27 (J18-10)
+  36. PWM 4 Connect, Port 17 (J18-1)
   37. Port 10 or 19, (J24-10)
   38. Port 15 or 18, (J24-15)
   39. CAN1 or J1708, (J24-17 & J24-18)
@@ -308,12 +314,18 @@ The following are the enumerated settings for the SSS2. These settings are set u
   78. Dig. Pot. 28 Terminal Connect, Port 28 (J18-12)
   79. Dig. Pot. 29 Terminal Connect, Port 29 (J18-13)
   80. Dig. Pot. 30 Terminal Connect, Port 30 (J18-14)
-  81. PWM1 Frequency, Port 13 (J24-13)
-  82. PWM2 Frequency, Port 14 (J24-14)
-  83. PWM3 Frequency, Port 27 (J18-10)
-  84. PWM4 Frequency, Port 17 (J18-1)
-  
-Some setting take binary values of 0 or 1. For example, if the SSS2 recieves a serial command that says `50,1` it will interpret that to set seting number 50 to true, which means to close the ignition key switch relay. Similarly, the command `45,0` will turn off the 12V output on J18-10. There is a `fastSetSetting` function that gets called whenever the communication manager receives a digit. This processes the command without the `debugDisplay` flag, so the serial output says `SET X,Y` where X is the setting number and Y is the current or new setting value.
+  81. PWM 1 Frequency, Port 13 (J24-13)
+  82. PWM 2 Frequency, Port 14 (J24-14)
+  83. PWM 3 Frequency, Port 27 (J18-10)
+  84. PWM 4 Frequency, Port 17 (J18-1)
+  85. PWM 5 Frequency, Port 1  (J24-1)
+  86. PWM 6 Frequency, Port 2  (J24-2)
+  87. PWM 5 Value, Port 1  (J24-1)
+  88. PWM 6 Value, Port 2  (J24-2)
+  89. PWM 5 Connect, Port 1 (J24-1)
+  90. PWM 6 Connect, Port 2 (J24-2)
+  91. CAN1 Connect, Ports 3 and 4 (J24-3,4)
+Some setting take binary values of 0 or 1. For example, if the SSS2 receives a serial command that says `50,1` it will interpret that to set setting number 50 to true, which means to close the ignition key switch relay. Similarly, the command `45,0` will turn off the 12V output on J18-10. There is a `fastSetSetting` function that gets called whenever the communication manager receives a digit. This processes the command without the `debugDisplay` flag, so the serial output says `SET X,Y` where X is the setting number and Y is the current or new setting value.
 
   - Binary Settings
   - Terminal Settings
