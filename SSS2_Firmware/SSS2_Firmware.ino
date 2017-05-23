@@ -46,6 +46,7 @@ void listSoftware(){
 
 void setup() {
   SPI.begin();
+  SPI1.begin();
   Serial.begin(9600);
   LIN.begin(19200);
   
@@ -97,11 +98,11 @@ void setup() {
     setSetting(i, currentSetting ,DEBUG_ON);
   }
   
-//  SPI1.begin();
-//  
-//  if(MCPCAN.begin(MCP_ANY, getBAUD(125000), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
-//  else Serial.println("Error Initializing MCP2515...");
-//  MCPCAN.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
+
+  
+  if(MCPCAN.begin(MCP_ANY, getBAUD(BAUDRATE_MCP), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
+  else Serial.println("Error Initializing MCP2515...");
+  MCPCAN.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
 
   Can0.begin(BAUDRATE0);
   Can1.begin(BAUDRATE1);
@@ -140,32 +141,20 @@ void setup() {
  
   commandString="1";
   setEnableComponentInfo();
-  //reloadCAN();
+  reloadCAN();
 }
 
 void loop() {
   //Check CAN messages
-  while (Can0.available()) {
+  if (Can0.available()) {
     Can0.read(rxmsg);
-    char CANdataDisplay[50];
-    sprintf(CANdataDisplay, "%12lu %12lu %08X %d %d", RXCount0++, micros(), rxmsg.id, rxmsg.ext, rxmsg.len);
-    Serial.print(CANdataDisplay);
-    for (uint8_t i = 0; i < rxmsg.len; i++) {
-      char CANBytes[4];
-      sprintf(CANBytes, " %02X", rxmsg.buf[i]);
-      Serial.print(CANBytes);
-    }
-    Serial.println();
+    //parseJ1939(rxmsg);
+    RXCount0++;
+    RXCAN0timer = 0;
+    if (displayCAN0) printFrame(rxmsg, -1, 0, RXCount0);
+    redLEDstate = !redLEDstate;
+    digitalWrite(redLEDpin, redLEDstate);
   }
-//  while (Can0.available()) {
-//    Can0.read(rxmsg);
-//    //parseJ1939(rxmsg);
-//    RXCount0++;
-//    RXCAN0timer = 0;
-//    if (displayCAN0) printFrame(rxmsg, -1, 0, RXCount0);
-//    redLEDstate = !redLEDstate;
-//    digitalWrite(redLEDpin, redLEDstate);
-//  }
   if (Can1.available()) {
     Can1.read(rxmsg);
     RXCount1++;
@@ -176,15 +165,18 @@ void loop() {
       digitalWrite(greenLEDpin, greenLEDstate);
     }
   }
-//  if(!digitalRead(INTCANPin) && displayCAN2)  // If low, read receive buffer
-//  {
-//    MCPCAN.readMsgBuf(&rxId, &len, rxBuf);      // Read data: len = data length, buf = data byte(s)
-//    RXCount2++;
-//    rxmsg.id = (rxId & 0x1FFFFFFF);
-//    rxmsg.len = len;
-//    for(byte i = 0; i<len; i++) rxmsg.buf[i] = rxBuf[i];
-//    printFrame(rxmsg, -1, 2, RXCount2);
-//  }
+  //!digitalRead(INTCANPin) &&
+  if(displayCAN2)  // If low, read receive buffer
+  {
+    if(MCPCAN.readMsgBuf(&rxId, &len, rxBuf)==CAN_OK){      // Read data: len = data length, buf = data byte(s)
+    RXCount2++;
+    rxmsg.id = (rxId & 0x1FFFFFFF);
+    rxmsg.len = len;
+    for(byte i = 0; i<len; i++) rxmsg.buf[i] = rxBuf[i];
+    printFrame(rxmsg, -1, 2, RXCount2);
+    }
+  
+  }
   
   //Check J1708
   if (J1708.available()){
@@ -248,7 +240,7 @@ void loop() {
     else if (commandPrefix.equalsIgnoreCase("AI"))        displayVoltage();
     else if (commandPrefix.equalsIgnoreCase("B0"))        autoBaud0();
     else if (commandPrefix.equalsIgnoreCase("B1"))        autoBaud1();
-    //else if (commandPrefix.equalsIgnoreCase("BMCP"))      autoBaudMCP();
+    else if (commandPrefix.equalsIgnoreCase("BMCP"))      autoBaudMCP();
     else if (commandPrefix.equalsIgnoreCase("DB"))        displayBaud();
     else if (commandPrefix.equalsIgnoreCase("CANCOMP"))   setEnableComponentInfo();
     else if (commandPrefix.equalsIgnoreCase("ID"))        print_uid();
