@@ -70,7 +70,7 @@ const int8_t IL2Pin            = 38;
 const int8_t ignitionCtlPin    = 39;
 
 const uint8_t numPWMs = 6;
-const int8_t PWMPins[numPWMs]     = {16,17,22,23,35,36};
+const int8_t PWMPins[numPWMs]     = {16,17,22,23,29,30};
 uint16_t pwmValue[numPWMs] = {500,1000,1500,2000,2500,3000};
 uint16_t pwmFrequency[numPWMs] = {200,210,220,230,240,250};
 

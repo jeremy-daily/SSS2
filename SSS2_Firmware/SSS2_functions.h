@@ -45,7 +45,6 @@
  * TeensyID - https://github.com/sstaub/TeensyID
 */
 
-
 #define ENCODER_OPTIMIZE_INTERRUPTS
 
 #define USE_SPI1
@@ -307,6 +306,8 @@ void sendLINResponse(){
     readyForLINid = false;
   } 
 }
+
+
 
 void displayVoltage(){
   analogMillis = 0;
@@ -1238,7 +1239,7 @@ void setLimits(uint8_t settingNum) {
   }
   else if (settingNum >= 81 && settingNum <= 85) {
     knobLowLimit = 0;
-    knobHighLimit = 32768;
+    knobHighLimit = 65535;
     knobJump = 1;
   }
   else if (settingNum == 86) {
@@ -1371,7 +1372,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum >= 33 && settingNum <= 36 ){
     if (settingValue > -1) pwmValue[settingNum - 33] = uint16_t(settingValue);
-    analogWrite(PWMPins[settingNum - 33],pwmValue[settingNum - 33]);
+    //analogWriteFrequency(PWMPins[settingNum - 33],pwmFrequency[settingNum - 33]);
+    for (uint8_t i = 0; i<4; i++) analogWrite(PWMPins[i],pwmValue[i]);
     if (debugDisplay) Serial.println(pwmValue[settingNum - 33]);
     return pwmValue[settingNum - 33];
   }
@@ -1667,7 +1669,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
 
   else if (settingNum >= 81 && settingNum <= 85 ){
     if (settingValue > -1)  pwmFrequency[settingNum-81] = uint16_t(settingValue);
-    analogWriteFrequency(PWMPins[settingNum-81], pwmFrequency[settingNum-81]);
+    analogWriteFrequency(PWMPins[settingNum-81], float(pwmFrequency[settingNum-81]));
     for (uint8_t i = 0; i<numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
     if (debugDisplay) {
         Serial.println(pwmFrequency[settingNum-81]);
@@ -1685,13 +1687,15 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 87){ //PWM5
     if (settingValue > -1) pwmValue[4] = uint16_t(settingValue);
-    analogWrite(PWMPins[4],pwmValue[4]);
+    //analogWriteFrequency(PWMPins[4],pwmFrequency[4]);
+    for (uint8_t i = 0; i<numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
     if (debugDisplay) Serial.println(pwmValue[4]);
     return pwmValue[4];
   }
   else if (settingNum == 88){ //PWM6
     if (settingValue > -1) pwmValue[5] = uint16_t(settingValue);
-    analogWrite(PWMPins[5],pwmValue[5]);
+    //analogWriteFrequency(PWMPins[5],pwmFrequency[5]);
+    for (uint8_t i = 0; i<numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
     if (debugDisplay) Serial.println(pwmValue[5]);
     return pwmValue[5];
   }
