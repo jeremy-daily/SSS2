@@ -48,7 +48,7 @@
 
 #define ENCODER_OPTIMIZE_INTERRUPTS
 
-
+#define USE_SPI1
 #include <mcp_can.h>
 #include <SPI.h>
 #include <i2c_t3.h>
@@ -87,7 +87,7 @@ uint32_t uid[4];
 String commandPrefix;
 String commandString;
 
-#define numSettings  92
+#define numSettings  93
 uint8_t source_address = 0xFA; 
 
 int comp_id_index = 0;
@@ -1067,7 +1067,8 @@ char settingNames[numSettings][40] = {
   "PWM 6 Value", 
   "PWM 5 Connect", 
   "PWM 6 Connect", 
-  "CAN1 Connect"
+  "CAN1 Connect",
+  "CAN2 Connect"
 };
 
 char settingPins[numSettings][40] = {
@@ -1173,7 +1174,8 @@ char settingPins[numSettings][40] = {
   "Port 1  (J24-1)",
   "Port 2 (J24-2)",
   "Port 1 (J24-1)",
-  "Ports 3 and 4 (J24-3 and 4)"
+  "Ports 3 and 4 (J24-3 and 4)",
+  "(J18-15 and J18-16)"
 };
 
 
@@ -1249,7 +1251,7 @@ void setLimits(uint8_t settingNum) {
     knobHighLimit = 5000;
     knobJump = 1;
   }
-  else if (settingNum >= 89 || settingNum <= 91) {
+  else if (settingNum >= 89 || settingNum <= 92) {
     knobLowLimit = 0;
     knobHighLimit = 1;
     knobJump = 1;
@@ -1400,7 +1402,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     }
     return CAN1Switch;
   }  
-  else if (settingNum == 40){
+  else if (settingNum == 40 || settingNum == 92 ){
     if (settingValue > -1) CAN2Switch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
@@ -2252,7 +2254,6 @@ void autoBaud0(){
     for (uint8_t baudRateIndex = 0; baudRateIndex < baudRateListLength; baudRateIndex++){
       if (tempBAUDRATE == baudRateList[baudRateIndex]){
         BAUDRATE0 = tempBAUDRATE;
-        
         break; 
       }
     }
@@ -2271,7 +2272,6 @@ void autoBaud1(){
     for (uint8_t baudRateIndex = 0; baudRateIndex < baudRateListLength; baudRateIndex++){
       if (tempBAUDRATE == baudRateList[baudRateIndex]){
         BAUDRATE1 = tempBAUDRATE;
-        
         break; 
       }
     }

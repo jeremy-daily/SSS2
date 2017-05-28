@@ -37,7 +37,7 @@
 #include "SSS2_functions.h"
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*0.92b*master*7c1ec40e272233b5c69eb16a293705007af312bd"; //Hash of the previous git commit
+String softwareVersion = "SSS2*REV" + revision + "*0.93b*master*7c1ec40e272233b5c69eb16a293705007af312bd"; //Hash of the previous git commit
 
 void listSoftware(){
   Serial.print("FIRMWARE ");
@@ -159,21 +159,21 @@ void loop() {
     Can1.read(rxmsg);
     RXCount1++;
     RXCAN1orJ1708timer = 0;
-    if (displayCAN1) printFrame(rxmsg, -1, 1, RXCount1);
+    if (displayCAN2) printFrame(rxmsg, -1, 2, RXCount1);
     if (ignitionCtlState){
       greenLEDstate = !greenLEDstate;
       digitalWrite(greenLEDpin, greenLEDstate);
     }
   }
   //!digitalRead(INTCANPin) &&
-  if(displayCAN2)  // If low, read receive buffer
+  if(displayCAN1)  // If low, read receive buffer
   {
     if(MCPCAN.readMsgBuf(&rxId, &len, rxBuf)==CAN_OK){      // Read data: len = data length, buf = data byte(s)
     RXCount2++;
     rxmsg.id = (rxId & 0x1FFFFFFF);
     rxmsg.len = len;
     for(byte i = 0; i<len; i++) rxmsg.buf[i] = rxBuf[i];
-    printFrame(rxmsg, -1, 2, RXCount2);
+    printFrame(rxmsg, -1, 1, RXCount2);
     }
   
   }

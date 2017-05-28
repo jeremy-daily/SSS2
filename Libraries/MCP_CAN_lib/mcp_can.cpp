@@ -23,7 +23,12 @@
 */
 #include "mcp_can.h"
 
-#define spi_readwrite SPI1.transfer
+#ifdef USE_SPI1
+  #define spi_readwrite SPI1.transfer
+#else
+  #define spi_readwrite SPI.transfer
+#endif
+
 #define spi_read() spi_readwrite(0x00)
 
 /*********************************************************************************************************
@@ -172,6 +177,22 @@ INT8U MCP_CAN::mcp2515_configRate(const INT8U canSpeed, const INT8U canClock)
     set = 1;
     switch (canClock)
     {
+        case (MCP_15MHZ):
+        switch (canSpeed) 
+        {
+            case (CAN_250KBPS):                                               //   5KBPS                  
+            cfg1 = MCP_15MHz_250kBPS_CFG1;
+            cfg2 = MCP_15MHz_250kBPS_CFG2;
+            cfg3 = MCP_15MHz_250kBPS_CFG3;
+            break;
+          
+            default:
+            set = 0;
+	    return MCP2515_FAIL;
+            break;
+        }
+        break;   
+        
         case (MCP_8MHZ):
         switch (canSpeed) 
         {
@@ -251,6 +272,12 @@ INT8U MCP_CAN::mcp2515_configRate(const INT8U canSpeed, const INT8U canClock)
             cfg1 = MCP_8MHz_500kBPS_CFG1;
             cfg2 = MCP_8MHz_500kBPS_CFG2;
             cfg3 = MCP_8MHz_500kBPS_CFG3;
+            break;
+            
+            case (CAN_666KBPS):                                             // 666Kbps
+            cfg1 = MCP_8MHz_666kBPS_CFG1;
+            cfg2 = MCP_8MHz_666kBPS_CFG2;
+            cfg3 = MCP_8MHz_666kBPS_CFG3;
             break;
         
             case (CAN_1000KBPS):                                            //   1Mbps

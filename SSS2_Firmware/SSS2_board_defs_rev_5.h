@@ -75,7 +75,7 @@ uint16_t pwmValue[numPWMs] = {500,1000,1500,2000,2500,3000};
 uint16_t pwmFrequency[numPWMs] = {200,210,220,230,240,250};
 
 const uint8_t numADCs = 6;
-const int8_t analogInPins[numADCs]= {A21,A22,A0,A1,A6,A11};
+const int8_t analogInPins[numADCs]= {A21,A1,A0,A6,A11,A22};
 int analog_display_period = 100;
 
 //int analogPeriod = 100; //milliseconds
@@ -206,6 +206,7 @@ bool PWM5Out            = false;
 bool PWM6Out            = false;
 bool PWM4Out_28         = false;
 bool CAN1out            = false;
+bool CAN2out            = false;
 bool ignitionCtlState   = false;
 
 
