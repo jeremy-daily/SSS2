@@ -9,7 +9,7 @@
  * The University of Tulsa
  * Department of Mechanical Engineering
  * 
- * 06 May 2017
+ * 22 May 2017
  * 
  * Released under the MIT License
  *
@@ -44,8 +44,11 @@
  * Thread - https://github.com/ivanseidel/ArduinoThread
  * TeensyID - https://github.com/sstaub/TeensyID
 */
+
 #define ENCODER_OPTIMIZE_INTERRUPTS
 
+#define USE_SPI1
+#include <mcp_can.h>
 #include <SPI.h>
 #include <i2c_t3.h>
 #include <Encoder.h>
@@ -59,22 +62,31 @@
 #include "ThreadController.h"
 
 
+
 Adafruit_MCP23017 ConfigExpander; //U21
 Adafruit_MCP23017 PotExpander; //U33
 
+
+
+
 IntervalTimer CANTimer;
+
+
+
+MCP_CAN MCPCAN(CSCANPin);
+
+
 
 
 //The Unique ID variable that comes from the chip
 uint32_t uid[4];
 
-uint8_t terminationSettings;
 
 
 String commandPrefix;
 String commandString;
 
-#define numSettings  85
+#define numSettings  93
 uint8_t source_address = 0xFA; 
 
 int comp_id_index = 0;
@@ -99,9 +111,6 @@ boolean SAFE_TO_ADJUST = 0;
 boolean displayCAN0 = 0;
 boolean displayCAN1 = 0;
 boolean displayCAN2 = 0;
-boolean CAN0baudNotDetected = true;
-boolean CAN1baudNotDetected = true;
-boolean CAN2baudNotDetected = true;
 boolean TXCAN = true;
 boolean enableSendComponentInfo = true;
 boolean sendA21voltage = false;
@@ -115,6 +124,12 @@ uint8_t J1708RXbuffer[256];
 uint8_t J1708_index=0;
 
 uint32_t shortest_period = 10;
+
+
+
+
+
+
 
 const int allFFs[8] = {255,255,255,255,255,255,255,255};
 /****************************************************************/
@@ -292,6 +307,8 @@ void sendLINResponse(){
   } 
 }
 
+
+
 void displayVoltage(){
   analogMillis = 0;
   if (commandString.toInt() > 0){
@@ -345,11 +362,14 @@ static CAN_message_t temp_txmsg;
 //set up a counter for each received message
 uint32_t RXCount0 = 0;
 uint32_t RXCount1 = 0;
+uint32_t RXCount2 = 0;
 
 int CANWaitTimeout = 200;
 uint32_t BAUDRATE0 = 250000;
 uint32_t BAUDRATE1 = 250000;
-const uint32_t baudRateList[5] = {250000,500000,666666,125000,1000000};
+uint32_t BAUDRATE_MCP = 250000;
+const uint8_t baudRateListLength = 15;
+const uint32_t baudRateList[baudRateListLength] = {250000,500000,666666,125000,1000000,5000,10000,20000,31520,333333,40000,50000,80000,100000,200000};
 uint8_t baudRateIndex0 = 0;
 uint8_t baudRateIndex1 = 0;
 
@@ -381,7 +401,6 @@ public:
   uint8_t message_index = 0;
   uint8_t message_list[256][8] = {};
   uint32_t id_list[256]={};
- 
   
   
   bool shouldRun(unsigned long time){
@@ -400,6 +419,8 @@ public:
     if (ok_to_send && ignitionCtlState){
       if      (channel == 0) Can0.write(txmsg);
       else if (channel == 1) Can1.write(txmsg);
+      else if (channel == 2) MCPCAN.sendMsgBuf(txmsg.id,txmsg.ext,txmsg.len,txmsg.buf);
+  
       
       transmit_number++;
       message_index++;
@@ -505,7 +526,7 @@ int setupPeriodicCANMessage(){
   
   commandValues = strtok(NULL, delimiter);
   if (commandValues != NULL) {
-    channel = constrain(atoi(commandValues),0,1);
+    channel = constrain(atoi(commandValues),0,2);
   }
   else {
     Serial.println(F("ERROR SM command not able to set CAN Channel.")); 
@@ -677,17 +698,6 @@ void startCAN (){
   }
 }
 
-class settingsData {
-public:
-  uint32_t knobLowLimit = 0;
-  uint32_t knobHighLimit = 255;
-  uint32_t knobJump = 1;
-  String settingName = "";
-  String settingPort = "";
-  
-};
-
-
 
 void connectionString(boolean switchState) {
   //memset(displayBuffer,0,sizeof(displayBuffer));
@@ -725,31 +735,50 @@ void terminalString(uint8_t setting) {
   }
 }
 
-
 /**********************************************************************/
 /*   Utility functions to manipulate Ports                            */
 
 uint8_t setTerminationSwitches() {
   //Set the termination Switches of U29 on Rev 3
 
-  uint8_t terminationSettings =  uint8_t( CAN0term | CAN1term << 1 | CAN2term << 2 |  LINmaster << 3 | 
-                                 PWM1Out << 4 | PWM2Out << 5 | PWM3Out << 6 | PWM4Out << 7);
-  digitalWrite(CStermPin, LOW);
+  uint8_t terminationSettings =  uint8_t( CAN0term1 | CAN1term1 << 1 | CAN2term1 << 2 |  PWM4Out_28 << 3 | 
+                                 CAN1out << 4 | CAN1out << 5 | PWM5Out << 6 | PWM6Out << 7);
+  digitalWrite(CSconfigAPin, LOW);
   SPI.transfer(terminationSettings);
-  digitalWrite(CStermPin, HIGH);
+  digitalWrite(CSconfigAPin, HIGH);
   return terminationSettings;
 }
 
 void getTerminationSwitches(uint8_t terminationSettings) {
+  CAN0term1 = (terminationSettings & 0b00000001) >> 0;
+  CAN1term1 = (terminationSettings & 0b00000010) >> 1;
+  CAN2term1 = (terminationSettings & 0b00000100) >> 2;
+  PWM4Out_28= (terminationSettings & 0b00001000) >> 3;
+  CAN1out   = (terminationSettings & 0b00010000) >> 4;
+  PWM5Out   = (terminationSettings & 0b01000000) >> 6;
+  PWM6Out   = (terminationSettings & 0b10000000) >> 7;
+}
+
+
+uint8_t setPWMSwitches() {
+  uint8_t PWMSettings =  uint8_t( CAN0term | CAN1term << 1 | CAN2term << 2 |  LINmaster << 3 | 
+                                 PWM1Out << 4 | PWM2Out << 5 | PWM3Out << 6 | PWM4Out << 7);
+  digitalWrite(CSconfigBPin, LOW);
+  SPI.transfer(PWMSettings);
+  digitalWrite(CSconfigBPin, HIGH);
+  return PWMSettings;
+}
+
+void getPWMSwitches(uint8_t terminationSettings) {
   //Set the termination Switches for U21
-  CAN0term  = (terminationSettings & 0b00000001) >> 0;
-  CAN1term  = (terminationSettings & 0b00000010) >> 1;
-  CAN2term  = (terminationSettings & 0b00000100) >> 2;
-  LINmaster = (terminationSettings & 0b00001000) >> 3;
-  PWM1Out   = (terminationSettings & 0b00010000) >> 4;
-  PWM2Out   = (terminationSettings & 0b00100000) >> 5;
-  PWM3Out   = (terminationSettings & 0b01000000) >> 6;
-  PWM4Out   = (terminationSettings & 0b10000000) >> 7;
+  CAN0term   = (terminationSettings & 0b00000001) >> 0;
+  CAN1term   = (terminationSettings & 0b00000010) >> 1;
+  CAN2term   = (terminationSettings & 0b00000100) >> 2;
+  LINmaster  = (terminationSettings & 0b00001000) >> 3;
+  PWM1Out    = (terminationSettings & 0b00010000) >> 4;
+  PWM2Out    = (terminationSettings & 0b00100000) >> 5;
+  PWM3Out    = (terminationSettings & 0b01000000) >> 6;
+  PWM4Out    = (terminationSettings & 0b10000000) >> 7;
 }
 
 
@@ -786,6 +815,8 @@ void getConfigSwitches(uint16_t configSwitchSettings) {
   U13U14P0ASwitch   = (configSwitchSettings & 0b0100000000000000) >> 14;
   U15U16P0ASwitch   = (configSwitchSettings & 0b1000000000000000) >> 15;
 }
+
+
 
 
 /****************************************************************/
@@ -1027,11 +1058,18 @@ char settingNames[numSettings][40] = {
   "Dig. Pot. 29 Terminal Connect",
   "Dig. Pot. 30 Terminal Connect", //80
 
-  "PWM1 Frequency",
-  "PWM2 Frequency",
-  "PWM3 Frequency",
-  "PWM4 Frequency"
-  
+  "PWM 1 Frequency",
+  "PWM 2 Frequency",
+  "PWM 3 Frequency",
+  "PWM 4 Frequency",
+  "PWM 5 and 6 Frequency", 
+  "PWM 4 Connect", 
+  "PWM 5 Value",
+  "PWM 6 Value", 
+  "PWM 5 Connect", 
+  "PWM 6 Connect", 
+  "CAN1 Connect",
+  "CAN2 Connect"
 };
 
 char settingPins[numSettings][40] = {
@@ -1074,7 +1112,7 @@ char settingPins[numSettings][40] = {
   "Ports 13 (J24-13) and 31 (J18-15)",
   "Ports 14 (J24-14) and 32 (J18-16)",
   "Port 27 (J18-10)",
-  "Port 17 (J18-1)",
+  "Port 17 (J18-1) and 28 (J18-12)",
   
   "(J24-10)",
   "(J24-15)",
@@ -1085,7 +1123,7 @@ char settingPins[numSettings][40] = {
   "R46",
   "R59",
 
-  "Port 26 (J18-10)",
+  "Port 27 (J18-10)",
   "Port 11 (J24-11)",
   "Port 17 (J18- 1)",
   "Port 12 (J24-12)",
@@ -1130,7 +1168,15 @@ char settingPins[numSettings][40] = {
   "Port 13 (J24-13)",
   "Port 14 (J24-14)",
   "Port 27 (J18-10)",
-  "Port 17 (J18-1)"
+  "Port 17 (J18-1)",
+  "Ports 1 and 2 (J24-1 and 2)",
+  "Port 28 (J18-12)",
+  "Port 2  (J24-2)",
+  "Port 1  (J24-1)",
+  "Port 2 (J24-2)",
+  "Port 1 (J24-1)",
+  "Ports 3 and 4 (J24-3 and 4)",
+  "(J18-15 and J18-16)"
 };
 
 
@@ -1191,9 +1237,24 @@ void setLimits(uint8_t settingNum) {
     knobHighLimit = 7;
     knobJump = 1;
   }
-  else if (settingNum >= 81 && settingNum <= 84) {
+  else if (settingNum >= 81 && settingNum <= 85) {
     knobLowLimit = 0;
-    knobHighLimit = 32768;
+    knobHighLimit = 65535;
+    knobJump = 1;
+  }
+  else if (settingNum == 86) {
+    knobLowLimit = 0;
+    knobHighLimit = 1;
+    knobJump = 1;
+  }
+  else if (settingNum == 87 || settingNum == 88) {
+    knobLowLimit = 0;
+    knobHighLimit = 5000;
+    knobJump = 1;
+  }
+  else if (settingNum >= 89 || settingNum <= 92) {
+    knobLowLimit = 0;
+    knobHighLimit = 1;
     knobJump = 1;
   }
   else {
@@ -1223,12 +1284,13 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) SPIpotWiperSettings[settingNum - 1] = settingValue; 
     uint8_t w_position = MCP41HVExtender_SetWiper(settingNum - 1, 
                                                 SPIpotWiperSettings[settingNum - 1]);
+    MCP41HVExtender_SetTerminals(settingNum - 1, SPIpotTCONSettings[settingNum - 1]);
     if (debugDisplay) {
-        Serial.print(w_position);
+        Serial.print(SPIpotWiperSettings[settingNum - 1]);
         Serial.print(", ");
-        Serial.println(SPIpotWiperSettings[settingNum - 1]);
+        Serial.println(w_position);
     }
-    return w_position;
+    return SPIpotWiperSettings[settingNum - 1];
   }
   else if (settingNum > 16 && settingNum <= 24) {
     if (settingValue > -1) DAC2value[settingNum - 17] = settingValue;
@@ -1310,7 +1372,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum >= 33 && settingNum <= 36 ){
     if (settingValue > -1) pwmValue[settingNum - 33] = uint16_t(settingValue);
-    analogWrite(PWMPins[settingNum - 33],pwmValue[settingNum - 33]);
+    //analogWriteFrequency(PWMPins[settingNum - 33],pwmFrequency[settingNum - 33]);
+    for (uint8_t i = 0; i<4; i++) analogWrite(PWMPins[i],pwmValue[i]);
     if (debugDisplay) Serial.println(pwmValue[settingNum - 33]);
     return pwmValue[settingNum - 33];
   }
@@ -1341,7 +1404,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     }
     return CAN1Switch;
   }  
-  else if (settingNum == 40){
+  else if (settingNum == 40 || settingNum == 92 ){
     if (settingValue > -1) CAN2Switch = boolean(settingValue);
     setConfigSwitches();
     if (debugDisplay) {
@@ -1352,7 +1415,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 41){
     if (settingValue > -1) CAN0term = boolean(settingValue);
-    setTerminationSwitches();
+    setPWMSwitches();
     if (debugDisplay) {
         connectionString(CAN0term);
         Serial.println(displayBuffer);
@@ -1361,7 +1424,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 42) {
     if (settingValue > -1) CAN1term = boolean(settingValue);
-    setTerminationSwitches();
+    setPWMSwitches();
     if (debugDisplay) {
         connectionString(CAN1term);
         Serial.println(displayBuffer);
@@ -1370,7 +1433,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 43){
     if (settingValue > -1) CAN2term = boolean(settingValue);
-    setTerminationSwitches();
+    setPWMSwitches();
     if (debugDisplay) {
         connectionString(CAN2term);
         Serial.println(displayBuffer);
@@ -1379,7 +1442,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }  
   else if (settingNum == 44) {
     if (settingValue > -1) LINmaster = boolean(settingValue);
-    setTerminationSwitches();
+    setPWMSwitches();
     if (debugDisplay) {
         connectionString(LINmaster);
         Serial.println(displayBuffer);
@@ -1391,7 +1454,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (IH1State) PWM3Out = false;
     else PWM3Out = true;
     
-    setTerminationSwitches();
+    setPWMSwitches();
     digitalWrite(IH1Pin,IH1State);
     if (debugDisplay) {
         connectionString(IH1State);
@@ -1414,7 +1477,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) IL1State = boolean(settingValue);
     if (IL1State) PWM4Out = false;
     else PWM4Out = true; 
-    setTerminationSwitches(); //Turn off PWM4
+    setPWMSwitches(); //Turn off PWM4
     digitalWrite(IL1Pin,IL1State);
     if (debugDisplay) {
         connectionString(IL1State);
@@ -1454,6 +1517,8 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum >  50 && settingNum <= 66) {
     if (settingValue > -1) SPIpotTCONSettings[settingNum - 51] = uint8_t(settingValue);
+    MCP41HVExtender_SetWiper(settingNum - 51, 
+                                                SPIpotWiperSettings[settingNum - 51]);
     uint8_t terminalConnection = MCP41HVExtender_SetTerminals(settingNum - 51, SPIpotTCONSettings[settingNum - 51]);
     if (debugDisplay) {
         Serial.print(SPIpotTCONSettings[settingNum - 51]);
@@ -1461,11 +1526,12 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
         terminalString(terminalConnection);
         Serial.println(displayBuffer);
     }
-    return terminalConnection;
+    //return terminalConnection;
+    return SPIpotTCONSettings[settingNum - 51];
   }
   else if (settingNum == 67){
     if (settingValue > -1) PWM1Out = boolean(settingValue);
-    setTerminationSwitches();
+    setPWMSwitches();
     if (debugDisplay) {
         connectionString(PWM1Out);
         Serial.println(displayBuffer);
@@ -1474,7 +1540,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 68){
     if (settingValue > -1) PWM2Out = boolean(settingValue);
-    setTerminationSwitches();
+    setPWMSwitches();
     if (debugDisplay) {
         connectionString(PWM2Out);
         Serial.println(displayBuffer);
@@ -1483,7 +1549,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }  
   else if (settingNum == 69){
     if (settingValue > -1) PWM3Out = boolean(settingValue);
-    setTerminationSwitches();
+    setPWMSwitches();
     if (debugDisplay) {
         connectionString(PWM3Out);
         Serial.println(displayBuffer);
@@ -1492,7 +1558,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }  
   else if (settingNum == 70) {
     if (settingValue > -1) PWM4Out = boolean(settingValue);
-    setTerminationSwitches();
+    setPWMSwitches();
     if (debugDisplay) {
         connectionString(PWM4Out);
         Serial.println(displayBuffer);
@@ -1601,16 +1667,75 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     return terminalConnection;
   }
 
-  else if (settingNum >= 81 && settingNum <= 84 ){
+  else if (settingNum >= 81 && settingNum <= 85 ){
     if (settingValue > -1)  pwmFrequency[settingNum-81] = uint16_t(settingValue);
-    analogWriteFrequency(PWMPins[settingNum-81], pwmFrequency[settingNum-81]);
+    analogWriteFrequency(PWMPins[settingNum-81], float(pwmFrequency[settingNum-81]));
     for (uint8_t i = 0; i<numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
     if (debugDisplay) {
         Serial.println(pwmFrequency[settingNum-81]);
     }
     return pwmFrequency[settingNum-81];
   }
+  else if (settingNum == 86) {
+    if (settingValue > -1) PWM4Out_28 = boolean(settingValue);
+    setTerminationSwitches();
+    if (debugDisplay) {
+        connectionString(PWM4Out_28);
+        Serial.println(displayBuffer);
+    }
+    return PWM4Out_28;
+  } 
+  else if (settingNum == 87){ //PWM5
+    if (settingValue > -1) pwmValue[4] = uint16_t(settingValue);
+    //analogWriteFrequency(PWMPins[4],pwmFrequency[4]);
+    for (uint8_t i = 0; i<numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
+    if (debugDisplay) Serial.println(pwmValue[4]);
+    return pwmValue[4];
+  }
+  else if (settingNum == 88){ //PWM6
+    if (settingValue > -1) pwmValue[5] = uint16_t(settingValue);
+    //analogWriteFrequency(PWMPins[5],pwmFrequency[5]);
+    for (uint8_t i = 0; i<numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
+    if (debugDisplay) Serial.println(pwmValue[5]);
+    return pwmValue[5];
+  }
 
+  else if (settingNum == 89) {
+    if (settingValue > -1) PWM5Out = boolean(settingValue);
+    setTerminationSwitches();
+    if (debugDisplay) {
+        connectionString(PWM5Out);
+        Serial.println(displayBuffer);
+    }
+    return PWM5Out;
+  } 
+  else if (settingNum == 90) {
+    if (settingValue > -1) PWM6Out = boolean(settingValue);
+    setTerminationSwitches();
+    if (debugDisplay) {
+        connectionString(PWM6Out);
+        Serial.println(displayBuffer);
+    }
+    return PWM6Out;
+  } 
+  else if (settingNum == 91) {
+    if (settingValue > -1) CAN1out = boolean(settingValue);
+    
+    if (CAN1out) {
+      MCP41HVExtender_SetTerminals(2, 0);
+      MCP41HVExtender_SetTerminals(3, 0);
+    }
+    else {
+      MCP41HVExtender_SetTerminals(2, SPIpotTCONSettings[2]);
+      MCP41HVExtender_SetTerminals(3, SPIpotTCONSettings[3]);
+    }
+    setTerminationSwitches();
+    if (debugDisplay) {
+        connectionString(CAN1out);
+        Serial.println(displayBuffer);
+    }
+    return CAN1out;
+  } 
   else return -1;
 }
 /*               End Define Settings                              */
@@ -1808,6 +1933,7 @@ void sendMessage(){
     int channel;
     if (commandCharBuffer[0]=='1') channel = 1;
     else if (commandCharBuffer[0]=='0') channel = 0;
+     else if (commandCharBuffer[0]=='2') channel = 2;
     else channel = -1;
     
     //Serial.print(channel);  
@@ -1863,12 +1989,9 @@ void sendMessage(){
     }
     
     if (goodData && goodID ){
-      if (channel == 0) {
-        Can0.write(txmsg);
-      }
-      else if (channel == 1){
-        Can1.write(txmsg);
-      }
+      if (channel == 0) Can0.write(txmsg);
+      else if (channel == 1) Can1.write(txmsg);
+      else if (channel == 2) MCPCAN.sendMsgBuf(txmsg.id,txmsg.ext,txmsg.len,txmsg.buf);
       else Serial.println("ERROR Invalid Channel for CANSEND.");
     }
     
@@ -2089,71 +2212,106 @@ void changeComponentID() {
   } 
 }
 
+uint8_t getBAUD(uint32_t baudrate){
+  switch (baudrate)
+  {
+    case (250000):
+      return CAN_250KBPS;
+    case (500000):
+      return CAN_500KBPS;
+    case (125000):
+      return CAN_125KBPS;
+    case (666666):
+      return CAN_666KBPS;
+    case (1000000):
+      return CAN_1000KBPS;
+    case (4096):
+      return CAN_4K096BPS;
+    case (5000):
+      return CAN_5KBPS;
+    case (10000):
+      return CAN_10KBPS;
+    case (20000):
+      return CAN_20KBPS;
+    case (31250):
+      return CAN_31K25BPS;
+    case (40000):
+      return CAN_40KBPS;
+    case (50000):
+      return CAN_50KBPS;
+    case (80000):
+      return CAN_80KBPS;
+    case (100000):
+      return CAN_100KBPS;
+    case (200000):
+      return CAN_200KBPS;
+    default:
+      return CAN_250KBPS;
+  }
+}
 
 void autoBaud0(){
-  Serial.println(F("B0 - Set the baudrate for CAN 0 or select AutoBaud"));
   char baudstring[9];
   if (commandString.length() > 0){
     commandString.toCharArray(baudstring,9);
-    BAUDRATE0 = strtoul(baudstring,0,10);
-    Serial.print("SET CAN0 baudrate set to ");
-    Serial.println(BAUDRATE0);
-    for (uint8_t baudRateIndex = 0; baudRateIndex<sizeof(baudRateList); baudRateIndex++){
-      if (BAUDRATE0 == baudRateList[baudRateIndex]){
-        Can0.begin(BAUDRATE0);
-        for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can0.setFilter(allPassFilter,filterNum);
-        CAN0baudNotDetected = false;
+    uint32_t tempBAUDRATE = strtoul(baudstring,0,10);
+    for (uint8_t baudRateIndex = 0; baudRateIndex < baudRateListLength; baudRateIndex++){
+      if (tempBAUDRATE == baudRateList[baudRateIndex]){
+        BAUDRATE0 = tempBAUDRATE;
         break; 
       }
-      else{
-        CAN0baudNotDetected = true;
-      }
-      
     }
   }
-  else {
-    BAUDRATE0 = 0;
-  } 
-  if (BAUDRATE0 == 0){
-    CAN0baudNotDetected = true;
-    Serial.println("INFO CAN0 set to automatically set baudrate.");
-  }
+  Can0.begin(BAUDRATE0);
+  for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can0.setFilter(allPassFilter,filterNum);
+  Serial.print("SET CAN0 baudrate set to ");
+  Serial.println(BAUDRATE0);
 }
 
 void autoBaud1(){
-  Serial.println(F("INFO B1 - Set the baudrate for CAN 1 or select AutoBaud"));
   char baudstring[9];
   if (commandString.length() > 0){
     commandString.toCharArray(baudstring,9);
-    BAUDRATE1 = strtoul(baudstring,0,10);
-    Serial.print("INFO CAN1 baudrate set to ");
-    Serial.println(BAUDRATE1);
-    for (uint8_t baudRateIndex = 0; baudRateIndex<sizeof(baudRateList); baudRateIndex++){
-      if (BAUDRATE1 == baudRateList[baudRateIndex]){
-          Can1.begin(BAUDRATE1);
-          for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can1.setFilter(allPassFilter,filterNum);
-          CAN1baudNotDetected = false;
-          break;
-        }
-        else{
-         CAN1baudNotDetected = true;
-        }
+    uint32_t tempBAUDRATE = strtoul(baudstring,0,10);
+    for (uint8_t baudRateIndex = 0; baudRateIndex < baudRateListLength; baudRateIndex++){
+      if (tempBAUDRATE == baudRateList[baudRateIndex]){
+        BAUDRATE1 = tempBAUDRATE;
+        break; 
       }
+    }
   }
-  else {
-    BAUDRATE1 = 0;
-  } 
-  if (BAUDRATE1 == 0){
-    CAN1baudNotDetected = true;
-    Serial.println(F("INFO CAN1 set to automatically set baudrate."));
-  }
+  Can1.begin(BAUDRATE1);
+  for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can1.setFilter(allPassFilter,filterNum);
+  Serial.print("SET CAN1 baudrate set to ");
+  Serial.println(BAUDRATE1);
 }
 
+void autoBaudMCP(){
+  char baudstring[9];
+  if (commandString.length() > 0){
+    commandString.toCharArray(baudstring,9);
+    uint32_t tempBAUDRATE = strtoul(baudstring,0,10);
+    for (uint8_t baudRateIndex = 0; baudRateIndex < baudRateListLength; baudRateIndex++){
+      if (tempBAUDRATE == baudRateList[baudRateIndex]){
+        BAUDRATE_MCP = tempBAUDRATE;  
+        break; 
+      }
+    }
+  }
+  if(MCPCAN.begin(MCP_ANY, getBAUD(BAUDRATE_MCP), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
+  else Serial.println("Error Initializing MCP2515...");
+  Serial.print("SET MCPCAN baudrate set to ");
+  Serial.println(BAUDRATE_MCP);
+}
+
+
 void displayBaud(){
-  Serial.print("SET CAN0 Baudrate");
+  Serial.print("INFO CAN0 Baudrate ");
   Serial.println(BAUDRATE0);
-  Serial.print("SET CAN1 Baudrate");
+  Serial.print("INFO CAN1 Baudrate ");
   Serial.println(BAUDRATE1);  
+  Serial.print("INFO MCPCAN Baudrate ");
+  Serial.println(BAUDRATE_MCP);  
 }
 void setEnableComponentInfo(){
   if (commandString.toInt() > 0){

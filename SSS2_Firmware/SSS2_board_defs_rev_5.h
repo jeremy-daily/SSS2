@@ -8,7 +8,7 @@
  * The University of Tulsa
  * Department of Mechanical Engineering
  * 
- * 06 May 2017
+ * 22 May 2017
  * 
  * Released under the MIT License
  *
@@ -35,26 +35,30 @@
 */
 
 
-#define SSS2_BOARD_REVISION 3
+#define SSS2_BOARD_REVISION 5
 #define J1708 Serial3
-#define LIN Serial1
-#define linRXpin 0
+#define LIN Serial2
+#define linRXpin 9
 
 String make = "SYNER";
 String model = "SSS2";
-String revision = "03";
+String revision = "05";
 String serial_number ="XXXX";
 String componentID = make + "*" + model + "-" + revision + "*" + serial_number + "*UNIVERSAL";
+
+
+uint8_t terminationSettings;
+
+ 
 
 /****************************************************************/
 /*                         Pin Defintions                       */
 const int8_t greenLEDpin       = 2;
 const int8_t redLEDpin         = 5;
-const int8_t CSCANPin          = 15;
-const int8_t CSanalogPin       = 20;
-const int8_t CStermPin         = 21;
-const int8_t CSconfigAPin      = 21;
-const int8_t CSconfigBPin      = -1;
+const int8_t CSCANPin          = 31;
+const int8_t INTCANPin         = 21;
+const int8_t CSconfigAPin      = 26;
+const int8_t CSconfigBPin      = 27;
 const int8_t buttonPin         = 24;
 const int8_t encoderAPin       = 28;
 const int8_t encoderBPin       = 25;
@@ -65,13 +69,13 @@ const int8_t IL1Pin            = 37;
 const int8_t IL2Pin            = 38;
 const int8_t ignitionCtlPin    = 39;
 
-const uint8_t numPWMs = 4;
-const int8_t PWMPins[numPWMs]     = {16,17,22,23};
-uint16_t pwmValue[numPWMs] = {25,100,19,222};
-uint16_t pwmFrequency[numPWMs] = {200,200,200,200};
+const uint8_t numPWMs = 6;
+const int8_t PWMPins[numPWMs]     = {16,17,22,23,29,30};
+uint16_t pwmValue[numPWMs] = {500,1000,1500,2000,2500,3000};
+uint16_t pwmFrequency[numPWMs] = {200,210,220,230,240,250};
 
-const uint8_t numADCs = 1;
-const int8_t analogInPins[6]= {A21,A22,A0,A2,A6,A11};
+const uint8_t numADCs = 6;
+const int8_t analogInPins[numADCs]= {A21,A1,A0,A6,A11,A22};
 int analog_display_period = 100;
 
 //int analogPeriod = 100; //milliseconds
@@ -90,7 +94,6 @@ const uint8_t I2CpotAddr[numI2Cpots] = {0x3C,0x3F,0x3D};
 
 const uint8_t numDACs = 8;
 uint16_t DAC2value[numDACs] = {0,0,0,0,512,512,0,0};
-uint16_t DAC3value[numDACs] {0,0,0,0,4095,4095,4095,4095}; 
 
 
 
@@ -102,7 +105,6 @@ const uint8_t HVoutAdjAddr = 0x3E;
 /*   Definitions for i2C addresses for the SSS2 Chips                 */
 //i2C Device Addresses
 const uint8_t Vout2address = 0x49;
-const uint8_t Vout3address = -1;
 
 const uint8_t potExpanderAddr = 7;
 const uint8_t configExpanderAddr = 3;
@@ -116,38 +118,32 @@ const uint8_t configExpanderAddr = 3;
 
 const uint16_t componentIDAddress = 1000;
 
+long unsigned int rxId;
+unsigned char len = 0;
+unsigned char rxBuf[8];
+char msgString[128];        
+
 //set up a display buffer
 char displayBuffer[100];
-
-void setPWMSwitches(){}
 
 void setPinModes(){
     pinMode(greenLEDpin,     OUTPUT);
     pinMode(redLEDpin,       OUTPUT);
     pinMode(CSCANPin,        OUTPUT);
-    pinMode(CSanalogPin,     OUTPUT);
-    pinMode(CStermPin,       OUTPUT);
     pinMode(CSconfigAPin,    OUTPUT);
     pinMode(CSconfigBPin,    OUTPUT);
     pinMode(buttonPin, INPUT_PULLUP);
-    pinMode(CStouchPin,      OUTPUT);
     pinMode(IH1Pin,          OUTPUT);
     pinMode(IH2Pin,          OUTPUT);
     pinMode(IL1Pin,          OUTPUT);
     pinMode(IL2Pin,          OUTPUT);
     pinMode(ignitionCtlPin,  OUTPUT);
     pinMode(linRXpin,        INPUT);
-     
-    if (CSCANPin      > -1) digitalWrite(CSCANPin,     HIGH);
-    if (CStouchPin    > -1) digitalWrite(CStouchPin,   HIGH);
-    if (CStermPin     > -1) digitalWrite(CStermPin,    HIGH);
-    if (CSconfigAPin  > -1) digitalWrite(CSconfigAPin, HIGH);
-    if (CSconfigBPin  > -1) digitalWrite(CSconfigBPin, HIGH);
-    if (redLEDpin     > -1) digitalWrite(redLEDpin,    HIGH);
-    if (greenLEDpin   > -1) digitalWrite(greenLEDpin,  LOW);
-    digitalWrite(CSanalogPin,HIGH);
-    digitalWrite(CStouchPin,HIGH);
-    digitalWrite(IH1Pin,LOW);
+    pinMode(INTCANPin,        INPUT);
+    digitalWrite(CSconfigAPin, HIGH);
+    digitalWrite(CSconfigBPin, HIGH);
+    digitalWrite(redLEDpin,    HIGH);
+    digitalWrite(greenLEDpin,  LOW);
     digitalWrite(IH2Pin,LOW);
     digitalWrite(IL1Pin,LOW);
     digitalWrite(IL2Pin,LOW);
@@ -177,34 +173,41 @@ bool greenLEDstate      = false;
 bool redLEDstate        = true;
 bool IH1State           = false;
 bool IH2State           = false;
-bool IL1State           = false;
+bool IL1State           = true;
 bool IL2State           = false;
 bool LIN1Switch         = false;
 bool LIN2Switch         = true;
 bool P10or19Switch      = false;
 bool P15or18Switch      = false;
-bool U1though8Enable    = false;
-bool U9though16Enable   = false;
+bool U1though8Enable    = true;
+bool U9though16Enable   = true;
 bool CAN1Switch         = true;
 bool CAN2Switch         = false;
-bool U1U2P0ASwitch      = true;
-bool U3U4P0ASwitch      = true;
-bool U5U6P0ASwitch      = true;
-bool U7U8P0ASwitch      = true;
-bool U9U10P0ASwitch     = true;
-bool U11U12P0ASwitch    = true;
-bool U13U14P0ASwitch    = true;
-bool U15U16P0ASwitch    = true;
+bool U1U2P0ASwitch      = false;
+bool U3U4P0ASwitch      = false;
+bool U5U6P0ASwitch      = false;
+bool U7U8P0ASwitch      = false;
+bool U9U10P0ASwitch     = false;
+bool U11U12P0ASwitch    = false;
+bool U13U14P0ASwitch    = false;
+bool U15U16P0ASwitch    = false;
 bool CAN0term           = true;
 bool CAN1term           = true;
 bool CAN2term           = true;
+bool CAN0term1          = false;
+bool CAN1term1          = false;
+bool CAN2term1          = false;
 bool LINmaster          = false;
-bool PWM1Out            = true;
-bool PWM2Out            = true;
+bool PWM1Out            = false;
+bool PWM2Out            = false;
 bool PWM3Out            = true;
-bool PWM4Out            = true;
-bool PWM5Out            = true;
-bool PWM6Out            = true;
+bool PWM4Out            = false;
+bool PWM5Out            = false;
+bool PWM6Out            = false;
+bool PWM4Out_28         = false;
+bool CAN1out            = false;
+bool CAN2out            = false;
 bool ignitionCtlState   = false;
+
 
 

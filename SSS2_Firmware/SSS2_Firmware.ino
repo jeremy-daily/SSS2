@@ -7,7 +7,7 @@
  * The University of Tulsa
  * Department of Mechanical Engineering
  * 
- * 06 May 2017
+ * 22 May 2017
  * 
  * Released under the MIT License
  *
@@ -33,11 +33,11 @@
  * 
 */
 
-#include "SSS2_board_defs_rev_3.h"
+#include "SSS2_board_defs_rev_5.h"
 #include "SSS2_functions.h"
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*0.91b*master*7c1ec40e272233b5c69eb16a293705007af312bd"; //Hash of the previous git commit
+String softwareVersion = "SSS2*REV" + revision + "*1.0*master*7c1ec40e272233b5c69eb16a293705007af312bd"; //Hash of the previous git commit
 
 void listSoftware(){
   Serial.print("FIRMWARE ");
@@ -45,6 +45,8 @@ void listSoftware(){
 }
 
 void setup() {
+  SPI.begin();
+  SPI1.begin();
   Serial.begin(9600);
   LIN.begin(19200);
   
@@ -72,8 +74,9 @@ void setup() {
   PotExpander.writeGPIOAB(0xFFFF);
   ConfigExpander.writeGPIOAB(0xFFFF);
   
-  SPI.begin();
-  terminationSettings = setTerminationSwitches();
+ 
+  setTerminationSwitches();
+  setPWMSwitches();
   
   Serial.print("Configration Switches (U21): ");
   uint16_t configSwitchSettings = setConfigSwitches();
@@ -94,6 +97,12 @@ void setup() {
     currentSetting = setSetting(i, -1,DEBUG_OFF);
     setSetting(i, currentSetting ,DEBUG_ON);
   }
+  
+
+  
+  if(MCPCAN.begin(MCP_ANY, getBAUD(BAUDRATE_MCP), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
+  else Serial.println("Error Initializing MCP2515...");
+  MCPCAN.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
 
   Can0.begin(BAUDRATE0);
   Can1.begin(BAUDRATE1);
@@ -112,7 +121,8 @@ void setup() {
 
   txmsg.ext = 1;
   txmsg.len = 8;
-
+  
+ 
   setConfigSwitches();
     
   LIN.begin(19200,SERIAL_8N2);
@@ -149,13 +159,25 @@ void loop() {
     Can1.read(rxmsg);
     RXCount1++;
     RXCAN1orJ1708timer = 0;
-    if (displayCAN1) printFrame(rxmsg, -1, 1, RXCount1);
+    if (displayCAN2) printFrame(rxmsg, -1, 2, RXCount1);
     if (ignitionCtlState){
       greenLEDstate = !greenLEDstate;
       digitalWrite(greenLEDpin, greenLEDstate);
     }
   }
-
+  //!digitalRead(INTCANPin) &&
+  if(displayCAN1)  // If low, read receive buffer
+  {
+    if(MCPCAN.readMsgBuf(&rxId, &len, rxBuf)==CAN_OK){      // Read data: len = data length, buf = data byte(s)
+    RXCount2++;
+    rxmsg.id = (rxId & 0x1FFFFFFF);
+    rxmsg.len = len;
+    for(byte i = 0; i<len; i++) rxmsg.buf[i] = rxBuf[i];
+    printFrame(rxmsg, -1, 1, RXCount2);
+    }
+  
+  }
+  
   //Check J1708
   if (J1708.available()){
     J1708RXbuffer[J1708_index] = J1708.read();
@@ -186,8 +208,9 @@ void loop() {
     if (analog_tx_timer >= analog_display_period ){
       analog_tx_timer=0;
       Serial.print("ANALOG");
+      Serial.printf(" %lu",uint32_t(analogMillis));
       for (uint8_t j = 0; j < numADCs; j++){
-        Serial.printf(" %lu:%d",uint32_t(analogMillis),analogRead(analogInPins[j]));
+        Serial.printf(" %d",analogRead(analogInPins[j]));
       }
       Serial.print("\n");
     }
@@ -217,6 +240,7 @@ void loop() {
     else if (commandPrefix.equalsIgnoreCase("AI"))        displayVoltage();
     else if (commandPrefix.equalsIgnoreCase("B0"))        autoBaud0();
     else if (commandPrefix.equalsIgnoreCase("B1"))        autoBaud1();
+    else if (commandPrefix.equalsIgnoreCase("BMCP"))      autoBaudMCP();
     else if (commandPrefix.equalsIgnoreCase("DB"))        displayBaud();
     else if (commandPrefix.equalsIgnoreCase("CANCOMP"))   setEnableComponentInfo();
     else if (commandPrefix.equalsIgnoreCase("ID"))        print_uid();
