@@ -2115,10 +2115,36 @@ void parseJ1939(CAN_message_t &rxmsg ){
 void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCount)
 { 
 
- Serial.printf("CAN%d %10lu.%06lu %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X\n",
-          channel,now(),uint32_t(microsecondsPerSecond),rxmsg.id,rxmsg.ext,rxmsg.len,
-          rxmsg.buf[0],rxmsg.buf[1],rxmsg.buf[2],rxmsg.buf[3],
-          rxmsg.buf[4],rxmsg.buf[5],rxmsg.buf[6],rxmsg.buf[7]);
+// Serial.printf("CAN%d %10lu.%06lu %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X\n",
+//          channel,now(),uint32_t(microsecondsPerSecond),rxmsg.id,rxmsg.ext,rxmsg.len,
+//          rxmsg.buf[0],rxmsg.buf[1],rxmsg.buf[2],rxmsg.buf[3],
+//          rxmsg.buf[4],rxmsg.buf[5],rxmsg.buf[6],rxmsg.buf[7]);
+  uint32_t timestamp=uint32_t(now());
+  //21 Byte frame
+  Serial.print("CAN");
+  Serial.write((timestamp & 0xFF000000) >> 24);
+  Serial.write((timestamp & 0x00FF0000) >> 16);
+  Serial.write((timestamp & 0x0000FF00) >> 8);
+  Serial.write((timestamp & 0x000000FF));
+  Serial.write(channel);
+  Serial.write((uint32_t(microsecondsPerSecond) & 0x00FF0000) >> 16);
+  Serial.write((uint32_t(microsecondsPerSecond) & 0x0000FF00) >> 8);
+  Serial.write((uint32_t(microsecondsPerSecond) & 0x000000FF));
+  Serial.write((rxmsg.ext << 7) | (rxmsg.id & 0xFF000000) >> 24);
+  Serial.write((rxmsg.id & 0x00FF0000) >> 16);
+  Serial.write((rxmsg.id & 0x0000FF00) >> 8);
+  Serial.write((rxmsg.id & 0x000000FF));
+  Serial.write(rxmsg.len);
+  Serial.write(rxmsg.buf[0]);
+  Serial.write(rxmsg.buf[1]);
+  Serial.write(rxmsg.buf[2]);
+  Serial.write(rxmsg.buf[3]);
+  Serial.write(rxmsg.buf[4]);
+  Serial.write(rxmsg.buf[5]);
+  Serial.write(rxmsg.buf[6]);
+  Serial.write(rxmsg.buf[7]);
+  Serial.print("\n");
+  
 }
 
 
