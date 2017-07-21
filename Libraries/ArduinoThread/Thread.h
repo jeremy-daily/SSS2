@@ -28,7 +28,7 @@
 	It might be usefull if you are loging thread with Serial,
 	or displaying a list of threads...
 */
-// #define USE_THREAD_NAMES	1
+#define USE_THREAD_NAMES	1
 
 class Thread{
 protected:
