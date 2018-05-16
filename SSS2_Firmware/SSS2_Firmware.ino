@@ -42,28 +42,45 @@ String softwareVersion = "SSS2*REV" + revision + "*1.0*master*7c1ec40e272233b5c6
 void listSoftware(){
   Serial.print("FIRMWARE ");
   Serial.println(softwareVersion);
+  Serial.send_now();
 }
 
 void setup() {
   SPI.begin();
   SPI1.begin();
-  Serial.begin(9600);
+  //while(!Serial);
+  Serial.println("SPI Started");
+  Serial.send_now();
+  
   LIN.begin(19200);
+  Serial.println("LIN Started");
+  Serial.send_now();
   
   commandString.reserve(256);
   commandPrefix.reserve(20);
   
   kinetisUID(uid);
+  Serial.println("Determined UID");
+  Serial.send_now();
+  print_uid();
   
   analogWriteResolution(12);
+  Serial.println("Set Analog Write Resolution");
+  Serial.send_now();
   
   setSyncProvider(getTeensy3Time);
   setSyncInterval(1);
+  Serial.println("Setup Sync Provider");
   
   setPinModes();
-
+  Serial.println("Set Pin Modes");
+  Serial.send_now();
+  
+  //Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 400000);
   Wire.begin();
-  Wire.setDefaultTimeout(200000); // 200ms
+  //Wire.setDefaultTimeout(20000); // 200ms
+  Serial.println("Started Wire");
+  Serial.send_now();
   
   PotExpander.begin(potExpanderAddr);  //U33
   ConfigExpander.begin(configExpanderAddr); //U21
@@ -73,14 +90,16 @@ void setup() {
   }
   PotExpander.writeGPIOAB(0xFFFF);
   ConfigExpander.writeGPIOAB(0xFFFF);
+  Serial.println("Setup Expanders");
+  Serial.send_now();
   
- 
   setTerminationSwitches();
   setPWMSwitches();
   
   Serial.print("Configration Switches (U21): ");
   uint16_t configSwitchSettings = setConfigSwitches();
   Serial.println(configSwitchSettings,BIN);
+  Serial.send_now();
   
   button.attachClick(myClickFunction);
   button.attachDoubleClick(myDoubleClickFunction);
@@ -90,18 +109,23 @@ void setup() {
   button.setPressTicks(2000);
   button.setClickTicks(250);
 
-  initializeDACs(Vout2address);
-
-  listInfo();
-  for (int i = 1; i < numSettings; i++) {
-    currentSetting = setSetting(i, -1,DEBUG_OFF);
-    setSetting(i, currentSetting ,DEBUG_ON);
-  }
+  Serial.println("Button config finished.");
   
+  initializeDACs(Vout2address);
+  
+  Serial.println("initializeDACs finished.");
+  
+//  for (int i = 1; i < numSettings; i++) {
+//    Serial.println(i);
+//    currentSetting = setSetting(i, -1,DEBUG_OFF);
+//    setSetting(i, currentSetting ,DEBUG_ON);
+//  }
+  listInfo();
 
   
   if(MCPCAN.begin(MCP_ANY, getBAUD(BAUDRATE_MCP), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
   else Serial.println("Error Initializing MCP2515...");
+  Serial.send_now();
   MCPCAN.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
 
   Can0.begin(BAUDRATE0);
@@ -270,9 +294,9 @@ void loop() {
     else if (commandPrefix.equalsIgnoreCase("LIN"))       displayLIN();
     else if (commandPrefix.equalsIgnoreCase("SENDLIN"))   sendLINselect();    
     else {
-      Serial.println(F("ERROR Unrecognized Command Characters. Use a comma after the command."));
+      Serial.println(("ERROR Unrecognized Command Characters. Use a comma after the command."));
       Serial.clear();
-      //Serial.println(F("INFO Known commands are setting numbers, GO, SP, J1708, STOPCAN, STARTCAN, B0, B1, C0, C1, C2, DS, SW, OK, ID, STATS, CLEAR, MK, LI, LS, CI, CS, SA, SS, or SM."));
+      //Serial.println(("INFO Known commands are setting numbers, GO, SP, J1708, STOPCAN, STARTCAN, B0, B1, C0, C1, C2, DS, SW, OK, ID, STATS, CLEAR, MK, LI, LS, CI, CS, SA, SS, or SM."));
     }
   }
   /*              End Serial Command Processing                   */

@@ -50,7 +50,6 @@
 #define USE_SPI1
 #include <mcp_can.h>
 #include <SPI.h>
-#include <i2c_t3.h>
 #include <Encoder.h>
 #include "OneButton.h"
 #include "Adafruit_MCP23017.h" 
@@ -61,6 +60,8 @@
 #include "Thread.h"
 #include "ThreadController.h"
 
+//#include <i2c_t3.h>
+#include <Wire.h>
 
 
 Adafruit_MCP23017 ConfigExpander; //U21
@@ -169,10 +170,12 @@ void displayLIN(){
   if (commandString.toInt() > 0){
     printLIN = true;
     
-    Serial.println("SET Stream LIN data on."); 
+    Serial.println("SET Stream LIN data on.");
+    Serial.send_now(); 
   }
   else {
     Serial.println("SET Stream LIN data off.");
+    Serial.send_now();
     printLIN  = false;
   }
 }
@@ -180,10 +183,12 @@ void sendLINselect(){
   if (commandString.toInt() > 0){
     sendLIN = true;
     
-    Serial.println("SET Turn on LIN data."); 
+    Serial.println("SET Turn on LIN data.");
+    Serial.send_now(); 
   }
   else {
     Serial.println("SET Turn off LIN data.");
+    Serial.send_now();
     sendLIN  = false;
   }
 }
@@ -314,10 +319,12 @@ void displayVoltage(){
   if (commandString.toInt() > 0){
     send_voltage = true;
     
-    Serial.println("SET Stream analog in data on."); 
+    Serial.println("SET Stream analog in data on.");
+    Serial.send_now(); 
   }
   else {
     Serial.println("SET Stream analog In data off.");
+    Serial.send_now();
     send_voltage = false;
   }
 }
@@ -458,12 +465,14 @@ void getThreadName(){
   int index = commandString.toInt();
   Serial.printf("NAME of CAN Thread %d: ",index); 
   Serial.println(can_messages[index]->ThreadName);
+  Serial.send_now();
 }
 void getAllThreadNames(){
   int threadSize =  can_thread_controller.size(false);
   for(int i = 0; i<threadSize; i++){
     Serial.printf("NAME of CAN Thread %d: ",i); 
     Serial.println(can_messages[i]->ThreadName);
+    Serial.send_now();
   }
   
 }
@@ -500,7 +509,8 @@ int setupPeriodicCANMessage(){
     index = constrain(atoi(commandValues),0,threadSize);
   }
   else {
-    Serial.println(F("ERROR SM command is missing arguments.")); 
+    Serial.println(("ERROR SM command is missing arguments.")); 
+    Serial.send_now();
     return -1;
   }
 
@@ -509,7 +519,8 @@ int setupPeriodicCANMessage(){
     num_messages = constrain(atoi(commandValues),1,255);
   }
   else {
-    Serial.println(F("ERROR SM command not able to determine the number of sub messages.")); 
+    Serial.println(("ERROR SM command not able to determine the number of sub messages.")); 
+    Serial.send_now();
     return -2;
   }
 
@@ -520,7 +531,8 @@ int setupPeriodicCANMessage(){
      sub_index = constrain(atoi(commandValues),0,num_messages-1);
   }
   else {
-    Serial.println(F("ERROR SM command missing sub_index.")); 
+    Serial.println(("ERROR SM command missing sub_index.")); 
+    Serial.send_now();
     return -3;
   }
   
@@ -529,7 +541,8 @@ int setupPeriodicCANMessage(){
     channel = constrain(atoi(commandValues),0,2);
   }
   else {
-    Serial.println(F("ERROR SM command not able to set CAN Channel.")); 
+    Serial.println(("ERROR SM command not able to set CAN Channel.")); 
+    Serial.send_now();
     return -4;
   }
   
@@ -538,7 +551,8 @@ int setupPeriodicCANMessage(){
     tx_period = constrain(strtoul(commandValues,NULL,10),shortest_period,0xFFFFFFFF);
   }
   else {
-    Serial.println(F("ERROR SM command not able to set period information.")); 
+    Serial.println(("ERROR SM command not able to set period information.")); 
+    Serial.send_now();
     return -5;
   }
 
@@ -547,7 +561,8 @@ int setupPeriodicCANMessage(){
     tx_delay = strtoul(commandValues,NULL,10);
   }
   else {
-    Serial.println(F("ERROR SM command not able to set delay information.")); 
+    Serial.println(("ERROR SM command not able to set delay information.")); 
+    Serial.send_now();
     return -6;
   }
   
@@ -556,7 +571,8 @@ int setupPeriodicCANMessage(){
     stop_after_count = strtoul(commandValues,NULL,10);
   }
   else {
-    Serial.println(F("ERROR SM command not able to set the total number count.")); 
+    Serial.println(("ERROR SM command not able to set the total number count.")); 
+    Serial.send_now();
     return -7;
   }
   
@@ -565,7 +581,8 @@ int setupPeriodicCANMessage(){
     temp_txmsg.ext = constrain(atoi(commandValues),0,1);
   }
   else {
-    Serial.println(F("ERROR SM command not able to set extended ID flag.")); 
+    Serial.println(("ERROR SM command not able to set extended ID flag.")); 
+    Serial.send_now();
     temp_txmsg.ext = 1;
   }
 
@@ -574,7 +591,8 @@ int setupPeriodicCANMessage(){
     temp_txmsg.id = strtol(commandValues,NULL,16);
   }
   else {
-    Serial.println(F("WARNING SM command not able to set CAN ID information."));
+    Serial.println(("WARNING SM command not able to set CAN ID information."));
+    Serial.send_now();
     temp_txmsg.id = 0x3FFFFFFF ;
   }
   
@@ -583,7 +601,8 @@ int setupPeriodicCANMessage(){
     temp_txmsg.len = constrain(atoi(commandValues),0,8);
   }
   else {
-    Serial.println(F("WARNING SM command not able to set CAN data length code."));
+    Serial.println(("WARNING SM command not able to set CAN data length code."));
+    Serial.send_now();
     temp_txmsg.len = 8;
   }
  
@@ -607,6 +626,7 @@ int setupPeriodicCANMessage(){
     Serial.printf("%02X, ",temp_txmsg.buf[i]);
   }
   Serial.printf("%02X]\n",temp_txmsg.buf[temp_txmsg.len-1]);
+  Serial.send_now();
   
   if (index == threadSize) { //Create a new entry
     Serial.printf("THREAD %lu, %s (NEW)\n",index,threadNameChars); 
@@ -617,6 +637,7 @@ int setupPeriodicCANMessage(){
   }
   else{
    Serial.printf("THREAD %lu, %s (EXISTING)\n",index,threadNameChars); 
+   Serial.send_now();
   }
 
   can_messages[index]->channel = channel;
@@ -644,7 +665,8 @@ void stopCAN(){
   for (int i = 0; i < threadSize; i++) {
     can_messages[i]->enabled = false;
     }
-  Serial.println(F("INFO Stopped all CAN transmission."));
+  Serial.println(("INFO Stopped all CAN transmission."));
+  Serial.send_now();
 }
 
 void clearCAN(){
@@ -653,7 +675,8 @@ void clearCAN(){
     delete can_messages[i] ;
     }
   can_thread_controller.clear();
-  Serial.println(F("INFO Cleared the CAN transmission thread. All messages must be reloaded."));
+  Serial.println(("INFO Cleared the CAN transmission thread. All messages must be reloaded."));
+  Serial.send_now();
 }
 
 void goCAN(){
@@ -664,7 +687,8 @@ void goCAN(){
     can_messages[i]->message_index = 0;
     can_messages[i]->cycle_count = 0;
   }
-  Serial.println(F("INFO Started all CAN transmissions."));
+  Serial.println(("INFO Started all CAN transmissions."));
+  Serial.send_now();
 }
 
 void startCAN (){
@@ -685,16 +709,19 @@ void startCAN (){
       can_messages[index]->transmit_number = 0;
       can_messages[index]->message_index = 0;
       can_messages[index]->cycle_count = 0;
-      Serial.printf("SET CAN message %d with ID 0x%08X on.\n",index,can_messages[index]->id_list[0]); 
+      Serial.printf("SET CAN message %d with ID 0x%08X on.\n",index,can_messages[index]->id_list[0]);
+      Serial.send_now(); 
     }
     else  {
       can_messages[index]->enabled = false;
-      Serial.printf("SET CAN message %d with ID 0x%08X off.\n",index,can_messages[index]->id_list[0]); 
+      Serial.printf("SET CAN message %d with ID 0x%08X off.\n",index,can_messages[index]->id_list[0]);
+      Serial.send_now(); 
     }
   }
   else
   {
      Serial.println("ERROR No CAN Messages Setup to turn on.");
+     Serial.send_now();
   }
 }
 
@@ -882,6 +909,7 @@ uint8_t MCP41HVI2C_SetWiper(uint8_t addr, uint8_t potValue)
 void initializeDACs(uint8_t address) {
   Serial.print("Setting DAC Internal Reference register with address of 0x");
   Serial.println(address, HEX);
+  Serial.send_now();
   Wire.beginTransmission(address);   // Slave address
   Wire.write(0b10000000);
   Wire.write(0x00);
@@ -897,8 +925,10 @@ void initializeDACs(uint8_t address) {
   char lowC = Wire.read();
   Serial.print("Internal Reference Register: ");
   Serial.println(lowC);         // print the character
-
+  Serial.send_now();
+  
   Serial.println("Setting LDAC register.");
+  Serial.send_now();
   Wire.beginTransmission(address);   // Slave address
   Wire.write(0b01100000);
   Wire.write(0xFF);
@@ -914,8 +944,10 @@ void initializeDACs(uint8_t address) {
   lowC = Wire.read();
   Serial.print("LDAC Register: ");
   Serial.println(lowC, HEX);        // print the character
-
+  Serial.send_now();
+  
   Serial.println("Setting DAC Power Down register to On.");
+  Serial.send_now();
   Wire.beginTransmission(address);   // Slave address
   Wire.write(0b01000000);
   Wire.write(0b00011111);
@@ -931,9 +963,11 @@ void initializeDACs(uint8_t address) {
   lowC = Wire.read();
   Serial.print("Power Register: ");
   Serial.println(lowC, BIN);        // print the character
-
-  Serial.print(F("Done with DAC at address 0x"));
+  Serial.send_now();
+  
+  Serial.print(("Done with DAC at address 0x"));
   Serial.println(address, HEX);
+  Serial.send_now();
 }
 
 uint16_t setDAC(uint16_t setting, uint8_t DACchannel, uint8_t address) {
@@ -1289,13 +1323,17 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
         Serial.print(SPIpotWiperSettings[settingNum - 1]);
         Serial.print(", ");
         Serial.println(w_position);
+        Serial.send_now();
     }
     return SPIpotWiperSettings[settingNum - 1];
   }
   else if (settingNum > 16 && settingNum <= 24) {
     if (settingValue > -1) DAC2value[settingNum - 17] = settingValue;
     setDAC(DAC2value[settingNum - 17], settingNum - 17, Vout2address);
-    if (debugDisplay) Serial.println(DAC2value[settingNum - 17]); 
+    if (debugDisplay) {
+      Serial.println(DAC2value[settingNum - 17]); 
+      Serial.send_now();
+    }
     return DAC2value[settingNum - 17];
   }
   else if (settingNum == 25){
@@ -1304,6 +1342,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         connectionString(U1U2P0ASwitch);
         Serial.println(displayBuffer);
+        Serial.send_now();
     }
     return U1U2P0ASwitch;
   }
@@ -1313,6 +1352,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         connectionString(U3U4P0ASwitch);
         Serial.println(displayBuffer);
+        Serial.send_now();
     }
     return U3U4P0ASwitch;
   }
@@ -1322,6 +1362,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         connectionString(U5U6P0ASwitch);
         Serial.println(displayBuffer);
+        Serial.send_now();
     }
     return U5U6P0ASwitch;
   }
@@ -1331,6 +1372,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         connectionString(U7U8P0ASwitch);
         Serial.println(displayBuffer);
+        Serial.send_now();
     }
     return U7U8P0ASwitch;
   } 
@@ -1340,6 +1382,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         connectionString(U9U10P0ASwitch);
         Serial.println(displayBuffer);
+        Serial.send_now();
     }
     return U9U10P0ASwitch;
   }  
@@ -1349,6 +1392,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         connectionString(U11U12P0ASwitch);
         Serial.println(displayBuffer);
+        Serial.send_now();
     }
     return U11U12P0ASwitch;
   }  
@@ -1358,6 +1402,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         connectionString(U13U14P0ASwitch);
         Serial.println(displayBuffer);
+        Serial.send_now();
     }
     return U13U14P0ASwitch;
   }   
@@ -1367,6 +1412,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         connectionString(U15U16P0ASwitch);
         Serial.println(displayBuffer);
+        Serial.send_now();
     }
     return U15U16P0ASwitch;
   }
@@ -1374,7 +1420,10 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) pwmValue[settingNum - 33] = uint16_t(settingValue);
     //analogWriteFrequency(PWMPins[settingNum - 33],pwmFrequency[settingNum - 33]);
     for (uint8_t i = 0; i<4; i++) analogWrite(PWMPins[i],pwmValue[i]);
-    if (debugDisplay) Serial.println(pwmValue[settingNum - 33]);
+    if (debugDisplay) {
+      Serial.println(pwmValue[settingNum - 33]);
+      Serial.send_now();
+    }
     return pwmValue[settingNum - 33];
   }
   else if (settingNum == 37){
@@ -1774,7 +1823,7 @@ void displayJ1708(){
 }
 
 void  adjustError() {
-  Serial.println(F("INFO SS - Condition not met. Turn adjust mode on by typing AO, then select a setting with CS"));
+  Serial.println(("INFO SS - Condition not met. Turn adjust mode on by typing AO, then select a setting with CS"));
 }
 
 
@@ -1784,8 +1833,8 @@ void  adjustError() {
 
 void turnOnAdjustMode() {
   ADJUST_MODE_ON = 1;
-  Serial.println(F("INFO AO - Turned Adjustment mode on. Type AF or click to turn off. Type SS,XXXX  or scroll knob and click to set settings."));
-  Serial.print(F("INFO Current Setting for Adjustement is "));
+  Serial.println(("INFO AO - Turned Adjustment mode on. Type AF or click to turn off. Type SS,XXXX  or scroll knob and click to set settings."));
+  Serial.print(("INFO Current Setting for Adjustement is "));
   Serial.print(currentSetting);
   Serial.print(" - ");
   Serial.println(settingNames[currentSetting]);
@@ -1796,7 +1845,7 @@ void turnOnAdjustMode() {
 
 void turnOffAdjustMode() {
   ADJUST_MODE_ON = 0;
-  Serial.println(F("INFO AF - Turned Setting Adjustment mode off. Type AO to turn on. Scroll knob to select a setting."));
+  Serial.println(("INFO AF - Turned Setting Adjustment mode off. Type AO to turn on. Scroll knob to select a setting."));
   knob.write(currentSetting);
   knobLowLimit = 1;
   knobHighLimit = numSettings - 1;
@@ -1817,14 +1866,15 @@ void fastSetSetting(){
     Serial.print("SET ");
     Serial.print(currentSetting);
     Serial.print(",");
-    Serial.println(returnval);  
+    Serial.println(returnval); 
+    Serial.send_now(); 
   }
-  else Serial.println(F("ERROR in setting value."));
+  else Serial.println(("ERROR in setting value."));
   
 }
 
 void changeSetting() {
-  Serial.println(F("INFO CS - Change or Select Setting."));
+  Serial.println(("INFO CS - Change or Select Setting."));
   if (commandString.length() > 0) {
     currentSetting = constrain(commandString.toInt(), 0, numSettings);
     
@@ -1846,17 +1896,18 @@ void changeSetting() {
 }
 
 void listSettings(){
-  Serial.println(F("INFO LS - List Settings. "));
+  Serial.println(("INFO LS - List Settings. "));
   for (int i = 1; i < numSettings; i++) {
     Serial.print("INFO ");
     setSetting(i,-1,DEBUG_ON);
+    Serial.send_now();
   }
 }
 
 void changeValue(){
   //Set value from Serial commands
   if (ADJUST_MODE_ON && currentSetting != 0) {
-    Serial.println(F("INFO SS - Set Setting."));
+    Serial.println(("INFO SS - Set Setting."));
     int adjustmentValue = constrain(commandString.toInt(), knobLowLimit, knobHighLimit);
     currentKnob = setSetting(currentSetting, adjustmentValue,DEBUG_ON);
     knob.write(currentKnob);
@@ -1922,7 +1973,7 @@ void sendMessage(){
   boolean goodID = false;
   boolean goodData = false;
   
-  //Serial.println(F("CANSEND - Send Message."));
+  //Serial.println(("CANSEND - Send Message."));
   //Serial.println(commandString);
   char commandCharBuffer[100];
   char IdCharBuffer[9];
@@ -1996,11 +2047,11 @@ void sendMessage(){
     }
     
     else
-      Serial.println(F("ERROR Invalid input data for CANSEND. Input should be using hex characters with no spaces in the form SM,channel,ID,data/n"));
+      Serial.println(("ERROR Invalid input data for CANSEND. Input should be using hex characters with no spaces in the form SM,channel,ID,data/n"));
   }
   else
   {
-    Serial.println(F("ERROR Missing or invalid data to send."));
+    Serial.println(("ERROR Missing or invalid data to send."));
   }
   txmsg.ext = 1; //set default
   txmsg.len = 8;
@@ -2200,13 +2251,13 @@ void listInfo() {
 
 void changeComponentID() {
   if (commandString.length() < 12) {
-    Serial.print(F("INFO SSS2 Component ID: "));
+    Serial.print(("INFO SSS2 Component ID: "));
     Serial.println(componentID);
   }
   else{
     componentID = commandString;
     setCompIdEEPROMdata();
-    Serial.print(F("SET SSS2 Component ID: "));
+    Serial.print(("SET SSS2 Component ID: "));
     Serial.println(componentID);
     setupComponentInfo();
   } 
@@ -2317,7 +2368,7 @@ void setEnableComponentInfo(){
   if (commandString.toInt() > 0){
     setupComponentInfo();
     enableSendComponentInfo = true;
-    Serial.println(F("SET Enable CAN transmission of Component ID"));
+    Serial.println(("SET Enable CAN transmission of Component ID"));
     if (canComponentIDtimer >5000){
       canComponentIDtimer = 0;
       can_messages[comp_id_index]->enabled = true;
@@ -2331,7 +2382,7 @@ void setEnableComponentInfo(){
   }
   else{
     enableSendComponentInfo = false;
-    Serial.println(F("SET Disable CAN transmission of Component ID"));  
+    Serial.println(("SET Disable CAN transmission of Component ID"));  
     can_messages[comp_id_index]->enabled = false;
   }
   
