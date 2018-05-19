@@ -76,9 +76,9 @@ void setup() {
   Serial.println("Set Pin Modes");
   Serial.send_now();
   
-  //Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 400000);
-  Wire.begin();
-  //Wire.setDefaultTimeout(20000); // 200ms
+  Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 100000);
+  //Wire.begin();
+  Wire.setDefaultTimeout(20000); // 200ms
   Serial.println("Started Wire");
   Serial.send_now();
   

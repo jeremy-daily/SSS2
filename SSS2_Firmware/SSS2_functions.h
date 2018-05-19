@@ -52,7 +52,8 @@
 #include <SPI.h>
 #include <Encoder.h>
 #include "OneButton.h"
-#include "Adafruit_MCP23017.h" 
+#include <i2c_t3.h>
+#include "MCP23017.h" 
 #include <EEPROM.h>
 #include <FlexCAN.h>
 #include <TimeLib.h>
@@ -60,8 +61,6 @@
 #include "Thread.h"
 #include "ThreadController.h"
 
-//#include <i2c_t3.h>
-#include <Wire.h>
 
 
 Adafruit_MCP23017 ConfigExpander; //U21
