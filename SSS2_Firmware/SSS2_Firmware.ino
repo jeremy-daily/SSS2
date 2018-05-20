@@ -8,6 +8,7 @@
  * Department of Mechanical Engineering
  * 
  * 22 May 2017
+ * 19 May 2018
  * 
  * Released under the MIT License
  *
@@ -31,13 +32,16 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  * 
+ * 
+ * 
+ * Uses Arduino 1.8.5 and Teensyduino 1.41
 */
 
 #include "SSS2_board_defs_rev_5.h"
 #include "SSS2_functions.h"
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*1.0*master*7c1ec40e272233b5c69eb16a293705007af312bd"; //Hash of the previous git commit
+String softwareVersion = "SSS2*REV" + revision + "*1.1*master*7c1ec40e272233b5c69eb16a293705007af312bd"; //Hash of the previous git commit
 
 void listSoftware(){
   Serial.print("FIRMWARE ");
@@ -48,40 +52,25 @@ void listSoftware(){
 void setup() {
   SPI.begin();
   SPI1.begin();
-  //while(!Serial);
-  Serial.println("SPI Started");
-  Serial.send_now();
   
   LIN.begin(19200);
-  Serial.println("LIN Started");
-  Serial.send_now();
-  
+   
   commandString.reserve(256);
   commandPrefix.reserve(20);
   
   kinetisUID(uid);
-  Serial.println("Determined UID");
-  Serial.send_now();
   print_uid();
   
   analogWriteResolution(12);
-  Serial.println("Set Analog Write Resolution");
-  Serial.send_now();
   
   setSyncProvider(getTeensy3Time);
   setSyncInterval(1);
-  Serial.println("Setup Sync Provider");
   
   setPinModes();
-  Serial.println("Set Pin Modes");
-  Serial.send_now();
   
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 100000);
-  //Wire.begin();
-  Wire.setDefaultTimeout(20000); // 200ms
-  Serial.println("Started Wire");
-  Serial.send_now();
-  
+  Wire.setDefaultTimeout(20000); // 20ms
+   
   PotExpander.begin(potExpanderAddr);  //U33
   ConfigExpander.begin(configExpanderAddr); //U21
   for (uint8_t i = 0; i<16; i++){
@@ -90,16 +79,11 @@ void setup() {
   }
   PotExpander.writeGPIOAB(0xFFFF);
   ConfigExpander.writeGPIOAB(0xFFFF);
-  Serial.println("Setup Expanders");
-  Serial.send_now();
   
   setTerminationSwitches();
   setPWMSwitches();
   
-  Serial.print("Configration Switches (U21): ");
   uint16_t configSwitchSettings = setConfigSwitches();
-  Serial.println(configSwitchSettings,BIN);
-  Serial.send_now();
   
   button.attachClick(myClickFunction);
   button.attachDoubleClick(myDoubleClickFunction);
@@ -108,24 +92,18 @@ void setup() {
   button.attachDuringLongPress(longPress);
   button.setPressTicks(2000);
   button.setClickTicks(250);
-
-  Serial.println("Button config finished.");
-  
+ 
   initializeDACs(Vout2address);
-  
-  Serial.println("initializeDACs finished.");
-  
-//  for (int i = 1; i < numSettings; i++) {
-//    Serial.println(i);
-//    currentSetting = setSetting(i, -1,DEBUG_OFF);
-//    setSetting(i, currentSetting ,DEBUG_ON);
-//  }
+    
+  for (int i = 1; i < numSettings; i++) {
+    currentSetting = setSetting(i, -1,DEBUG_OFF);
+    setSetting(i, currentSetting ,DEBUG_ON);
+  }
   listInfo();
 
   
   if(MCPCAN.begin(MCP_ANY, getBAUD(BAUDRATE_MCP), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
   else Serial.println("Error Initializing MCP2515...");
-  Serial.send_now();
   MCPCAN.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
 
   Can0.begin(BAUDRATE0);
