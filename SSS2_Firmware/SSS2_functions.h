@@ -55,7 +55,7 @@
 #include <i2c_t3.h>
 #include "MCP23017.h" 
 #include <EEPROM.h>
-#include <FlexCAN.h>
+#include "FlexCAN.h"
 #include <TimeLib.h>
 #include <TeensyID.h>
 #include "Thread.h"
