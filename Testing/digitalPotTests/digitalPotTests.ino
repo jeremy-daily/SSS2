@@ -158,6 +158,9 @@ const uint8_t numADCs = 1;
 const int8_t analogInPins[6]= {A21,A22,A0,A2,A6,A11};
 
 void setPinModes(){
+    pinMode(A5, INPUT_PULLUP);
+    pinMode(A4, INPUT_PULLUP);
+    
     pinMode(greenLEDpin,     OUTPUT);
     pinMode(redLEDpin,       OUTPUT);
     pinMode(CSCANPin,        OUTPUT);
@@ -204,7 +207,7 @@ void setup() {
   pinMode(18,INPUT_PULLUP);   
   pinMode(19,INPUT_PULLUP);
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 400000);
-  Wire.setDefaultTimeout(5000); // 5ms
+  Wire.setDefaultTimeout(10000); // 5ms
 
   //Send the direction of the port extender.
   Wire.beginTransmission(PORTEXTENDER_ADDRESS);
