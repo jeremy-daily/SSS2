@@ -52,7 +52,7 @@ void listSoftware(){
 void setup() {
   SPI.begin();
   SPI1.begin();
-  while(!Serial);
+  //while(!Serial); //Uncomment for testing
   
   if(MCPCAN.begin(MCP_ANY, getBAUD(BAUDRATE_MCP), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
   else Serial.println("Error Initializing MCP2515...");
@@ -74,7 +74,7 @@ void setup() {
   
   setPinModes();
   
-  Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 100000);
+  Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 400000);
   Wire.setDefaultTimeout(20000); // 20ms
    
   PotExpander.begin(potExpanderAddr);  //U33
