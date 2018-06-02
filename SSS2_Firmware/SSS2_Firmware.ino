@@ -8,6 +8,7 @@
  * Department of Mechanical Engineering
  * 
  * 22 May 2017
+ * 19 May 2018
  * 
  * Released under the MIT License
  *
@@ -31,29 +32,41 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  * 
+ * 
+ * 
+ * Uses Arduino 1.8.5 and Teensyduino 1.41
 */
 
 #include "SSS2_board_defs_rev_5.h"
 #include "SSS2_functions.h"
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*1.0*master*c3b62b583f1f7b22da9f3ec93ed09addc75a1d1e"; //Hash of the previous git commit
+String softwareVersion = "SSS2*REV" + revision + "*1.1*master*99c0f4a303bc4e4ce0157983f63c09dd20f4c7f0"; //Hash of the previous git commit
+
 
 void listSoftware(){
   Serial.print("FIRMWARE ");
   Serial.println(softwareVersion);
+  ;
 }
 
 void setup() {
   SPI.begin();
   SPI1.begin();
-  Serial.begin(9600);
-  LIN.begin(19200);
+  //while(!Serial); //Uncomment for testing
   
+  if(MCPCAN.begin(MCP_ANY, getBAUD(BAUDRATE_MCP), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
+  else Serial.println("Error Initializing MCP2515...");
+  MCPCAN.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
+
+  
+  LIN.begin(19200);
+   
   commandString.reserve(256);
   commandPrefix.reserve(20);
   
   kinetisUID(uid);
+  print_uid();
   
   analogWriteResolution(12);
   
@@ -61,10 +74,10 @@ void setup() {
   setSyncInterval(1);
   
   setPinModes();
-
-  Wire.begin();
-  Wire.setDefaultTimeout(200000); // 200ms
   
+  Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 400000);
+  Wire.setDefaultTimeout(20000); // 20ms
+   
   PotExpander.begin(potExpanderAddr);  //U33
   ConfigExpander.begin(configExpanderAddr); //U21
   for (uint8_t i = 0; i<16; i++){
@@ -74,13 +87,10 @@ void setup() {
   PotExpander.writeGPIOAB(0xFFFF);
   ConfigExpander.writeGPIOAB(0xFFFF);
   
- 
   setTerminationSwitches();
   setPWMSwitches();
   
-  Serial.print("Configration Switches (U21): ");
   uint16_t configSwitchSettings = setConfigSwitches();
-  Serial.println(configSwitchSettings,BIN);
   
   button.attachClick(myClickFunction);
   button.attachDoubleClick(myDoubleClickFunction);
@@ -89,20 +99,18 @@ void setup() {
   button.attachDuringLongPress(longPress);
   button.setPressTicks(2000);
   button.setClickTicks(250);
-
+ 
   initializeDACs(Vout2address);
-
-  listInfo();
+    
   for (int i = 1; i < numSettings; i++) {
     currentSetting = setSetting(i, -1,DEBUG_OFF);
     setSetting(i, currentSetting ,DEBUG_ON);
   }
-  
+  listInfo();
 
+ 
   
-  if(MCPCAN.begin(MCP_ANY, getBAUD(BAUDRATE_MCP), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
-  else Serial.println("Error Initializing MCP2515...");
-  MCPCAN.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
+  
 
   Can0.begin(BAUDRATE0);
   Can1.begin(BAUDRATE1);
@@ -270,9 +278,9 @@ void loop() {
     else if (commandPrefix.equalsIgnoreCase("LIN"))       displayLIN();
     else if (commandPrefix.equalsIgnoreCase("SENDLIN"))   sendLINselect();    
     else {
-      Serial.println(F("ERROR Unrecognized Command Characters. Use a comma after the command."));
+      Serial.println(("ERROR Unrecognized Command Characters. Use a comma after the command."));
       Serial.clear();
-      //Serial.println(F("INFO Known commands are setting numbers, GO, SP, J1708, STOPCAN, STARTCAN, B0, B1, C0, C1, C2, DS, SW, OK, ID, STATS, CLEAR, MK, LI, LS, CI, CS, SA, SS, or SM."));
+      //Serial.println(("INFO Known commands are setting numbers, GO, SP, J1708, STOPCAN, STARTCAN, B0, B1, C0, C1, C2, DS, SW, OK, ID, STATS, CLEAR, MK, LI, LS, CI, CS, SA, SS, or SM."));
     }
   }
   /*              End Serial Command Processing                   */

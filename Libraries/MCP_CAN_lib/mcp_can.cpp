@@ -22,14 +22,11 @@
   1301  USA
 */
 #include "mcp_can.h"
+#include <SPI.h>
 
-#ifdef USE_SPI1
-  #define spi_readwrite SPI1.transfer
-#else
-  #define spi_readwrite SPI.transfer
-#endif
+#define spi_readwrite SPI1.transfer
 
-#define spi_read() spi_readwrite(0x00)
+#define spi_read() spi_readwrite(0x55)
 
 /*********************************************************************************************************
 ** Function name:           mcp2515_reset
