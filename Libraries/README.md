@@ -18,11 +18,11 @@ Also, Teensyduino installs a different version of the FlexCAN library at `C:\Pro
 
 To install the recommended SSS2 libraries, use the Arduino IDE. In Arduino, select Sketch -> Include Library -> Add .Zip Library...
 
-![Sketch -> Include Library -> Add .Zip Library...](/Arduino_AddZipLibrary.PNG)
+![Sketch -> Include Library -> Add .Zip Library...](Arduino_AddZipLibrary.PNG)
 
 Select the Library folder and press Open. 
 
-![Select Library](/Arduino_SelectLibrary.PNG)
+![Select Library](Arduino_SelectLibrary.PNG)
 
 Success will show a message in the Arduino IDE.
 
