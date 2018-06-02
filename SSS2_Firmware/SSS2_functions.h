@@ -334,10 +334,10 @@ void displayVoltage(){
 //Setup messages
 #define num_default_messages  21
 String default_messages[num_default_messages] = {
- "DDEC MCM 01,                   1,1,0,1,  10,   0,0,1, 8FF0001,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC 13 MCM message, CAN1
- "DDEC TCM 01,                   2,1,0,1,  10,   0,0,1, CF00203,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC13 Transmission controler message, CAN1
- "DDEC TCM 02,                   3,1,0,1,  10,   0,0,1, 8FF0303,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC 13 TCM message, CAN1
- "DDEC TCM 03,                   4,1,0,1, 100,   0,0,1,18F00503,8, 0, 0, 0, 0, 0, 0, 0, 0", //Transmission on DDEC 13
+ "DDEC MCM 01,                   1,1,0,2,  10,   0,0,1, 8FF0001,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC 13 MCM message, CAN1
+ "DDEC TCM 01,                   2,1,0,2,  10,   0,0,1, CF00203,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC13 Transmission controler message, CAN1
+ "DDEC TCM 02,                   3,1,0,2,  10,   0,0,1, 8FF0303,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC 13 TCM message, CAN1
+ "DDEC TCM 03,                   4,1,0,2, 100,   0,0,1,18F00503,8, 0, 0, 0, 0, 0, 0, 0, 0", //Transmission on DDEC 13
  "HRW from Brake Controller,     5,1,0,0,  20,   0,0,1, CFE6E0B,8, 0, 0, 0, 0, 0, 0, 0, 0", //High Resolution wheel speed message from SA=11 (brake controller)
  "EBC1 from Cab Controller,      6,1,0,0, 100,   0,0,1,18F00131,8, 0, 0, 0, 0, 0, 0, 0, 0", // Electronic Brake Controller from SA=49
  "EBC1 from Brake Controller,    7,1,0,0, 100,   0,0,1,18F0010B,8, 0, 0, 0, 0, 0, 0, 0, 0", // Electronic Brake Controller from SA=11
@@ -670,7 +670,7 @@ void stopCAN(){
 
 void clearCAN(){
   int threadSize =  can_thread_controller.size(false);
-  for (int i = 0; i < sizeof(can_messages); i++) {
+  for (int i = 1; i < threadSize; i++) { //Leave 0 in place because it it component ID
     delete can_messages[i] ;
     }
   can_thread_controller.clear();
@@ -2165,10 +2165,36 @@ void parseJ1939(CAN_message_t &rxmsg ){
 void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCount)
 { 
 
- Serial.printf("CAN%d %10lu.%06lu %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X\n",
-          channel,now(),uint32_t(microsecondsPerSecond),rxmsg.id,rxmsg.ext,rxmsg.len,
-          rxmsg.buf[0],rxmsg.buf[1],rxmsg.buf[2],rxmsg.buf[3],
-          rxmsg.buf[4],rxmsg.buf[5],rxmsg.buf[6],rxmsg.buf[7]);
+// Serial.printf("CAN%d %10lu.%06lu %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X\n",
+//          channel,now(),uint32_t(microsecondsPerSecond),rxmsg.id,rxmsg.ext,rxmsg.len,
+//          rxmsg.buf[0],rxmsg.buf[1],rxmsg.buf[2],rxmsg.buf[3],
+//          rxmsg.buf[4],rxmsg.buf[5],rxmsg.buf[6],rxmsg.buf[7]);
+  uint32_t timestamp=uint32_t(now());
+  //21 Byte frame
+  Serial.print("CAN");
+  Serial.write((timestamp & 0xFF000000) >> 24);
+  Serial.write((timestamp & 0x00FF0000) >> 16);
+  Serial.write((timestamp & 0x0000FF00) >> 8);
+  Serial.write((timestamp & 0x000000FF));
+  Serial.write(channel);
+  Serial.write((uint32_t(microsecondsPerSecond) & 0x00FF0000) >> 16);
+  Serial.write((uint32_t(microsecondsPerSecond) & 0x0000FF00) >> 8);
+  Serial.write((uint32_t(microsecondsPerSecond) & 0x000000FF));
+  Serial.write((rxmsg.ext << 7) | (rxmsg.id & 0xFF000000) >> 24);
+  Serial.write((rxmsg.id & 0x00FF0000) >> 16);
+  Serial.write((rxmsg.id & 0x0000FF00) >> 8);
+  Serial.write((rxmsg.id & 0x000000FF));
+  Serial.write(rxmsg.len);
+  Serial.write(rxmsg.buf[0]);
+  Serial.write(rxmsg.buf[1]);
+  Serial.write(rxmsg.buf[2]);
+  Serial.write(rxmsg.buf[3]);
+  Serial.write(rxmsg.buf[4]);
+  Serial.write(rxmsg.buf[5]);
+  Serial.write(rxmsg.buf[6]);
+  Serial.write(rxmsg.buf[7]);
+  Serial.print("\n");
+  
 }
 
 
