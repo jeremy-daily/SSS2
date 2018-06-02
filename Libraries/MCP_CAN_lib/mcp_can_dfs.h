@@ -131,8 +131,8 @@
 #define MCP_CNF3        0x28
 #define MCP_CNF2        0x29
 #define MCP_CNF1        0x2A
-#define MCP_CANINTE        0x2B
-#define MCP_CANINTF        0x2C
+#define MCP_CANINTE     0x2B
+#define MCP_CANINTF     0x2C
 #define MCP_EFLG        0x2D
 #define MCP_TXB0CTRL    0x30
 #define MCP_TXB1CTRL    0x40
@@ -149,7 +149,7 @@
 #define MCP_NO_INT          0x00                                    // Disable all interrupts
 
 #define MCP_TX01_MASK       0x14
-#define MCP_TX_MASK        0x54
+#define MCP_TX_MASK         0x54
 
 /*
  *   Define SPI Instruction Set
@@ -182,10 +182,10 @@
 /*
  *   CANCTRL Register Values
  */
-#define MCP_NORMAL     0x00
-#define MCP_SLEEP      0x20
-#define MCP_LOOPBACK   0x40
-#define MCP_LISTENONLY 0x60
+#define MCP_NORMAL      0x00
+#define MCP_SLEEP       0x20
+#define MCP_LOOPBACK    0x40
+#define MCP_LISTENONLY  0x60
 #define MODE_CONFIG     0x80
 #define MODE_POWERUP    0xE0
 #define MODE_MASK       0xE0

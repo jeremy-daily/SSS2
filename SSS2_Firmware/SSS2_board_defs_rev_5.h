@@ -34,7 +34,7 @@
  * 
 */
 
-
+#define USE_SPI1
 #define SSS2_BOARD_REVISION 5
 #define J1708 Serial3
 #define LIN Serial2

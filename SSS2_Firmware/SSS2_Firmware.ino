@@ -46,12 +46,18 @@ String softwareVersion = "SSS2*REV" + revision + "*1.1*master*8c1ec40e272233b5c6
 void listSoftware(){
   Serial.print("FIRMWARE ");
   Serial.println(softwareVersion);
-  Serial.send_now();
+  ;
 }
 
 void setup() {
   SPI.begin();
   SPI1.begin();
+  while(!Serial);
+  
+  if(MCPCAN.begin(MCP_ANY, getBAUD(BAUDRATE_MCP), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
+  else Serial.println("Error Initializing MCP2515...");
+  MCPCAN.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
+
   
   LIN.begin(19200);
    
@@ -101,10 +107,9 @@ void setup() {
   }
   listInfo();
 
+ 
   
-  if(MCPCAN.begin(MCP_ANY, getBAUD(BAUDRATE_MCP), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
-  else Serial.println("Error Initializing MCP2515...");
-  MCPCAN.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
+  
 
   Can0.begin(BAUDRATE0);
   Can1.begin(BAUDRATE1);
