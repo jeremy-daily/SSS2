@@ -41,7 +41,7 @@
 #include "SSS2_functions.h"
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*1.1*master*8c1ec40e272233b5c69eb16a293705007af312bd"; //Hash of the previous git commit
+String softwareVersion = "SSS2*REV" + revision + "*1.1*master*99c0f4a303bc4e4ce0157983f63c09dd20f4c7f0"; //Hash of the previous git commit
 
 void listSoftware(){
   Serial.print("FIRMWARE ");
