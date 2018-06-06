@@ -24,7 +24,11 @@
 #include "mcp_can.h"
 #include <SPI.h>
 
-#define spi_readwrite SPI1.transfer
+//#ifdef USE_SPI1
+    #define spi_readwrite SPI1.transfer
+//#else
+//    #define spi_readwrite SPI.transfer
+//#endif
 
 #define spi_read() spi_readwrite(0x55)
 
