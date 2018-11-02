@@ -46,7 +46,6 @@ String softwareVersion = "SSS2*REV" + revision + "*1.1*master*feaf4593b427b5ebe9
 void listSoftware(){
   Serial.print("FIRMWARE ");
   Serial.println(softwareVersion);
-  ;
 }
 
 void setup() {

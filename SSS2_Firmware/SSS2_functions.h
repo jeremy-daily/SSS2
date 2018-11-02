@@ -53,35 +53,23 @@
 #include <Encoder.h>
 #include "OneButton.h"
 #include <i2c_t3.h>
-#include "MCP23017.h" 
 #include <EEPROM.h>
 #include "FlexCAN.h"
 #include <TimeLib.h>
 #include <TeensyID.h>
 #include "Thread.h"
 #include "ThreadController.h"
-
-
+#include "MCP23017.h" 
 
 Adafruit_MCP23017 ConfigExpander; //U21
 Adafruit_MCP23017 PotExpander; //U33
 
-
-
-
 IntervalTimer CANTimer;
-
-
 
 MCP_CAN MCPCAN(CSCANPin);
 
-
-
-
 //The Unique ID variable that comes from the chip
 uint32_t uid[4];
-
-
 
 String commandPrefix;
 String commandString;
@@ -124,12 +112,6 @@ uint8_t J1708RXbuffer[256];
 uint8_t J1708_index=0;
 
 uint32_t shortest_period = 10;
-
-
-
-
-
-
 
 const int allFFs[8] = {255,255,255,255,255,255,255,255};
 /****************************************************************/
