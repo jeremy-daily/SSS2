@@ -37,7 +37,7 @@
  * Uses Arduino 1.8.5 and Teensyduino 1.41
 */
 
-#include "SSS2_board_defs_rev_5.h"
+#include "SSS2_board_defs_rev_3.h"
 #include "SSS2_functions.h"
 
 //softwareVersion

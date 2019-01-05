@@ -61,6 +61,14 @@
 #include "ThreadController.h"
 #include "MCP23017.h" 
 
+long unsigned int rxId;
+unsigned char len = 0;
+unsigned char rxBuf[8];
+char msgString[128];        
+
+//set up a display buffer
+char displayBuffer[100];
+
 Adafruit_MCP23017 ConfigExpander; //U21
 Adafruit_MCP23017 PotExpander; //U33
 
