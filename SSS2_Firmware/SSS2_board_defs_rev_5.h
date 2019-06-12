@@ -118,13 +118,7 @@ const uint8_t configExpanderAddr = 3;
 
 const uint16_t componentIDAddress = 1000;
 
-long unsigned int rxId;
-unsigned char len = 0;
-unsigned char rxBuf[8];
-char msgString[128];        
 
-//set up a display buffer
-char displayBuffer[100];
 
 void setPinModes(){
     pinMode(greenLEDpin,     OUTPUT);

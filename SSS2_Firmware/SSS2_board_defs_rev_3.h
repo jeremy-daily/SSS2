@@ -116,10 +116,7 @@ const uint8_t configExpanderAddr = 3;
 
 const uint16_t componentIDAddress = 1000;
 
-//set up a display buffer
-char displayBuffer[100];
 
-void setPWMSwitches(){}
 
 void setPinModes(){
     pinMode(greenLEDpin,     OUTPUT);
@@ -207,4 +204,10 @@ bool PWM5Out            = true;
 bool PWM6Out            = true;
 bool ignitionCtlState   = false;
 
+bool CAN0term1          = false;
+bool CAN1term1          = false;
+bool CAN2term1          = false;
 
+bool PWM4Out_28         = false;
+bool CAN1out            = false;
+bool CAN2out            = false;
