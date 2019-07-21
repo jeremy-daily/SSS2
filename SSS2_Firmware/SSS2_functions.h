@@ -61,6 +61,11 @@
 #include "ThreadController.h"
 #include "MCP23017.h" 
 
+uint8_t status_buffer_1[64];
+uint8_t status_buffer_2[64];
+uint8_t status_buffer_3[64];
+
+
 long unsigned int rxId;
 unsigned char len = 0;
 unsigned char rxBuf[8];
@@ -108,7 +113,7 @@ boolean displayCAN0 = 0;
 boolean displayCAN1 = 0;
 boolean displayCAN2 = 0;
 boolean TXCAN = true;
-boolean enableSendComponentInfo = true;
+boolean enableSendComponentInfo = false;
 boolean sendA21voltage = false;
 boolean showJ1708 = false;
 boolean firstJ1708 = true;
@@ -132,188 +137,15 @@ int knobLowLimit = 0;
 int knobHighLimit = 255;
 int knobJump = 1;
 
-elapsedMicros LINtimer;
-int LINbaud = 19200;
-uint32_t LINbitTime = 52;
-uint16_t LINsyncPause = 13*LINbitTime; //microseconds
-bool LINbreak;
-bool readyForLINsync;
-bool readyForLINid;
-bool readyForLINdata;
-bool LINfinished;
-bool readyForLINchecksum;
-bool readyToTransmitShifter;
-uint8_t LINindex=0;
-uint8_t LINbuffer[8];
-uint8_t LINchecksum;
-uint8_t LINaddress;
-uint8_t LINlength;
-uint8_t LIN_ID;
-uint8_t outByte[256]; 
-uint8_t kounter;
-uint8_t checksumValue;
-bool sendLIN = true;
-bool printLIN;
-
-void displayLIN(){
-  if (commandString.toInt() > 0){
-    printLIN = true;
-    
-    Serial.println("SET Stream LIN data on.");
-    ; 
-  }
-  else {
-    Serial.println("SET Stream LIN data off.");
-    ;
-    printLIN  = false;
-  }
-}
-void sendLINselect(){
-  if (commandString.toInt() > 0){
-    sendLIN = true;
-    
-    Serial.println("SET Turn on LIN data.");
-    ; 
-  }
-  else {
-    Serial.println("SET Turn off LIN data.");
-    ;
-    sendLIN  = false;
-  }
-}
-
-void determineSync(){
-  if(LINtimer > LINsyncPause) {
-    detachInterrupt(linRXpin);
-    LIN.begin(LINbaud,SERIAL_8N1);
-    readyForLINsync=true;
-  }
-}
-
-void resetLINtimer(){
-  LINtimer = 0;
-  attachInterrupt(linRXpin,determineSync,RISING);
-}
-
-void sendLINResponse(){
-  if( LIN.available() ){
-    
-    if (readyForLINsync){
-      readyForLINsync=false;
-      uint8_t LIN_Sync = 0; 
-      while (LIN_Sync != 0x55 && LINtimer < 4000){
-        LIN_Sync = LIN.read();
-      }
-      if (LIN_Sync == 0x55){
-        readyForLINid = true;
-        //if (printLIN) Serial.printf("LIN Sync: %02X\n",LIN_Sync);
-      }
-      else{
-        LINfinished = true;
-        //if (printLIN) Serial.printf("ERROR: LIN Sync: %02X\n",LIN_Sync);
-      }
-    }
-    else if (readyForLINid ){
-      LIN_ID = LIN.read();
-      readyForLINdata = true;
-      readyForLINid = false;
-      LINindex = 0;
-       
-      bool ID0 = (LIN_ID & 0b00000001) >> 0;
-      bool ID1 = (LIN_ID & 0b00000010) >> 1; 
-      bool ID2 = (LIN_ID & 0b00000100) >> 2;
-      bool ID3 = (LIN_ID & 0b00001000) >> 3; 
-      bool ID4 = (LIN_ID & 0b00010000) >> 4; 
-      bool ID5 = (LIN_ID & 0b00100000) >> 5; 
-      bool LINparity0 = (LIN_ID & 0b01000000) >> 6;
-      bool LINparity1 = (LIN_ID & 0b10000000) >> 7;
-      LINaddress = (LIN_ID & 0x0F) >> 0;
-
-      if (ID4 && ID5) LINlength = 8;
-      else if (!ID4 && ID5) LINlength = 4;
-      else if (ID4 && !ID5) LINlength = 2;
-      else if (!ID4 && !ID5) LINlength = 2;
-      
-      
-      if (LIN_ID == 0x20){
-        outByte[0] = 0x14;
-        outByte[1] = (kounter << 4) + 0x01;
-        kounter++;
-        outByte[2] = 0x02;
-        outByte[3] = 0x0D;
-        int calculatedChecksum = 0;
-        calculatedChecksum += 0x20;
-        for (int i = 0; i<4;i++){
-          calculatedChecksum +=outByte[i];
-          if (sendLIN) LIN.write(outByte[i]);
-        }
-        outByte[4] = uint8_t(~(calculatedChecksum % 255) );
-        if (sendLIN) LIN.write(outByte[4]);
-      }
-      LINfinished = true; 
-    }
-    else if (readyForLINdata){
-      
-      LINbuffer[LINindex] = LIN.read();
-      LINindex++;
-      if (LINindex == LINlength){
-        readyForLINdata = false;
-        readyForLINchecksum = true;
-         LINindex = 0;
-      }
-    }
-    else if (readyForLINchecksum ){
-      LINchecksum = LIN.read();
-      int calculatedChecksum = 0;
-      calculatedChecksum += LIN_ID & 0x3F;
-      //the inverted module-256 checksum
-      for (LINindex = 0; LINindex < LINlength; LINindex++){
-        calculatedChecksum += LINbuffer[LINindex];
-      }
-      checksumValue = uint8_t(~(calculatedChecksum % 255) );
-     
-      readyForLINchecksum = false;
-      LINfinished = true;
-      if (printLIN) Serial.printf("LIN %lu,%02X,",micros(),LIN_ID);
-      for (LINindex = 0; LINindex < LINlength; LINindex++){
-        if (printLIN) Serial.printf("%02X,",LINbuffer[LINindex]);
-      }
-      if (printLIN) Serial.printf("%02X,%02X\n",LINchecksum,checksumValue);
-      
-    }
-    else {
-      if (printLIN) Serial.printf("LIN -1,%02X\n",LIN.read());
-      else LIN.read();
-    }
-  }
-
-  //Reset the LIN responder after 20 ms of no messages
-  if( LINtimer > 50000) LINfinished = true;
-   
-  if (LINfinished && LINtimer > 9000){
-    pinMode(linRXpin,INPUT);
-    attachInterrupt(linRXpin,resetLINtimer,FALLING);
-    LINfinished = false;
-    readyForLINchecksum = false;
-    readyForLINdata = false;
-    readyForLINsync = false;
-    readyForLINid = false;
-  } 
-}
-
-
 
 void displayVoltage(){
   analogMillis = 0;
   if (commandString.toInt() > 0){
     send_voltage = true;
-    
     Serial.println("SET Stream analog in data on.");
-    ; 
   }
   else {
     Serial.println("SET Stream analog In data off.");
-    ;
     send_voltage = false;
   }
 }
@@ -324,31 +156,28 @@ void displayVoltage(){
 //Setup messages
 #define num_default_messages  21
 String default_messages[num_default_messages] = {
- "DDEC MCM 01,                   1,1,0,2,  10,   0,0,1, 8FF0001,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC 13 MCM message, CAN1
- "DDEC TCM 01,                   2,1,0,2,  10,   0,0,1, CF00203,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC13 Transmission controler message, CAN1
- "DDEC TCM 02,                   3,1,0,2,  10,   0,0,1, 8FF0303,8, 0, 0, 0, 0, 0, 0, 0, 0", //DDEC 13 TCM message, CAN1
- "DDEC TCM 03,                   4,1,0,2, 100,   0,0,1,18F00503,8, 0, 0, 0, 0, 0, 0, 0, 0", //Transmission on DDEC 13
- "HRW from Brake Controller,     5,1,0,0,  20,   0,0,1, CFE6E0B,8, 0, 0, 0, 0, 0, 0, 0, 0", //High Resolution wheel speed message from SA=11 (brake controller)
- "EBC1 from Cab Controller,      6,1,0,0, 100,   0,0,1,18F00131,8, 0, 0, 0, 0, 0, 0, 0, 0", // Electronic Brake Controller from SA=49
- "EBC1 from Brake Controller,    7,1,0,0, 100,   0,0,1,18F0010B,8, 0, 0, 0, 0, 0, 0, 0, 0", // Electronic Brake Controller from SA=11
- "CCVS1 from Instrument Cluster, 8,1,0,0, 100,   0,0,1,18FEF117,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=23
- "CCVS1 from Cab Display 1,      9,1,0,0, 100,   0,0,1,18FEF128,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=40
- "CCVS1 from Body Controller,   10,1,0,0, 100,   0,0,1,18FEF121,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=33
- "CCVS1 from Cab Controller,    11,1,0,0, 100,   0,0,1,18FEF131,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise Control/Vehicle Speed from SA=49
- "CM1 from Instrument Cluster,  12,1,0,0, 100,   0,0,1,18E00017,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=23
- "CM1 from Climate Control 1,   13,1,0,0, 100,   0,0,1,18E00019,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=25
- "CM1 from Body Controller,     14,1,0,0, 100,   0,0,1,18E00021,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=33
- "CM1 from Cab Display,         15,1,0,0, 100,   0,0,1,18E00028,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=40
- "CM1 from Cab Controller,      16,1,0,0, 100,   0,0,1,18E00031,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cab Message 1 from SA=49
- "PTO from Instrument Cluster,  17,1,0,0, 100,   0,0,1,18FEF017,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=23
- "PTO from Body Controller,     18,1,0,0, 100,   0,0,1,18FEF021,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=33
- "PTO from Cab Display,         19,1,0,0, 100,   0,0,1,18FEF028,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=40
- "PTO from Cab Controller,      20,1,0,0, 100,   0,0,1,18FEF031,8, 0, 0, 0, 0, 0, 0, 0, 0", //Cruise and PTO setup from SA=49
- "AMB from Body Controller,     21,1,0,0,1000,   0,0,1,18FEF521,8, 0, 0, 0, 0, 0, 0, 0, 0" //Ambient Conditions
+ F("DDEC MCM 01,                   1,1,0,2,  10,   0,0,1, 8FF0001,8, 0, 0, 0, 0, 0, 0, 0, 0"), //DDEC 13 MCM message, CAN1
+ F("DDEC TCM 01,                   2,1,0,2,  10,   0,0,1, CF00203,8, 0, 0, 0, 0, 0, 0, 0, 0"), //DDEC13 Transmission controler message, CAN1
+ F("DDEC TCM 02,                   3,1,0,2,  10,   0,0,1, 8FF0303,8, 0, 0, 0, 0, 0, 0, 0, 0"), //DDEC 13 TCM message, CAN1
+ F("DDEC TCM 03,                   4,1,0,2, 100,   0,0,1,18F00503,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Transmission on DDEC 13
+ F("HRW from Brake Controller,     5,1,0,0,  20,   0,0,1, CFE6E0B,8, 0, 0, 0, 0, 0, 0, 0, 0"), //High Resolution wheel speed message from SA=11 (brake controller)
+ F("EBC1 from Cab Controller,      6,1,0,0, 100,   0,0,1,18F00131,8, 0, 0, 0, 0, 0, 0, 0, 0"), // Electronic Brake Controller from SA=49
+ F("EBC1 from Brake Controller,    7,1,0,0, 100,   0,0,1,18F0010B,8, 0, 0, 0, 0, 0, 0, 0, 0"), // Electronic Brake Controller from SA=11
+ F("CCVS1 from Instrument Cluster, 8,1,0,0, 100,   0,0,1,18FEF117,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Cruise Control/Vehicle Speed from SA=23
+ F("CCVS1 from Cab Display 1,      9,1,0,0, 100,   0,0,1,18FEF128,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Cruise Control/Vehicle Speed from SA=40
+ F("CCVS1 from Body Controller,   10,1,0,0, 100,   0,0,1,18FEF121,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Cruise Control/Vehicle Speed from SA=33
+ F("CCVS1 from Cab Controller,    11,1,0,0, 100,   0,0,1,18FEF131,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Cruise Control/Vehicle Speed from SA=49
+ F("CM1 from Instrument Cluster,  12,1,0,0, 100,   0,0,1,18E00017,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Cab Message 1 from SA=23
+ F("CM1 from Climate Control 1,   13,1,0,0, 100,   0,0,1,18E00019,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Cab Message 1 from SA=25
+ F("CM1 from Body Controller,     14,1,0,0, 100,   0,0,1,18E00021,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Cab Message 1 from SA=33
+ F("CM1 from Cab Display,         15,1,0,0, 100,   0,0,1,18E00028,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Cab Message 1 from SA=40
+ F("CM1 from Cab Controller,      16,1,0,0, 100,   0,0,1,18E00031,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Cab Message 1 from SA=49
+ F("PTO from Instrument Cluster,  17,1,0,0, 100,   0,0,1,18FEF017,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Cruise and PTO setup from SA=23
+ F("PTO from Body Controller,     18,1,0,0, 100,   0,0,1,18FEF021,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Cruise and PTO setup from SA=33
+ F("PTO from Cab Display,         19,1,0,0, 100,   0,0,1,18FEF028,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Cruise and PTO setup from SA=40
+ F("PTO from Cab Controller,      20,1,0,0, 100,   0,0,1,18FEF031,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Cruise and PTO setup from SA=49
+ F("AMB from Body Controller,     21,1,0,0,1000,   0,0,1,18FEF521,8, 0, 0, 0, 0, 0, 0, 0, 0")  //Ambient Conditions
 };
-
-
-
 
 //Set up the CAN data structures
 static CAN_message_t rxmsg;
@@ -368,9 +197,8 @@ const uint8_t baudRateListLength = 15;
 const uint32_t baudRateList[baudRateListLength] = {250000,500000,666666,125000,1000000,5000,10000,20000,31520,333333,40000,50000,80000,100000,200000};
 uint8_t baudRateIndex0 = 0;
 uint8_t baudRateIndex1 = 0;
+uint8_t baudRateIndex2 = 0;
 
-
-CAN_filter_t allPassFilter;
 
 // Create a thread controller class
 ThreadController can_thread_controller = ThreadController();
@@ -416,8 +244,6 @@ public:
       if      (channel == 0) Can0.write(txmsg);
       else if (channel == 1) Can1.write(txmsg);
       else if (channel == 2) MCPCAN.sendMsgBuf(txmsg.id,txmsg.ext,txmsg.len,txmsg.buf);
-  
-      
       transmit_number++;
       message_index++;
     }
@@ -431,9 +257,7 @@ public:
     if (cycle_count*interval >= loop_cycles){
       cycle_count = 0;
       ok_to_send = true;
-    }
-  
-    
+    }  
     return Thread::run();
   }
 };
@@ -454,18 +278,15 @@ void getThreadName(){
   int index = commandString.toInt();
   Serial.printf("NAME of CAN Thread %d: ",index); 
   Serial.println(can_messages[index]->ThreadName);
-  ;
 }
+
 void getAllThreadNames(){
   int threadSize =  can_thread_controller.size(false);
   for(int i = 0; i<threadSize; i++){
     Serial.printf("NAME of CAN Thread %d: ",i); 
     Serial.println(can_messages[i]->ThreadName);
-    ;
   }
-  
 }
-
 
 void getThreadSize(){
   int threadSize =  can_thread_controller.size(false);
@@ -480,7 +301,7 @@ int setupPeriodicCANMessage(){
   int channel;
   uint32_t tx_period;
   uint32_t tx_delay;
-  uint8_t num_messages=1;
+  uint8_t num_messages = 1;
   uint32_t stop_after_count;
    
   int threadSize =  can_thread_controller.size(false);
@@ -492,14 +313,12 @@ int setupPeriodicCANMessage(){
   commandValues = strtok(commandBytes, delimiter);
   String threadName = commandValues;
   
-  
   commandValues = strtok(NULL, delimiter);
   if (commandValues != NULL) {
     index = constrain(atoi(commandValues),0,threadSize);
   }
   else {
     Serial.println(("ERROR SM command is missing arguments.")); 
-    ;
     return -1;
   }
 
@@ -509,11 +328,9 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(("ERROR SM command not able to determine the number of sub messages.")); 
-    ;
     return -2;
   }
-
-
+  
   commandValues = strtok(NULL, delimiter);
   if (commandValues != NULL) {
      //constrain the sub_index to be one larger than the 
@@ -521,7 +338,6 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(("ERROR SM command missing sub_index.")); 
-    ;
     return -3;
   }
   
@@ -531,7 +347,6 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(("ERROR SM command not able to set CAN Channel.")); 
-    ;
     return -4;
   }
   
@@ -541,7 +356,6 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(("ERROR SM command not able to set period information.")); 
-    ;
     return -5;
   }
 
@@ -551,7 +365,6 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(("ERROR SM command not able to set delay information.")); 
-    ;
     return -6;
   }
   
@@ -561,7 +374,6 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(("ERROR SM command not able to set the total number count.")); 
-    ;
     return -7;
   }
   
@@ -571,7 +383,6 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(("ERROR SM command not able to set extended ID flag.")); 
-    ;
     temp_txmsg.ext = 1;
   }
 
@@ -581,7 +392,6 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(("WARNING SM command not able to set CAN ID information."));
-    ;
     temp_txmsg.id = 0x3FFFFFFF ;
   }
   
@@ -591,7 +401,6 @@ int setupPeriodicCANMessage(){
   }
   else {
     Serial.println(("WARNING SM command not able to set CAN data length code."));
-    ;
     temp_txmsg.len = 8;
   }
  
@@ -609,15 +418,8 @@ int setupPeriodicCANMessage(){
   char threadNameChars[256]; 
   threadName.toCharArray(threadNameChars,threadName.length()+1);
   
-  Serial.printf("SET CAN name=%s, i=%d, n=%d, j=%d, c=%d, p=%d, d=%d, t=%d, e=%d, ID=%08X, DLC=%d, DATA=[",
-                 threadNameChars,index, num_messages, sub_index, channel, tx_period, tx_delay, stop_after_count, temp_txmsg.ext, temp_txmsg.id,temp_txmsg.len);
-  for (int i = 0; i < temp_txmsg.len-1; i++){
-    Serial.printf("%02X, ",temp_txmsg.buf[i]);
-  }
-  Serial.printf("%02X]\n",temp_txmsg.buf[temp_txmsg.len-1]);
-  ;
-  
-  if (index == threadSize) { //Create a new entry
+  if (index >= threadSize) { //Create a new entry
+    index = threadSize;
     Serial.printf("THREAD %lu, %s (NEW)\n",index,threadNameChars); 
     CanThread* can_message = new CanThread(); 
     can_thread_controller.add(can_message);
@@ -626,9 +428,15 @@ int setupPeriodicCANMessage(){
   }
   else{
    Serial.printf("THREAD %lu, %s (EXISTING)\n",index,threadNameChars); 
-   ;
   }
 
+  Serial.printf("SET CAN name=%s, i=%d, n=%d, j=%d, c=%d, p=%d, d=%d, t=%d, e=%d, ID=%08X, DLC=%d, DATA=[",
+                 threadNameChars,index, num_messages, sub_index, channel, tx_period, tx_delay, stop_after_count, temp_txmsg.ext, temp_txmsg.id,temp_txmsg.len);
+  for (int i = 0; i < temp_txmsg.len-1; i++){
+    Serial.printf("%02X, ",temp_txmsg.buf[i]);
+  }
+  Serial.printf("%02X]\n",temp_txmsg.buf[temp_txmsg.len-1]);
+  
   can_messages[index]->channel = channel;
   can_messages[index]->txmsg.ext = temp_txmsg.ext;
   can_messages[index]->txmsg.len = temp_txmsg.len;
@@ -655,7 +463,6 @@ void stopCAN(){
     can_messages[i]->enabled = false;
     }
   Serial.println(("INFO Stopped all CAN transmission."));
-  ;
 }
 
 void clearCAN(){
@@ -665,7 +472,6 @@ void clearCAN(){
     }
   can_thread_controller.clear();
   Serial.println(("INFO Cleared the CAN transmission thread. All messages must be reloaded."));
-  ;
 }
 
 void goCAN(){
@@ -677,7 +483,6 @@ void goCAN(){
     can_messages[i]->cycle_count = 0;
   }
   Serial.println(("INFO Started all CAN transmissions."));
-  ;
 }
 
 void startCAN (){
@@ -699,21 +504,20 @@ void startCAN (){
       can_messages[index]->message_index = 0;
       can_messages[index]->cycle_count = 0;
       Serial.printf("SET CAN message %d with ID 0x%08X on.\n",index,can_messages[index]->id_list[0]);
-      ; 
     }
     else  {
       can_messages[index]->enabled = false;
       Serial.printf("SET CAN message %d with ID 0x%08X off.\n",index,can_messages[index]->id_list[0]);
-      ; 
     }
   }
   else
   {
      Serial.println("ERROR No CAN Messages Setup to turn on.");
-     ;
   }
 }
-
+/*
+ * *************************** END CAN Logic ********************************
+ */
 
 void connectionString(boolean switchState) {
   //memset(displayBuffer,0,sizeof(displayBuffer));
@@ -762,6 +566,7 @@ uint8_t setTerminationSwitches() {
   digitalWrite(CSconfigAPin, LOW);
   SPI.transfer(terminationSettings);
   digitalWrite(CSconfigAPin, HIGH);
+  status_buffer_1[TERMINATION_SETTINGS_LOC] = terminationSettings;
   return terminationSettings;
 }
 
@@ -782,21 +587,21 @@ uint8_t setPWMSwitches() {
   digitalWrite(CSconfigBPin, LOW);
   SPI.transfer(PWMSettings);
   digitalWrite(CSconfigBPin, HIGH);
+  status_buffer_1[PWM_SETTINGS_LOC] = PWMSettings;
   return PWMSettings;
 }
 
-void getPWMSwitches(uint8_t terminationSettings) {
+void getPWMSwitches(uint8_t PWMSettings) {
   //Set the termination Switches for U21
-  CAN0term   = (terminationSettings & 0b00000001) >> 0;
-  CAN1term   = (terminationSettings & 0b00000010) >> 1;
-  CAN2term   = (terminationSettings & 0b00000100) >> 2;
-  LINmaster  = (terminationSettings & 0b00001000) >> 3;
-  PWM1Out    = (terminationSettings & 0b00010000) >> 4;
-  PWM2Out    = (terminationSettings & 0b00100000) >> 5;
-  PWM3Out    = (terminationSettings & 0b01000000) >> 6;
-  PWM4Out    = (terminationSettings & 0b10000000) >> 7;
+  CAN0term   = (PWMSettings & 0b00000001) >> 0;
+  CAN1term   = (PWMSettings & 0b00000010) >> 1;
+  CAN2term   = (PWMSettings & 0b00000100) >> 2;
+  LINmaster  = (PWMSettings & 0b00001000) >> 3;
+  PWM1Out    = (PWMSettings & 0b00010000) >> 4;
+  PWM2Out    = (PWMSettings & 0b00100000) >> 5;
+  PWM3Out    = (PWMSettings & 0b01000000) >> 6;
+  PWM4Out    = (PWMSettings & 0b10000000) >> 7;
 }
-
 
 uint16_t setConfigSwitches() {
   //Set the termination Switches of U21 on Rev 3 based on the boolean values of the variables representing the GPIO pins of U21
@@ -806,6 +611,7 @@ uint16_t setConfigSwitches() {
               CAN1Switch << 6 | CAN2Switch << 7 | U1U2P0ASwitch << 8 |  U3U4P0ASwitch  << 9 |  U5U6P0ASwitch  << 10 | U7U8P0ASwitch << 11 |
               U9U10P0ASwitch << 12 | U11U12P0ASwitch << 13 | U13U14P0ASwitch << 14 | U15U16P0ASwitch << 15;
   ConfigExpander.writeGPIOAB(configSwitchSettings);
+  memcpy(&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],&configSwitchSettings,2);
   return configSwitchSettings;
 }
 
@@ -822,7 +628,7 @@ void getConfigSwitches(uint16_t configSwitchSettings) {
   U9though16Enable  = (configSwitchSettings & 0b0000000000100000) >> 5;
   CAN1Switch        = (configSwitchSettings & 0b0000000001000000) >> 6;
   CAN2Switch        = (configSwitchSettings & 0b0000000010000000) >> 7;
-  U1U2P0ASwitch     = (configSwitchSettings & 0b0000000100000000) >> 9;
+  U1U2P0ASwitch     = (configSwitchSettings & 0b0000000100000000) >> 8;
   U3U4P0ASwitch     = (configSwitchSettings & 0b0000001000000000) >> 9;
   U5U6P0ASwitch     = (configSwitchSettings & 0b0000010000000000) >> 10;
   U7U8P0ASwitch     = (configSwitchSettings & 0b0000100000000000) >> 11;
@@ -840,12 +646,13 @@ void getConfigSwitches(uint16_t configSwitchSettings) {
   
 uint8_t MCP41HVExtender_SetTerminals(uint8_t pin, uint8_t TCON_Value) {
   PotExpander.writeGPIOAB(~(1 << pin));
-  delay(1);
+  delayMicroseconds(800);
   SPI.transfer(0x40); //Write to TCON Register
   SPI.transfer(TCON_Value + 8);
   SPI.transfer(0x4C); //Read Command
   uint8_t result = SPI.transfer(0xFF); //Read Terminal Connection (TCON) Register
   PotExpander.writeGPIOAB(0xFF);
+  status_buffer_2[pin+1] = result & 0x07;
   return result & 0x07;
 }
 
@@ -854,12 +661,13 @@ uint8_t MCP41HVExtender_SetTerminals(uint8_t pin, uint8_t TCON_Value) {
 uint8_t MCP41HVExtender_SetWiper(uint8_t pin, uint8_t potValue)
 {
   PotExpander.writeGPIOAB(~(1 << pin));
-  delay(1);
+  delayMicroseconds(800);
   SPI.transfer(0x00); //Write to wiper Register
   SPI.transfer(potValue);
   SPI.transfer(0x0C); //Read command
   uint8_t result = SPI.transfer(0xFF); //Read Wiper Register
   PotExpander.writeGPIOAB(0xFF);
+  status_buffer_1[pin+1] = result;
   return result;
 } 
 
@@ -867,13 +675,16 @@ uint8_t MCP41HVI2C_SetTerminals(uint8_t addr, uint8_t TCON_Value) {
   
   Wire.beginTransmission(addr); 
   Wire.write(byte(0x40));            // sends instruction byte  
-  Wire.write(0xF8 | TCON_Value);             // sends potentiometer value byte  
+  Wire.write(0xF8 | TCON_Value);     // sends potentiometer value byte  
   Wire.endTransmission();
 
-  Wire.requestFrom(addr,2);    // request 6 bytes from slave device #8
+  Wire.requestFrom(addr,2);     // request bytes from slave device
   uint8_t result = Wire.read(); //Read Wiper Register
-  result = Wire.read(); //Read Wiper Register
-  return result & 0x07;
+  result = Wire.read() & 0x07; //Read Wiper Register
+  if      (addr == U28_I2C_ADDR) status_buffer_2[U28_TCON_LOC] = result;
+  else if (addr == U29_I2C_ADDR) status_buffer_2[U29_TCON_LOC] = result;
+  else if (addr == U30_I2C_ADDR) status_buffer_2[U30_TCON_LOC] = result;
+  return result;
 }
 
 uint8_t MCP41HVI2C_SetWiper(uint8_t addr, uint8_t potValue)
@@ -886,6 +697,9 @@ uint8_t MCP41HVI2C_SetWiper(uint8_t addr, uint8_t potValue)
   Wire.requestFrom(addr,2);    // request 6 bytes from slave device #8
   uint8_t result = Wire.read(); //Read Wiper Register, first byt is all 0
   result = Wire.read(); //Read Wiper Register
+  if      (addr == U28_I2C_ADDR) status_buffer_1[U28_WIPER_LOC] = result;
+  else if (addr == U29_I2C_ADDR) status_buffer_2[U29_WIPER_LOC] = result;
+  else if (addr == U30_I2C_ADDR) status_buffer_2[U30_WIPER_LOC] = result;
   return result;
 } 
 
@@ -914,10 +728,8 @@ void initializeDACs(uint8_t address) {
   char lowC = Wire.read();
   Serial.print("Internal Reference Register: 0x");
   Serial.println(lowC, HEX);         // print the character
-  ;
   
   Serial.println("Setting LDAC register.");
-  ;
   Wire.beginTransmission(address);   // Slave address
   Wire.write(0b01100000);
   Wire.write(0xFF);
@@ -933,10 +745,8 @@ void initializeDACs(uint8_t address) {
   lowC = Wire.read();
   Serial.print("LDAC Register: ");
   Serial.println(lowC, HEX);        // print the character
-  ;
   
   Serial.println("Setting DAC Power Down register to On.");
-  ;
   Wire.beginTransmission(address);   // Slave address
   Wire.write(0b01000000);
   Wire.write(0b00011111);
@@ -952,11 +762,9 @@ void initializeDACs(uint8_t address) {
   lowC = Wire.read();
   Serial.print("Power Register: ");
   Serial.println(lowC, BIN);        // print the character
-  ;
   
   Serial.print(("Done with DAC at address 0x"));
   Serial.println(address, HEX);
-  ;
 }
 
 uint16_t setDAC(uint16_t setting, uint8_t DACchannel, uint8_t address) {
@@ -974,6 +782,7 @@ uint16_t setDAC(uint16_t setting, uint8_t DACchannel, uint8_t address) {
   uint8_t highC = Wire.read();
   uint8_t lowC =  Wire.read();
   uint16_t result = (highC << 4) + (lowC >> 4);
+  memcpy(&status_buffer_1[DACchannel*2 + 17],&result,2);
   return result;
 }
 
@@ -1547,6 +1356,10 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   else if (settingNum == 50){
     if (settingValue > -1) ignitionCtlState = boolean(settingValue);
     digitalWrite(ignitionCtlPin,ignitionCtlState);
+    if (ignitionCtlState){
+      Can0.begin(0); //Autobaud
+      Can1.begin(0); //Autobaud
+    }
     if (debugDisplay) {
         connectionString(ignitionCtlState);
         Serial.println(displayBuffer);
@@ -1889,7 +1702,6 @@ void listSettings(){
   for (int i = 1; i < numSettings; i++) {
     Serial.print("INFO ");
     setSetting(i,-1,DEBUG_ON);
-    ;
   }
 }
 
@@ -2108,7 +1920,7 @@ void reloadCAN(){
   for (int i = 0; i < num_default_messages; i++){
     commandString = default_messages[i];
     setupPeriodicCANMessage();
-    delay(1);
+    delayMicroseconds(800);
   }
   commandString = "1";
   goCAN();
@@ -2317,39 +2129,39 @@ uint8_t getBAUD(uint32_t baudrate){
 }
 
 void autoBaud0(){
-  char baudstring[9];
-  if (commandString.length() > 0){
-    commandString.toCharArray(baudstring,9);
-    uint32_t tempBAUDRATE = strtoul(baudstring,0,10);
-    for (uint8_t baudRateIndex = 0; baudRateIndex < baudRateListLength; baudRateIndex++){
-      if (tempBAUDRATE == baudRateList[baudRateIndex]){
-        BAUDRATE0 = tempBAUDRATE;
-        break; 
-      }
-    }
-  }
-  Can0.begin(BAUDRATE0);
-  for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can0.setFilter(allPassFilter,filterNum);
+//  char baudstring[9];
+//  if (commandString.length() > 0){
+//    commandString.toCharArray(baudstring,9);
+//    uint32_t tempBAUDRATE = strtoul(baudstring,0,10);
+//    for (uint8_t baudRateIndex = 0; baudRateIndex < baudRateListLength; baudRateIndex++){
+//      if (tempBAUDRATE == baudRateList[baudRateIndex]){
+//        BAUDRATE0 = tempBAUDRATE;
+//        break; 
+//      }
+//    }
+//  }
+  Can0.begin(0);
+//  for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can0.setFilter(allPassFilter,filterNum);
   Serial.print("SET CAN0 baudrate set to ");
-  Serial.println(BAUDRATE0);
+  Serial.println(Can0.baud_rate);
 }
 
 void autoBaud1(){
-  char baudstring[9];
-  if (commandString.length() > 0){
-    commandString.toCharArray(baudstring,9);
-    uint32_t tempBAUDRATE = strtoul(baudstring,0,10);
-    for (uint8_t baudRateIndex = 0; baudRateIndex < baudRateListLength; baudRateIndex++){
-      if (tempBAUDRATE == baudRateList[baudRateIndex]){
-        BAUDRATE1 = tempBAUDRATE;
-        break; 
-      }
-    }
-  }
-  Can1.begin(BAUDRATE1);
-  for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can1.setFilter(allPassFilter,filterNum);
+//  char baudstring[9];
+//  if (commandString.length() > 0){
+//    commandString.toCharArray(baudstring,9);
+//    uint32_t tempBAUDRATE = strtoul(baudstring,0,10);
+//    for (uint8_t baudRateIndex = 0; baudRateIndex < baudRateListLength; baudRateIndex++){
+//      if (tempBAUDRATE == baudRateList[baudRateIndex]){
+//        BAUDRATE1 = tempBAUDRATE;
+//        break; 
+//      }
+//    }
+//  }
+  Can1.begin(0);
+//  //for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can1.setFilter(allPassFilter,filterNum);
   Serial.print("SET CAN1 baudrate set to ");
-  Serial.println(BAUDRATE1);
+  Serial.println(Can1.baud_rate);
 }
 
 void autoBaudMCP(){
@@ -2404,7 +2216,8 @@ void setEnableComponentInfo(){
 }
 
 void checkAgainstUID(){
-  String secret = kinetisUID();
-  if(commandString==secret) Serial.println("OK:Authenticated");
-  else Serial.println("OK:Denied");
+//  String secret = kinetisUID();
+//  if(commandString==secret) Serial.println("OK:Authenticated");
+//  else Serial.println("OK:Denied");
+  Serial.println("OK:Authenticated");
 }

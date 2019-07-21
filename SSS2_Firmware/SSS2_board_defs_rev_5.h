@@ -90,7 +90,7 @@ uint8_t  SPIpotTCONSettings[numSPIpots] ={3,3,3,7,7,3,3,7,7,7,0,0,7,7,7,0};
 const uint8_t numI2Cpots = 3;
 uint8_t  I2CpotWiperSettings[numI2Cpots] = {75,150,225};
 uint8_t  I2CpotTCONSettings[numI2Cpots] = {7,7,7};
-const uint8_t I2CpotAddr[numI2Cpots] = {0x3C,0x3F,0x3D};
+const uint8_t I2CpotAddr[numI2Cpots] = {U28_I2C_ADDR,U29_I2C_ADDR,U30_I2C_ADDR};
 
 const uint8_t numDACs = 8;
 uint16_t DAC2value[numDACs] = {0,0,0,0,512,512,0,0};

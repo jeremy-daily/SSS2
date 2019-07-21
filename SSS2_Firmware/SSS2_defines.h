@@ -1,0 +1,21 @@
+
+#define U1U2P0ASWITCH_LOC          33
+#define U1U2P0ASWITCH_MASK         0x01
+
+#define TERMINATION_SETTINGS_LOC   61
+#define PWM_SETTINGS_LOC           47
+#define CONFIG_SWITCH_SETTINGS_LOC 33
+
+#define U28_I2C_ADDR 0x3C
+#define U29_I2C_ADDR 0x3F
+#define U30_I2C_ADDR 0x3D
+
+#define U28_WIPER_LOC 49
+#define U29_WIPER_LOC 50
+#define U30_WIPER_LOC 51
+
+#define U28_TCON_LOC 17
+#define U29_TCON_LOC 18
+#define U30_TCON_LOC 19
+
+#define VOUT2_ADDR  0x49

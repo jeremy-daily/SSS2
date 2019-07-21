@@ -7,9 +7,9 @@
  * The University of Tulsa
  * Department of Mechanical Engineering
  * 
- * 22 May 2017
- * 19 May 2018
- * 
+ * v 1.0: 22 May 2017
+ * v 1.1: 19 May 2018
+ * v 1.2: 17 July 2019
  * Released under the MIT License
  *
  * Copyright (c) 2017        Jeremy S. Daily
@@ -36,28 +36,35 @@
  * 
  * Uses Arduino 1.8.5 and Teensyduino 1.41
 */
-
+#include "SSS2_defines.h"
 #include "SSS2_board_defs_rev_5.h"
 #include "SSS2_functions.h"
+#include "SSS2_LIN_functions.h"
+#include <FastCRC.h>
+
+FastCRC16 CRC16; 
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*1.1*master*feaf4593b427b5ebe96f3d96ef746ec59d722ef9"; //Hash of the previous git commit
+String softwareVersion = "SSS2*REV" + revision + "*1.2*master*348f71545b30f9d84195847128dfa4baaf6ff4b4"; //Hash of the previous git commit
 
 void listSoftware(){
   Serial.print("FIRMWARE ");
   Serial.println(softwareVersion);
 }
 
+elapsedMillis usb_tx_timer;
+int8_t ret_val;
+uint8_t usb_buffer[65];
+uint8_t timeout = 2;
+
 void setup() {
   SPI.begin();
   SPI1.begin();
   //while(!Serial); //Uncomment for testing
-  
-  if(MCPCAN.begin(MCP_ANY, getBAUD(BAUDRATE_MCP), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
-  else Serial.println("Error Initializing MCP2515...");
-  MCPCAN.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
-
-  
+  status_buffer_1[0] = 1;
+  status_buffer_2[0] = 2;
+  status_buffer_3[0] = 3;
+    
   LIN.begin(19200);
    
   commandString.reserve(256);
@@ -102,28 +109,33 @@ void setup() {
     
   for (int i = 1; i < numSettings; i++) {
     currentSetting = setSetting(i, -1,DEBUG_OFF);
-    setSetting(i, currentSetting ,DEBUG_ON);
+    setSetting(i, currentSetting, DEBUG_OFF);
+    delayMicroseconds(1500);
   }
+  delayMicroseconds(100000);
   listInfo();
 
  
-  
+  if(MCPCAN.begin(MCP_ANY, getBAUD(BAUDRATE_MCP), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
+  else Serial.println("Error Initializing MCP2515...");
+  MCPCAN.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
+
   
 
-  Can0.begin(BAUDRATE0);
-  Can1.begin(BAUDRATE1);
+  Can0.begin(0);
+  Can1.begin(0);
   
   Can0.startStats();
   Can1.startStats();
 
-  //leave the first 4 mailboxes to use the default filter. Just change the higher ones
-  allPassFilter.id=0;
-  allPassFilter.ext=1;
-  allPassFilter.rtr=0;
-  for (uint8_t filterNum = 4; filterNum < 16;filterNum++){
-    Can0.setFilter(allPassFilter,filterNum); 
-    Can1.setFilter(allPassFilter,filterNum); 
-  }
+//  //leave the first 4 mailboxes to use the default filter. Just change the higher ones
+//  allPassFilter.id=0;
+//  allPassFilter.ext=1;
+//  allPassFilter.rtr=0;
+//  for (uint8_t filterNum = 4; filterNum < 16;filterNum++){
+//    Can0.setFilter(allPassFilter,filterNum); 
+//    Can1.setFilter(allPassFilter,filterNum); 
+//  }
 
   txmsg.ext = 1;
   txmsg.len = 8;
@@ -136,7 +148,7 @@ void setup() {
   J1708.begin(9600);
   J1708.clear();
   
-  CANTimer.begin(runCANthreads, 1000); // Run can threads on an interrupt. Produces very little jitter.
+  CANTimer.begin(runCANthreads, 500); // Run can threads on an interrupt. Produces very little jitter.
 
   currentSetting = 1;
   knobLowLimit = 1;
@@ -181,7 +193,6 @@ void loop() {
     for(byte i = 0; i<len; i++) rxmsg.buf[i] = rxBuf[i];
     printFrame(rxmsg, -1, 1, RXCount2);
     }
-  
   }
   
   //Check J1708
@@ -277,7 +288,7 @@ void loop() {
     else if (commandPrefix.equalsIgnoreCase("SENDLIN"))   sendLINselect();    
     else {
       Serial.println(("ERROR Unrecognized Command Characters. Use a comma after the command."));
-      Serial.clear();
+      //Serial.clear();
       //Serial.println(("INFO Known commands are setting numbers, GO, SP, J1708, STOPCAN, STARTCAN, B0, B1, C0, C1, C2, DS, SW, OK, ID, STATS, CLEAR, MK, LI, LS, CI, CS, SA, SS, or SM."));
     }
   }
@@ -333,4 +344,23 @@ void loop() {
   }
   /*             End LED Indicators for messages                        */
   /**********************************************************************/
+
+  /*
+   * Send USB RawHID Status
+   */
+
+  if (usb_tx_timer >= 200){
+    usb_tx_timer = 0;
+    uint16_t checksum1 = CRC16.ccitt(status_buffer_1, 62);
+    memcpy(&status_buffer_1[62], &checksum1, 2);
+    ret_val = RawHID.send(status_buffer_1, timeout);
+    
+    uint16_t checksum2 = CRC16.ccitt(status_buffer_2, 62);
+    memcpy(&status_buffer_2[62], &checksum2, 2);
+    ret_val = RawHID.send(status_buffer_2, timeout);
+    
+    uint16_t checksum3 = CRC16.ccitt(status_buffer_3, 62);
+    memcpy(&status_buffer_3[62], &checksum3, 2);
+    ret_val = RawHID.send(status_buffer_3, timeout);
+  }
 }
