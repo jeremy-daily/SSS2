@@ -1,3 +1,12 @@
+#define USB_FRAME_TYPE_MASK 0xF0
+#define USB_FRAME_TYPE_LOC     0
+#define STATUS_TYPE         0x00
+#define COMMAND_TYPE        0x10
+#define MESSAGE_TYPE        0x20
+#define ESCAPE_TYPE         0x80
+
+
+
 
 #define U1U2P0ASWITCH_LOC          33
 #define U1U2P0ASWITCH_MASK         0x01
@@ -19,3 +28,21 @@
 #define U30_TCON_LOC 19
 
 #define VOUT2_ADDR  0x49
+
+#define CAN0_RX_COUNT_LOC 29
+#define CAN1_RX_COUNT_LOC 33
+#define CAN2_RX_COUNT_LOC 37
+#define CAN0_TX_COUNT_LOC 41
+#define CAN1_TX_COUNT_LOC 45
+#define CAN2_TX_COUNT_LOC 49
+#define J1708_RX_COUNT_LOC 53
+#define LIN_RX_COUNT_LOC 55
+#define NET_STATUS_LOC 59
+#define SERIAL_NUM_LOC 60
+#define CRC_LOC 62
+
+#define CAN0_BAUD_LOC 20
+#define CAN1_BAUD_LOC 21
+#define CAN2_BAUD_LOC 22
+
+#define ANALOG_OUT_START_LOC 11

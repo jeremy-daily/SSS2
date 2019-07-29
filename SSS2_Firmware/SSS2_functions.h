@@ -65,7 +65,6 @@ uint8_t status_buffer_1[64];
 uint8_t status_buffer_2[64];
 uint8_t status_buffer_3[64];
 
-
 long unsigned int rxId;
 unsigned char len = 0;
 unsigned char rxBuf[8];
@@ -188,6 +187,7 @@ static CAN_message_t temp_txmsg;
 uint32_t RXCount0 = 0;
 uint32_t RXCount1 = 0;
 uint32_t RXCount2 = 0;
+uint32_t J1708RXCount = 0;
 
 int CANWaitTimeout = 200;
 uint32_t BAUDRATE0 = 250000;
@@ -1517,7 +1517,6 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     }
     return terminalConnection;
   }
-
   else if (settingNum >= 81 && settingNum <= 85 ){
     if (settingValue > -1)  pwmFrequency[settingNum-81] = uint16_t(settingValue);
     analogWriteFrequency(PWMPins[settingNum-81], float(pwmFrequency[settingNum-81]));
@@ -1550,7 +1549,6 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) Serial.println(pwmValue[5]);
     return pwmValue[5];
   }
-
   else if (settingNum == 89) {
     if (settingValue > -1) PWM5Out = boolean(settingValue);
     setTerminationSwitches();
@@ -1600,7 +1598,6 @@ void setCompIdEEPROMdata () {
   Serial.println(componentID);
 }
 
-
 void getCompIdEEPROMdata () {
   char id[256];
   EEPROM.get(componentIDAddress, id);
@@ -1613,7 +1610,6 @@ void getCompIdEEPROMdata () {
     Serial.println(componentID);
   }
 }
-
 
 void displayJ1708(){
   showJ1708 = bool(commandString.toInt());
@@ -1668,11 +1664,9 @@ void fastSetSetting(){
     Serial.print("SET ");
     Serial.print(currentSetting);
     Serial.print(",");
-    Serial.println(returnval); 
-    ; 
+    Serial.println(returnval);
   }
   else Serial.println(("ERROR in setting value."));
-  
 }
 
 void changeSetting() {
@@ -1759,10 +1753,6 @@ void startStopCAN2Streaming(){
   else  displayCAN2 = false;
 }
 
-
-
-
-
 void sendMessage(){
   /* Sends a CAN message from the following string fields:
    *  channel,id,data
@@ -1782,11 +1772,11 @@ void sendMessage(){
   char *endptr;
   if (commandString.length() > 0) {
     commandString.toCharArray(commandCharBuffer,commandString.length());
-    int channel;
-    if (commandCharBuffer[0]=='1') channel = 1;
-    else if (commandCharBuffer[0]=='0') channel = 0;
-     else if (commandCharBuffer[0]=='2') channel = 2;
-    else channel = -1;
+    int8_t can_channel;
+    if (commandCharBuffer[0]=='1') can_channel = 1;
+    else if (commandCharBuffer[0]=='0') can_channel = 0;
+    else if (commandCharBuffer[0]=='2') can_channel = 2;
+    else can_channel = -1;
     
     //Serial.print(channel);  
     
@@ -1857,7 +1847,6 @@ void sendMessage(){
   txmsg.ext = 1; //set default
   txmsg.len = 8;
 }
-
 
 void setupComponentInfo(){
    char byteEntry[4];
@@ -1964,13 +1953,8 @@ void parseJ1939(CAN_message_t &rxmsg ){
 
 
 //A generic CAN Frame print function for the Serial terminal
-void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCount)
+void printFrame(CAN_message_t rxmsg, uint8_t can_channel, uint32_t RXCount)
 { 
-
-// Serial.printf("CAN%d %10lu.%06lu %08X %d %d %02X %02X %02X %02X %02X %02X %02X %02X\n",
-//          channel,now(),uint32_t(microsecondsPerSecond),rxmsg.id,rxmsg.ext,rxmsg.len,
-//          rxmsg.buf[0],rxmsg.buf[1],rxmsg.buf[2],rxmsg.buf[3],
-//          rxmsg.buf[4],rxmsg.buf[5],rxmsg.buf[6],rxmsg.buf[7]);
   uint32_t timestamp=uint32_t(now());
   //21 Byte frame
   Serial.print("CAN");
@@ -1978,7 +1962,7 @@ void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCo
   Serial.write((timestamp & 0x00FF0000) >> 16);
   Serial.write((timestamp & 0x0000FF00) >> 8);
   Serial.write((timestamp & 0x000000FF));
-  Serial.write(channel);
+  Serial.write(can_channel);
   Serial.write((uint32_t(microsecondsPerSecond) & 0x00FF0000) >> 16);
   Serial.write((uint32_t(microsecondsPerSecond) & 0x0000FF00) >> 8);
   Serial.write((uint32_t(microsecondsPerSecond) & 0x000000FF));
@@ -1996,9 +1980,7 @@ void printFrame(CAN_message_t rxmsg, int mailbox, uint8_t channel, uint32_t RXCo
   Serial.write(rxmsg.buf[6]);
   Serial.write(rxmsg.buf[7]);
   Serial.print("\n");
-  
 }
-
 
 time_t getTeensy3Time(){
   microsecondsPerSecond = 0;
@@ -2063,17 +2045,14 @@ void displayStats(){
 void clearStats(){
   Can0.clearStats();
   Can1.clearStats();
-  
   Can0.startStats();
   Can1.startStats();
-  
   Serial.println("INFO Cleared CAN Statisitics");
 }
 
 void listInfo() {
   Serial.print("INFO SSS2 Component ID (Make*Model*Serial*Unit): ");
   Serial.println(componentID);
-  
 }
 
 void changeComponentID() {
@@ -2124,44 +2103,60 @@ uint8_t getBAUD(uint32_t baudrate){
     case (200000):
       return CAN_200KBPS;
     default:
-      return CAN_250KBPS;
+      return 0xFF;
+  }
+}
+
+uint32_t setBAUD(uint8_t baudindex){
+  switch (baudindex)
+  {
+    case (CAN_250KBPS):
+      return 250000;
+    case (CAN_500KBPS):
+      return 500000;
+    case (CAN_125KBPS):
+      return 125000;
+    case (CAN_666KBPS):
+      return 666666;
+    case (CAN_1000KBPS):
+      return 1000000;
+    case (CAN_4K096BPS):
+      return 4096;
+    case (CAN_5KBPS):
+      return 5000;
+    case (CAN_10KBPS):
+      return 10000;
+    case (CAN_20KBPS):
+      return 20000;
+    case (CAN_31K25BPS):
+      return 31250;
+    case (CAN_40KBPS):
+      return 40000;
+    case (CAN_50KBPS):
+      return 50000;
+    case (CAN_80KBPS):
+      return 80000;
+    case (CAN_100KBPS):
+      return 100000;
+    case (CAN_200KBPS):
+      return 200000;
+    default:
+      return 0xFFFFFFFF;
   }
 }
 
 void autoBaud0(){
-//  char baudstring[9];
-//  if (commandString.length() > 0){
-//    commandString.toCharArray(baudstring,9);
-//    uint32_t tempBAUDRATE = strtoul(baudstring,0,10);
-//    for (uint8_t baudRateIndex = 0; baudRateIndex < baudRateListLength; baudRateIndex++){
-//      if (tempBAUDRATE == baudRateList[baudRateIndex]){
-//        BAUDRATE0 = tempBAUDRATE;
-//        break; 
-//      }
-//    }
-//  }
   Can0.begin(0);
-//  for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can0.setFilter(allPassFilter,filterNum);
   Serial.print("SET CAN0 baudrate set to ");
   Serial.println(Can0.baud_rate);
+  status_buffer_2[CAN0_BAUD_LOC] = getBAUD(Can0.baud_rate);
 }
 
 void autoBaud1(){
-//  char baudstring[9];
-//  if (commandString.length() > 0){
-//    commandString.toCharArray(baudstring,9);
-//    uint32_t tempBAUDRATE = strtoul(baudstring,0,10);
-//    for (uint8_t baudRateIndex = 0; baudRateIndex < baudRateListLength; baudRateIndex++){
-//      if (tempBAUDRATE == baudRateList[baudRateIndex]){
-//        BAUDRATE1 = tempBAUDRATE;
-//        break; 
-//      }
-//    }
-//  }
   Can1.begin(0);
-//  //for (uint8_t filterNum = 4; filterNum < 16;filterNum++) Can1.setFilter(allPassFilter,filterNum);
   Serial.print("SET CAN1 baudrate set to ");
   Serial.println(Can1.baud_rate);
+  status_buffer_2[CAN1_BAUD_LOC] = getBAUD(Can1.baud_rate);
 }
 
 void autoBaudMCP(){
@@ -2180,8 +2175,8 @@ void autoBaudMCP(){
   else Serial.println("Error Initializing MCP2515...");
   Serial.print("SET MCPCAN baudrate set to ");
   Serial.println(BAUDRATE_MCP);
+  status_buffer_2[CAN2_BAUD_LOC] = getBAUD(BAUDRATE_MCP);
 }
-
 
 void displayBaud(){
   Serial.print("INFO CAN0 Baudrate ");
@@ -2191,6 +2186,7 @@ void displayBaud(){
   Serial.print("INFO MCPCAN Baudrate ");
   Serial.println(BAUDRATE_MCP);  
 }
+
 void setEnableComponentInfo(){
   if (commandString.toInt() > 0){
     setupComponentInfo();
@@ -2205,19 +2201,18 @@ void setEnableComponentInfo(){
       can_messages[comp_id_index]->cycle_count = 0;
       can_messages[comp_id_index]->message_index = 0;
     }
-  
   }
   else{
     enableSendComponentInfo = false;
     Serial.println(("SET Disable CAN transmission of Component ID"));  
     can_messages[comp_id_index]->enabled = false;
   }
-  
+}
+
+void getTeensyTime(){
+  Serial.printf("INFO Timestamp: %D\n",now());
 }
 
 void checkAgainstUID(){
-//  String secret = kinetisUID();
-//  if(commandString==secret) Serial.println("OK:Authenticated");
-//  else Serial.println("OK:Denied");
   Serial.println("OK:Authenticated");
 }
