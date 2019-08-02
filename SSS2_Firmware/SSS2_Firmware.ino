@@ -12,7 +12,7 @@
  * v 1.2: 17 July 2019
  * Released under the MIT License
  *
- * Copyright (c) 2017        Jeremy S. Daily
+ * Copyright (c) 2017,2019        Jeremy S. Daily
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,9 +40,9 @@
 #include "SSS2_board_defs_rev_5.h"
 #include "SSS2_functions.h"
 #include "SSS2_LIN_functions.h"
-#include "FastCRC.h"
 
-FastCRC16 CRC16; 
+
+char serial_buffer[64];
 
 //softwareVersion
 String softwareVersion = "SSS2*REV" + revision + "*1.2*master*348f71545b30f9d84195847128dfa4baaf6ff4b4"; //Hash of the previous git commit
@@ -249,21 +249,41 @@ void loop() {
 
   /****************************************************************/
   /*            Begin Serial Command Processing                   */
-//  if (Serial.available() >= 2 && Serial.available() < 256) {
-//    commandPrefix = Serial.readStringUntil(',');
-//    commandString = Serial.readStringUntil('\n');
-  int n;
-  n = RawHID.recv(usb_hid_rx_buffer,0);
+  uint8_t n;
+  if (Serial.available() >= 2) {
+    // This section makes the SSS2 backwards compatible. 
+    memset(serial_buffer,0,64);
+    serial_buffer[0]=COMMAND_TYPE;
+    n=1;
+    while (n < 64){
+      char c = Serial.read();
+      if (c == '\n'){
+        n=64;
+      }
+      else{
+        serial_buffer[n] = c;
+        n++;
+      }
+      Serial.write(c);
+    }
+    memcpy(&usb_hid_rx_buffer,&serial_buffer,64);
+    uint16_t checksum = CRC16.ccitt(usb_hid_rx_buffer, 62);
+    memcpy(&usb_hid_rx_buffer[62], &checksum, 2);
+    Serial.println(n);
+  }
+  else{
+    n = RawHID.recv(usb_hid_rx_buffer,0);
+  }
   if (n > 0 ){
     // Extract the CRC from the message
     uint16_t crc_message = (usb_hid_rx_buffer[63] << 8) + usb_hid_rx_buffer[62];
     uint16_t crc = CRC16.ccitt(usb_hid_rx_buffer, 62);
-    //Serial.print("CRC: ");
-    //Serial.print(crc_message);
-    //Serial.print(" ?=? ");
-    //Serial.println(crc);
-    //for (uint8_t i = 0; i < n; i++) Serial.write(usb_hid_rx_buffer[i]);
-    //Serial.println();
+    Serial.print("CRC: ");
+    Serial.print(crc_message);
+    Serial.print(" ?=? ");
+    Serial.println(crc);
+    for (uint8_t i = 0; i < n; i++) Serial.write(usb_hid_rx_buffer[i]);
+    Serial.println();
     if ((usb_hid_rx_buffer[USB_FRAME_TYPE_LOC] & USB_FRAME_TYPE_MASK) == COMMAND_TYPE
          && crc_message == crc){
       uint8_t myByteArray[61];
@@ -312,7 +332,9 @@ void loop() {
         else if (commandPrefix.equalsIgnoreCase("TIME"))      displayTime();
         else if (commandPrefix.equalsIgnoreCase("GETTIME"))   getTeensyTime();
         else if (commandPrefix.equalsIgnoreCase("LIN"))       displayLIN();
-        else if (commandPrefix.equalsIgnoreCase("SENDLIN"))   sendLINselect();    
+        else if (commandPrefix.equalsIgnoreCase("SENDLIN"))   sendLINselect(); 
+        else if (commandPrefix.equalsIgnoreCase("LOAD"))      load_settings();
+        else if (commandPrefix.equalsIgnoreCase("SAVE"))      save_settings();
         else {
           Serial.println(("ERROR Unrecognized Command Characters."));
         }

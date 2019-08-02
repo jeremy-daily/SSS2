@@ -42,7 +42,7 @@
 
 String make = "SYNER";
 String model = "SSS2";
-String revision = "05";
+String revision = "05a";
 String serial_number ="XXXX";
 String componentID = make + "*" + model + "-" + revision + "*" + serial_number + "*UNIVERSAL";
 
@@ -76,7 +76,7 @@ uint16_t pwmFrequency[numPWMs] = {200,210,220,230,240,250};
 
 const uint8_t numADCs = 6;
 const int8_t analogInPins[numADCs]= {A21,A1,A0,A6,A11,A22};
-int analog_display_period = 100;
+uint32_t analog_display_period = 100;
 
 //int analogPeriod = 100; //milliseconds
 

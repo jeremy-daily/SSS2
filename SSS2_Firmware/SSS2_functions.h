@@ -60,10 +60,17 @@
 #include "Thread.h"
 #include "ThreadController.h"
 #include "MCP23017.h" 
+#include "FastCRC.h"
+
+FastCRC16 CRC16; 
 
 uint8_t status_buffer_1[64];
 uint8_t status_buffer_2[64];
 uint8_t status_buffer_3[64];
+
+#define STATUS_BUFFER_1_ADDR 64 
+#define STATUS_BUFFER_2_ADDR 128 
+#define STATUS_BUFFER_3_ADDR 192 
 
 long unsigned int rxId;
 unsigned char len = 0;
@@ -126,6 +133,53 @@ uint8_t J1708_index=0;
 uint32_t shortest_period = 10;
 
 const int allFFs[8] = {255,255,255,255,255,255,255,255};
+
+void save_settings(){
+  //Calculate CheckSums
+  uint16_t checksum1 = CRC16.ccitt(status_buffer_1, 62);
+  memcpy(&status_buffer_1[62], &checksum1, 2);
+  uint16_t checksum2 = CRC16.ccitt(status_buffer_2, 62);
+  memcpy(&status_buffer_2[62], &checksum2, 2);
+  uint16_t checksum3 = CRC16.ccitt(status_buffer_3, 62);
+  memcpy(&status_buffer_3[62], &checksum3, 2);
+
+  EEPROM.put(STATUS_BUFFER_1_ADDR,status_buffer_1);
+  EEPROM.put(STATUS_BUFFER_2_ADDR,status_buffer_2);
+  EEPROM.put(STATUS_BUFFER_3_ADDR,status_buffer_3);
+
+  Serial.println("Saved Settings.");
+}
+
+bool load_settings(){
+  //Calculate CheckSums
+
+  EEPROM.get(STATUS_BUFFER_1_ADDR,status_buffer_1);
+  EEPROM.get(STATUS_BUFFER_2_ADDR,status_buffer_2);
+  EEPROM.get(STATUS_BUFFER_3_ADDR,status_buffer_3);
+
+  bool checksumOK = true;
+  uint16_t checksum1 = CRC16.ccitt(status_buffer_1, 62);
+  if (status_buffer_1[62] != (checksum1 & 0xFF00) >> 8) checksumOK = false;
+  if (status_buffer_1[63] != (checksum1 & 0x00FF) >> 0) checksumOK = false;
+  
+  uint16_t checksum2 = CRC16.ccitt(status_buffer_2, 62);
+  if (status_buffer_2[62] != (checksum2 & 0xFF00) >> 8) checksumOK = false;
+  if (status_buffer_2[63] != (checksum2 & 0x00FF) >> 0) checksumOK = false;
+  
+  uint16_t checksum3 = CRC16.ccitt(status_buffer_3, 62);
+  if (status_buffer_3[62] != (checksum3 & 0xFF00) >> 8) checksumOK = false;
+  if (status_buffer_3[63] != (checksum3 & 0x00FF) >> 0) checksumOK = false;
+  
+  if (checksumOK){
+    Serial.println("Successfully loaded and verified settings from EEPROM.");
+  }
+  else{
+    Serial.println("The checksum failed when loading settings from EEPROM.");
+  }
+  return checksumOK;
+}
+
+
 /****************************************************************/
 /*                    Quadrature Knob Setup                     */
 
@@ -1357,13 +1411,18 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (settingValue > -1) ignitionCtlState = boolean(settingValue);
     digitalWrite(ignitionCtlPin,ignitionCtlState);
     if (ignitionCtlState){
+      status_buffer_1[HBRIDGE_LOC] |= IGNITION_RELAY_MASK; //Set the bit
       Can0.begin(0); //Autobaud
       Can1.begin(0); //Autobaud
+    }
+    else{
+      status_buffer_1[HBRIDGE_LOC] &= ~(IGNITION_RELAY_MASK); //clear the bit
     }
     if (debugDisplay) {
         connectionString(ignitionCtlState);
         Serial.println(displayBuffer);
     }
+    
     return ignitionCtlState;
   } 
   else if (settingNum >  50 && settingNum <= 66) {
@@ -1727,14 +1786,15 @@ void longPressStart() {
   fastSetSetting();
 }
 
-void myClickFunction() {
-  turnOffAdjustMode();
-  }
-void myDoubleClickFunction() {}
+void myClickFunction() {}
+void myDoubleClickFunction() {
+  save_settings();
+}
 void longPress() {} //Do nothing at this time.
 void longPressStop() {} 
 /*                         End Function Calls for Knob Buttons                            */
 /********************************************************************************************/
+
 
 
 
@@ -1831,9 +1891,9 @@ void sendMessage(){
     }
     
     if (goodData && goodID ){
-      if (channel == 0) Can0.write(txmsg);
-      else if (channel == 1) Can1.write(txmsg);
-      else if (channel == 2) MCPCAN.sendMsgBuf(txmsg.id,txmsg.ext,txmsg.len,txmsg.buf);
+      if      (can_channel == 0) Can0.write(txmsg);
+      else if (can_channel == 1) Can1.write(txmsg);
+      else if (can_channel == 2) MCPCAN.sendMsgBuf(txmsg.id,txmsg.ext,txmsg.len,txmsg.buf);
       else Serial.println("ERROR Invalid Channel for CANSEND.");
     }
     
