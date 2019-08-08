@@ -38,7 +38,6 @@
  * Teensyduino 1.35 https://www.pjrc.com/teensy/td_download.html
  * 
  * Libraries not included in the Arduino and Teensyduino environment include:
- * Adafruit_MCP23017 - https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library
  * OneButton - https://github.com/mathertel/OneButton
  * FlexCAN - https://github.com/collin80/FlexCAN_Library
  * Thread - https://github.com/ivanseidel/ArduinoThread
@@ -57,10 +56,10 @@
 #include "FlexCAN.h"
 #include <TimeLib.h>
 #include <TeensyID.h>
+#include "FastCRC.h"
 #include "Thread.h"
 #include "ThreadController.h"
-#include "MCP23017.h" 
-#include "FastCRC.h"
+
 
 FastCRC16 CRC16; 
 
@@ -80,9 +79,6 @@ char msgString[128];
 //set up a display buffer
 char displayBuffer[100];
 
-Adafruit_MCP23017 ConfigExpander; //U21
-Adafruit_MCP23017 PotExpander; //U33
-
 IntervalTimer CANTimer;
 
 MCP_CAN MCPCAN(CSCANPin);
@@ -93,7 +89,7 @@ uint32_t uid[4];
 String commandPrefix;
 String commandString;
 
-#define numSettings  93
+#define numSettings  96
 uint8_t source_address = 0xFA; 
 
 int comp_id_index = 0;
@@ -620,7 +616,7 @@ uint8_t setTerminationSwitches() {
   digitalWrite(CSconfigAPin, LOW);
   SPI.transfer(terminationSettings);
   digitalWrite(CSconfigAPin, HIGH);
-  status_buffer_1[TERMINATION_SETTINGS_LOC] = terminationSettings;
+  status_buffer_2[TERMINATION_SETTINGS_LOC] = terminationSettings;
   return terminationSettings;
 }
 
@@ -657,16 +653,27 @@ void getPWMSwitches(uint8_t PWMSettings) {
   PWM4Out    = (PWMSettings & 0b10000000) >> 7;
 }
 
-uint16_t setConfigSwitches() {
+void setConfigSwitches() {
   //Set the termination Switches of U21 on Rev 3 based on the boolean values of the variables representing the GPIO pins of U21
 
-  uint16_t configSwitchSettings =  
+  uint8_t configSwitchSettingsA =  
               LIN1Switch | LIN2Switch  << 1 | P10or19Switch << 2 |  P15or18Switch << 3 | !U1though8Enable << 4 | !U9though16Enable << 5 |
-              CAN1Switch << 6 | CAN2Switch << 7 | U1U2P0ASwitch << 8 |  U3U4P0ASwitch  << 9 |  U5U6P0ASwitch  << 10 | U7U8P0ASwitch << 11 |
-              U9U10P0ASwitch << 12 | U11U12P0ASwitch << 13 | U13U14P0ASwitch << 14 | U15U16P0ASwitch << 15;
-  ConfigExpander.writeGPIOAB(configSwitchSettings);
-  memcpy(&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],&configSwitchSettings,2);
-  return configSwitchSettings;
+              CAN1Switch << 6 | CAN2Switch << 7;
+  Wire.beginTransmission(configExpanderAddr); 
+  Wire.write(uint8_t(MCP23017_GPIOA)); // sends instruction byte  
+  Wire.write(uint8_t(configSwitchSettingsA));     // sends potentiometer value byte  
+  Wire.endTransmission();
+
+  uint8_t configSwitchSettingsB =  
+              U1U2P0ASwitch |  U3U4P0ASwitch  << 1 |  U5U6P0ASwitch  << 2 | U7U8P0ASwitch << 3 |
+              U9U10P0ASwitch << 4 | U11U12P0ASwitch << 5 | U13U14P0ASwitch << 6 | U15U16P0ASwitch << 7;
+  Wire.beginTransmission(configExpanderAddr); 
+  Wire.write(uint8_t(MCP23017_GPIOB)); // sends instruction byte  
+  Wire.write(uint8_t(configSwitchSettingsB));     // sends potentiometer value byte  
+  Wire.endTransmission();
+
+  uint16_t configSwitchSettings = (configSwitchSettingsB << 8) + configSwitchSettingsA;
+  memcpy(&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],&configSwitchSettings,2);  
 }
 
 void getConfigSwitches(uint16_t configSwitchSettings) {
@@ -699,34 +706,78 @@ void getConfigSwitches(uint16_t configSwitchSettings) {
 /*   Begin Function Calls for Digital Potentiometer             */
   
 uint8_t MCP41HVExtender_SetTerminals(uint8_t pin, uint8_t TCON_Value) {
-  PotExpander.writeGPIOAB(~(1 << pin));
-  delayMicroseconds(800);
+   if (pin < 8){
+    Wire.beginTransmission(potExpanderAddr); 
+    Wire.write(uint8_t(MCP23017_GPIOA)); // sends instruction byte  
+    Wire.write(uint8_t(~(1 << pin)));     // sends potentiometer value byte  
+    Wire.endTransmission();
+   }
+   else{
+    Wire.beginTransmission(potExpanderAddr); 
+    Wire.write(uint8_t(MCP23017_GPIOB)); // sends instruction byte  
+    Wire.write(uint8_t(~(1 << (pin - 8))));     // sends potentiometer value byte  
+    Wire.endTransmission();
+  }
+  
+  delay(1);
   SPI.transfer(0x40); //Write to TCON Register
   SPI.transfer(TCON_Value + 8);
   SPI.transfer(0x4C); //Read Command
   uint8_t result = SPI.transfer(0xFF); //Read Terminal Connection (TCON) Register
-  PotExpander.writeGPIOAB(0xFF);
+  if (pin < 8){
+    Wire.beginTransmission(potExpanderAddr); 
+    Wire.write(uint8_t(MCP23017_GPIOA)); // sends instruction byte  
+    Wire.write(uint8_t(0xFF));     // sends potentiometer value byte  
+    Wire.endTransmission();
+  }
+  else{
+    Wire.beginTransmission(potExpanderAddr); 
+    Wire.write(uint8_t(MCP23017_GPIOB)); // sends instruction byte  
+    Wire.write(uint8_t(0xFF));     // sends potentiometer value byte  
+    Wire.endTransmission();
+  }
   status_buffer_2[pin+1] = result & 0x07;
   return result & 0x07;
 }
 
-
-
 uint8_t MCP41HVExtender_SetWiper(uint8_t pin, uint8_t potValue)
 {
-  PotExpander.writeGPIOAB(~(1 << pin));
-  delayMicroseconds(800);
+  if (pin < 8){
+    Wire.beginTransmission(potExpanderAddr); 
+    Wire.write(uint8_t(MCP23017_GPIOA)); // sends instruction byte  
+    Wire.write(uint8_t(~(1 << pin)));     // sends potentiometer value byte  
+    Wire.endTransmission();
+  }
+  else{
+    Wire.beginTransmission(potExpanderAddr); 
+    Wire.write(uint8_t(MCP23017_GPIOB)); // sends instruction byte  
+    Wire.write(uint8_t(~(1 << (pin - 8))));     // sends potentiometer value byte  
+    Wire.endTransmission();
+  }
+  
+  delay(1);
   SPI.transfer(0x00); //Write to wiper Register
   SPI.transfer(potValue);
   SPI.transfer(0x0C); //Read command
   uint8_t result = SPI.transfer(0xFF); //Read Wiper Register
-  PotExpander.writeGPIOAB(0xFF);
+  
+  if (pin < 8){
+    Wire.beginTransmission(potExpanderAddr); 
+    Wire.write(uint8_t(MCP23017_GPIOA)); // sends instruction byte  
+    Wire.write(uint8_t(0xFF));     // sends potentiometer value byte  
+    Wire.endTransmission();
+  }
+  else{
+    Wire.beginTransmission(potExpanderAddr); 
+    Wire.write(uint8_t(MCP23017_GPIOB)); // sends instruction byte  
+    Wire.write(uint8_t(0xFF));     // sends potentiometer value byte  
+    Wire.endTransmission();
+  }
   status_buffer_1[pin+1] = result;
   return result;
 } 
 
 uint8_t MCP41HVI2C_SetTerminals(uint8_t addr, uint8_t TCON_Value) {
-  
   Wire.beginTransmission(addr); 
   Wire.write(byte(0x40));            // sends instruction byte  
   Wire.write(0xF8 | TCON_Value);     // sends potentiometer value byte  
@@ -735,9 +786,9 @@ uint8_t MCP41HVI2C_SetTerminals(uint8_t addr, uint8_t TCON_Value) {
   Wire.requestFrom(addr,2);     // request bytes from slave device
   uint8_t result = Wire.read(); //Read Wiper Register
   result = Wire.read() & 0x07; //Read Wiper Register
-  if      (addr == U28_I2C_ADDR) status_buffer_2[U28_TCON_LOC] = result;
-  else if (addr == U29_I2C_ADDR) status_buffer_2[U29_TCON_LOC] = result;
-  else if (addr == U30_I2C_ADDR) status_buffer_2[U30_TCON_LOC] = result;
+  if      (addr == U34_I2C_ADDR) status_buffer_2[U34_TCON_LOC] = result;
+  else if (addr == U36_I2C_ADDR) status_buffer_2[U36_TCON_LOC] = result;
+  else if (addr == U37_I2C_ADDR) status_buffer_2[U37_TCON_LOC] = result;
   return result;
 }
 
@@ -748,12 +799,13 @@ uint8_t MCP41HVI2C_SetWiper(uint8_t addr, uint8_t potValue)
   Wire.write(potValue);             // sends potentiometer value byte  
   Wire.endTransmission();
 
-  Wire.requestFrom(addr,2);    // request 6 bytes from slave device #8
-  uint8_t result = Wire.read(); //Read Wiper Register, first byt is all 0
+  Wire.requestFrom(addr,2);    // request 2 bytes from slave device #8
+  uint8_t result = Wire.read(); //Read Wiper Register, first byte is all 0
   result = Wire.read(); //Read Wiper Register
-  if      (addr == U28_I2C_ADDR) status_buffer_1[U28_WIPER_LOC] = result;
-  else if (addr == U29_I2C_ADDR) status_buffer_2[U29_WIPER_LOC] = result;
-  else if (addr == U30_I2C_ADDR) status_buffer_2[U30_WIPER_LOC] = result;
+  if      (addr == U34_I2C_ADDR) status_buffer_1[U34_WIPER_LOC] = result;
+  else if (addr == U36_I2C_ADDR) status_buffer_1[U36_WIPER_LOC] = result;
+  else if (addr == U37_I2C_ADDR) status_buffer_1[U37_WIPER_LOC] = result;
+  else if (addr == HVoutAdjAddr) status_buffer_1[HVADJOUT_LOC]  = result;
   return result;
 } 
 
@@ -822,6 +874,7 @@ void initializeDACs(uint8_t address) {
 }
 
 uint16_t setDAC(uint16_t setting, uint8_t DACchannel, uint8_t address) {
+  setting = setting * 0.811577603149; //Conversion constant to get close to millivolts
   Wire.beginTransmission(address);   // Slave address
   Wire.write(0b00100000 + DACchannel);
   Wire.write((setting & 0x0FF0) >> 4);
@@ -835,7 +888,7 @@ uint16_t setDAC(uint16_t setting, uint8_t DACchannel, uint8_t address) {
   Wire.requestFrom(address, 2);
   uint8_t highC = Wire.read();
   uint8_t lowC =  Wire.read();
-  uint16_t result = (highC << 4) + (lowC >> 4);
+  uint16_t result = ((highC << 4) + (lowC >> 4))*1.232168059; //Show millivolts 
   memcpy(&status_buffer_1[DACchannel*2 + 17],&result,2);
   return result;
 }
@@ -955,7 +1008,11 @@ char settingNames[numSettings][40] = {
   "PWM 5 Connect", 
   "PWM 6 Connect", 
   "CAN1 Connect",
-  "CAN2 Connect"
+  "CAN2 Connect",
+
+  "CAN0 Resistor 2",
+  "CAN1 Resistor 2",
+  "CAN2 Resistor 2",
 };
 
 char settingPins[numSettings][40] = {
@@ -1062,7 +1119,10 @@ char settingPins[numSettings][40] = {
   "Port 2 (J24-2)",
   "Port 1 (J24-1)",
   "Ports 3 and 4 (J24-3 and 4)",
-  "(J18-15 and J18-16)"
+  "(J18-15 and J18-16)",
+  "R3",
+  "R4",
+  "R16",
 };
 
 
@@ -1074,7 +1134,7 @@ void setLimits(uint8_t settingNum) {
   }
   else if (settingNum > 16 && settingNum <= 24) {
     knobLowLimit = 0;
-    knobHighLimit = 4095;
+    knobHighLimit = 5005;
     knobJump = 20;
   }
   else if (settingNum > 24 && settingNum <= 32) {
@@ -1084,7 +1144,7 @@ void setLimits(uint8_t settingNum) {
   }
   else if (settingNum > 32 && settingNum <= 36) {
     knobLowLimit = 0;
-    knobHighLimit = 4096;
+    knobHighLimit = 5005;
     knobJump = 1;
   }
   else if (settingNum > 36 && settingNum <= 48) {
@@ -1123,7 +1183,12 @@ void setLimits(uint8_t settingNum) {
     knobHighLimit = 7;
     knobJump = 1;
   }
-  else if (settingNum >= 81 && settingNum <= 85) {
+  else if (settingNum >= 81 && settingNum <= 82) {
+    knobLowLimit = 245;
+    knobHighLimit = 65535;
+    knobJump = 1;
+  }
+  else if (settingNum >= 83 && settingNum <= 85) {
     knobLowLimit = 0;
     knobHighLimit = 65535;
     knobJump = 1;
@@ -1138,7 +1203,7 @@ void setLimits(uint8_t settingNum) {
     knobHighLimit = 5000;
     knobJump = 1;
   }
-  else if (settingNum >= 89 || settingNum <= 92) {
+  else if (settingNum >= 89 || settingNum <= 95) {
     knobLowLimit = 0;
     knobHighLimit = 1;
     knobJump = 1;
@@ -1175,16 +1240,14 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
         Serial.print(SPIpotWiperSettings[settingNum - 1]);
         Serial.print(", ");
         Serial.println(w_position);
-        ;
     }
-    return SPIpotWiperSettings[settingNum - 1];
+    return w_position;
   }
   else if (settingNum > 16 && settingNum <= 24) {
     if (settingValue > -1) DAC2value[settingNum - 17] = settingValue;
     setDAC(DAC2value[settingNum - 17], settingNum - 17, Vout2address);
     if (debugDisplay) {
       Serial.println(DAC2value[settingNum - 17]); 
-      ;
     }
     return DAC2value[settingNum - 17];
   }
@@ -1270,13 +1333,13 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum >= 33 && settingNum <= 36 ){
     if (settingValue > -1) pwmValue[settingNum - 33] = uint16_t(settingValue);
-    //analogWriteFrequency(PWMPins[settingNum - 33],pwmFrequency[settingNum - 33]);
-    for (uint8_t i = 0; i<4; i++) analogWrite(PWMPins[i],pwmValue[i]);
+    for (uint8_t i = 0; i < numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
+    uint16_t result = pwmValue[settingNum - 33];
     if (debugDisplay) {
-      Serial.println(pwmValue[settingNum - 33]);
-      ;
+      Serial.println(result);
     }
-    return pwmValue[settingNum - 33];
+    memcpy(&status_buffer_1[(settingNum - 33)*2 + 35],&result,2);
+    return result;
   }
   else if (settingNum == 37){
     if (settingValue > -1) P10or19Switch = boolean(settingValue);
@@ -1350,10 +1413,17 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     }
     return LINmaster;
   }  
-  else if (settingNum == 45)  {
-    if (settingValue > -1) IH1State = boolean(settingValue);
-    if (IH1State) PWM3Out = false;
-    else PWM3Out = true;
+  else if (settingNum == 45 || settingNum == 69)  {
+    if (settingValue > -1 && settingNum == 45) IH1State = boolean(settingValue);
+    if (settingValue > -1 && settingNum == 69) IH1State = !boolean(settingValue);
+    if (IH1State){
+      PWM3Out = false;
+      status_buffer_1[HBRIDGE_LOC] |= TWELVE_OUT_1_MASK; 
+    }
+    else {
+      status_buffer_1[HBRIDGE_LOC] &= ~TWELVE_OUT_1_MASK;
+      PWM3Out = true;
+    }
     
     setPWMSwitches();
     digitalWrite(IH1Pin,IH1State);
@@ -1361,8 +1431,9 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
         connectionString(IH1State);
         Serial.println(displayBuffer);
     }
+    
     return IH1State;
-  }  
+  }
   else if (settingNum == 46) {
     if (settingValue > -1) IH2State = boolean(settingValue);
     if (IH2State) MCP41HVExtender_SetTerminals(11, 0); //Turn off all terminals on Pot 11
@@ -1399,13 +1470,13 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 49) {
     if (settingValue > -1) HVoutAdjValue = uint8_t(settingValue);
-    uint8_t position = MCP41HVI2C_SetWiper(HVoutAdjAddr,HVoutAdjValue);
+    uint8_t ret_value = MCP41HVI2C_SetWiper(HVoutAdjAddr,HVoutAdjValue);
     if (debugDisplay) {
-        Serial.print(position);
+        Serial.print(HVoutAdjValue);
         Serial.print(", ");
-        Serial.println(HVoutAdjValue);
+        Serial.println(ret_value);
     }
-    return position;
+    return ret_value;
   }
   else if (settingNum == 50){
     if (settingValue > -1) ignitionCtlState = boolean(settingValue);
@@ -1456,15 +1527,6 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
         Serial.println(displayBuffer);
     }
     return PWM2Out;
-  }  
-  else if (settingNum == 69){
-    if (settingValue > -1) PWM3Out = boolean(settingValue);
-    setPWMSwitches();
-    if (debugDisplay) {
-        connectionString(PWM3Out);
-        Serial.println(displayBuffer);
-    }
-    return PWM3Out;
   }  
   else if (settingNum == 70) {
     if (settingValue > -1) PWM4Out = boolean(settingValue);
@@ -1583,6 +1645,25 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         Serial.println(pwmFrequency[settingNum-81]);
     }
+    if      (settingNum == 81) {
+      pwmFrequency[1] = pwmFrequency[0];
+      memcpy(&status_buffer_1[PWM1_FREQ_LOC],&pwmFrequency[0],2);
+    }
+    else if (settingNum == 82) {
+      pwmFrequency[0] = pwmFrequency[1];
+      memcpy(&status_buffer_1[PWM1_FREQ_LOC],&pwmFrequency[1],2);
+    }
+    else if (settingNum == 83) {
+      pwmFrequency[2] = pwmFrequency[2];
+      memcpy(&status_buffer_1[PWM3_FREQ_LOC],&pwmFrequency[2],2); 
+    }
+    else if (settingNum == 84) {
+      pwmFrequency[2] = pwmFrequency[3];
+      memcpy(&status_buffer_1[PWM3_FREQ_LOC],&pwmFrequency[3],2);
+    }
+    else if (settingNum == 85) {
+      memcpy(&status_buffer_1[PWM5_FREQ_LOC],&pwmFrequency[4],2);
+    }
     return pwmFrequency[settingNum-81];
   }
   else if (settingNum == 86) {
@@ -1596,16 +1677,17 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 87){ //PWM5
     if (settingValue > -1) pwmValue[4] = uint16_t(settingValue);
-    //analogWriteFrequency(PWMPins[4],pwmFrequency[4]);
     for (uint8_t i = 0; i<numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
     if (debugDisplay) Serial.println(pwmValue[4]);
+    memcpy(&status_buffer_1[PWM5_LOC],&pwmValue[4],2);
     return pwmValue[4];
   }
   else if (settingNum == 88){ //PWM6
     if (settingValue > -1) pwmValue[5] = uint16_t(settingValue);
-    //analogWriteFrequency(PWMPins[5],pwmFrequency[5]);
+    analogWriteFrequency(PWMPins[5],pwmFrequency[5]);
     for (uint8_t i = 0; i<numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
     if (debugDisplay) Serial.println(pwmValue[5]);
+    memcpy(&status_buffer_1[PWM6_LOC],&pwmValue[5],2);
     return pwmValue[5];
   }
   else if (settingNum == 89) {
@@ -1643,7 +1725,34 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
         Serial.println(displayBuffer);
     }
     return CAN1out;
-  } 
+  }
+  else if (settingNum == 93){
+    if (settingValue > -1) CAN0term1 = boolean(settingValue);
+    setTerminationSwitches();
+    if (debugDisplay) {
+        connectionString(CAN0term1);
+        Serial.println(displayBuffer);
+    }
+    return CAN0term;
+  }
+  else if (settingNum == 94){
+    if (settingValue > -1) CAN1term1 = boolean(settingValue);
+    setTerminationSwitches();
+    if (debugDisplay) {
+        connectionString(CAN1term1);
+        Serial.println(displayBuffer);
+    }
+    return CAN1term;
+  }
+  else if (settingNum == 95){
+    if (settingValue > -1) CAN2term1 = boolean(settingValue);
+    setTerminationSwitches();
+    if (debugDisplay) {
+        connectionString(CAN2term1);
+        Serial.println(displayBuffer);
+    }
+    return CAN0term;
+  }     
   else return -1;
 }
 /*               End Define Settings                              */
@@ -1709,7 +1818,7 @@ void turnOffAdjustMode() {
 }
 
 void fastSetSetting(){
-  int returnval;
+  uint16_t returnval;
   currentSetting = commandPrefix.toInt();
   if (currentSetting > 0 && currentSetting < numSettings){
     setLimits(currentSetting);

@@ -68,7 +68,7 @@ const int8_t ignitionCtlPin    = 39;
 const uint8_t numPWMs = 4;
 const int8_t PWMPins[numPWMs]     = {16,17,22,23};
 uint16_t pwmValue[numPWMs] = {25,100,19,222};
-uint16_t pwmFrequency[numPWMs] = {200,200,200,200};
+uint16_t pwmFrequency[numPWMs] = {245,245,200,200};
 
 const uint8_t numADCs = 1;
 const int8_t analogInPins[6]= {A21,A22,A0,A2,A6,A11};
@@ -104,8 +104,8 @@ const uint8_t HVoutAdjAddr = 0x3E;
 const uint8_t Vout2address = 0x49;
 const uint8_t Vout3address = -1;
 
-const uint8_t potExpanderAddr = 7;
-const uint8_t configExpanderAddr = 3;
+const uint8_t potExpanderAddr = 7 | 0x20;
+const uint8_t configExpanderAddr = 3 | 0x20;
 
 /*
  * End Default Settings

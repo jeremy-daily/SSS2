@@ -204,8 +204,8 @@ void setup() {
   SPI.begin();
   setPinModes();
 
-  pinMode(18,INPUT_PULLUP);   
-  pinMode(19,INPUT_PULLUP);
+  //pinMode(18,INPUT_PULLUP);   
+  //pinMode(19,INPUT_PULLUP);
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 400000);
   Wire.setDefaultTimeout(10000); // 5ms
 

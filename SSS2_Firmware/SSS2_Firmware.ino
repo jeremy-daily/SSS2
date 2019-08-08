@@ -56,7 +56,7 @@ elapsedMillis usb_tx_timer;
 int8_t ret_val;
 uint8_t usb_buffer[65];
 uint8_t usb_hid_rx_buffer[65];
-uint8_t timeout = 2;
+uint8_t timeout = 0;
 
 void setup() {
   SPI.begin();
@@ -82,21 +82,36 @@ void setup() {
   setPinModes();
   
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 400000);
-  Wire.setDefaultTimeout(20000); // 20ms
-   
-  PotExpander.begin(potExpanderAddr);  //U33
-  ConfigExpander.begin(configExpanderAddr); //U21
-  for (uint8_t i = 0; i<16; i++){
-    PotExpander.pinMode(i,OUTPUT);
-    ConfigExpander.pinMode(i,OUTPUT);
-  }
-  PotExpander.writeGPIOAB(0xFFFF);
-  ConfigExpander.writeGPIOAB(0xFFFF);
+  Wire.setDefaultTimeout(2000); // 2ms
+
+  //Configure the MCP23017
+  const uint8_t BANK   = 0x80;
+  const uint8_t MIRROR = 0x00;
+  const uint8_t SEQOP  = 0x20;
+  const uint8_t DISSLW = 0x10; 
+  const uint8_t HAEN   = 0x08; 
+  const uint8_t ODR    = 0x00; 
+  const uint8_t INTPOL = 0x02;
   
+  Wire.beginTransmission(MCP23017_ADDR); 
+  Wire.write(uint8_t(MCP23017_IOCON)); // sends instruction byte  
+  Wire.write(uint8_t(BANK | MIRROR | SEQOP | DISSLW | HAEN | ODR | INTPOL));     
+  Wire.endTransmission();
+  
+  Wire.beginTransmission(potExpanderAddr); 
+  Wire.write(uint8_t(MCP23017_IODIRA)); // sends instruction byte  
+  Wire.write(uint8_t(0));     
+  Wire.endTransmission();
+
+  Wire.beginTransmission(potExpanderAddr); 
+  Wire.write(uint8_t(MCP23017_IODIRB)); // sends instruction byte  
+  Wire.write(uint8_t(0));     
+  Wire.endTransmission();
+
+ 
   setTerminationSwitches();
   setPWMSwitches();
-  
-  uint16_t configSwitchSettings = setConfigSwitches();
+  setConfigSwitches();
   
   button.attachClick(myClickFunction);
   button.attachDoubleClick(myDoubleClickFunction);
@@ -111,7 +126,6 @@ void setup() {
   for (int i = 1; i < numSettings; i++) {
     currentSetting = setSetting(i, -1,DEBUG_OFF);
     setSetting(i, currentSetting, DEBUG_OFF);
-    delayMicroseconds(1500);
   }
   delayMicroseconds(100000);
   listInfo();
@@ -136,7 +150,7 @@ void setup() {
   txmsg.ext = 1;
   txmsg.len = 8;
  
-  setConfigSwitches();
+
     
   LIN.begin(19200,SERIAL_8N2);
 
@@ -155,6 +169,7 @@ void setup() {
   commandString="1";
   setEnableComponentInfo();
   reloadCAN();
+  listSettings();
 }
 
 void loop() {
@@ -233,17 +248,17 @@ void loop() {
   }
 
 
-  if (enableSendComponentInfo){
-    if (canComponentIDtimer > 5000){
-      canComponentIDtimer = 0;
-      can_messages[comp_id_index]->enabled = true;
-      can_messages[comp_id_index]->transmit_number = 0;
-      can_messages[comp_id_index]->ok_to_send = true;
-      can_messages[comp_id_index]->loop_cycles = 0; 
-      can_messages[comp_id_index]->cycle_count = 0;
-      can_messages[comp_id_index]->message_index = 0;
-    }
-  }
+//  if (enableSendComponentInfo){
+//    if (canComponentIDtimer > 5000){
+//      canComponentIDtimer = 0;
+//      can_messages[comp_id_index]->enabled = true;
+//      can_messages[comp_id_index]->transmit_number = 0;
+//      can_messages[comp_id_index]->ok_to_send = true;
+//      can_messages[comp_id_index]->loop_cycles = 0; 
+//      can_messages[comp_id_index]->cycle_count = 0;
+//      can_messages[comp_id_index]->message_index = 0;
+//    }
+//  }
 
   sendLINResponse();
 
@@ -266,10 +281,10 @@ void loop() {
       }
       Serial.write(c);
     }
+    memset(usb_hid_rx_buffer,0,64);
     memcpy(&usb_hid_rx_buffer,&serial_buffer,64);
     uint16_t checksum = CRC16.ccitt(usb_hid_rx_buffer, 62);
     memcpy(&usb_hid_rx_buffer[62], &checksum, 2);
-    Serial.println(n);
   }
   else{
     n = RawHID.recv(usb_hid_rx_buffer,0);
@@ -278,28 +293,28 @@ void loop() {
     // Extract the CRC from the message
     uint16_t crc_message = (usb_hid_rx_buffer[63] << 8) + usb_hid_rx_buffer[62];
     uint16_t crc = CRC16.ccitt(usb_hid_rx_buffer, 62);
-    Serial.print("CRC: ");
-    Serial.print(crc_message);
-    Serial.print(" ?=? ");
-    Serial.println(crc);
-    for (uint8_t i = 0; i < n; i++) Serial.write(usb_hid_rx_buffer[i]);
-    Serial.println();
+//    Serial.print("CRC: ");
+//    Serial.print(crc_message);
+//    Serial.print(" ?=? ");
+//    Serial.println(crc);
+//    for (uint8_t i = 0; i < n; i++) Serial.write(usb_hid_rx_buffer[i]);
+//    Serial.println();
     if ((usb_hid_rx_buffer[USB_FRAME_TYPE_LOC] & USB_FRAME_TYPE_MASK) == COMMAND_TYPE
          && crc_message == crc){
       uint8_t myByteArray[61];
       memcpy(&myByteArray,&usb_hid_rx_buffer[1],61);
       char * pch;
-      pch = strtok((char *)myByteArray,",");
+      pch = strtok((char *)myByteArray,", .");
       while (pch != NULL)
       {
         commandPrefix = String(pch);
         Serial.print("commandPrefix: ");
         Serial.println(commandPrefix);
-        pch = strtok(NULL,", ");
+        pch = strtok(NULL,", .");
         commandString =  String(pch);   
         Serial.print("commandString: ");
         Serial.println(commandString);
-        pch = strtok(NULL,", ");
+        pch = strtok(NULL,", .");
         if      (commandPrefix.toInt() > 0)                   fastSetSetting();  
         else if (commandPrefix.equalsIgnoreCase("AI"))        displayVoltage();
         else if (commandPrefix.equalsIgnoreCase("B0"))        autoBaud0();
@@ -346,7 +361,7 @@ void loop() {
 
   /****************************************************************/
   /*            Begin Quadrature Knob Processing                  */
-  button.tick(); //check for presses
+  button.tick() ; //check for presses
   int32_t newKnob = knob.read(); //check for turns
   if (newKnob != currentKnob) {
     if (newKnob >= knobHighLimit) {  //note: knob limits are for each input parameter
@@ -400,14 +415,17 @@ void loop() {
 
   if (usb_tx_timer >= 200){
     usb_tx_timer = 0;
+    status_buffer_1[61]++;
     uint16_t checksum1 = CRC16.ccitt(status_buffer_1, 62);
     memcpy(&status_buffer_1[62], &checksum1, 2);
     ret_val = RawHID.send(status_buffer_1, timeout);
     
+    status_buffer_2[61]++;
     uint16_t checksum2 = CRC16.ccitt(status_buffer_2, 62);
     memcpy(&status_buffer_2[62], &checksum2, 2);
     ret_val = RawHID.send(status_buffer_2, timeout);
-    
+
+    status_buffer_3[61]++;
     uint16_t checksum3 = CRC16.ccitt(status_buffer_3, 62);
     memcpy(&status_buffer_3[62], &checksum3, 2);
     ret_val = RawHID.send(status_buffer_3, timeout);
