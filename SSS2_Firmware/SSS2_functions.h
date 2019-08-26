@@ -657,7 +657,7 @@ void setConfigSwitches() {
   //Set the termination Switches of U21 on Rev 3 based on the boolean values of the variables representing the GPIO pins of U21
 
   uint8_t configSwitchSettingsA =  
-              LIN1Switch | LIN2Switch  << 1 | P10or19Switch << 2 |  P15or18Switch << 3 | !U1though8Enable << 4 | !U9though16Enable << 5 |
+              LIN1Switch | LIN2Switch  << 1 | P10or19Switch << 2 |  P15or18Switch << 3 | U1though8Enable << 4 | U9though16Enable << 5 |
               CAN1Switch << 6 | CAN2Switch << 7;
   Wire.beginTransmission(configExpanderAddr); 
   Wire.write(uint8_t(MCP23017_GPIOA)); // sends instruction byte  
@@ -1426,6 +1426,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     }
     
     setPWMSwitches();
+    delay(1);
     digitalWrite(IH1Pin,IH1State);
     if (debugDisplay) {
         connectionString(IH1State);
@@ -1436,8 +1437,14 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 46) {
     if (settingValue > -1) IH2State = boolean(settingValue);
-    if (IH2State) MCP41HVExtender_SetTerminals(11, 0); //Turn off all terminals on Pot 11
-    else MCP41HVExtender_SetTerminals(11, SPIpotTCONSettings[10]); //Reset all terminals on Pot 11
+    if (IH2State){
+      MCP41HVExtender_SetTerminals(11, 0); //Turn off all terminals on Pot 11
+      status_buffer_1[HBRIDGE_LOC] |= TWELVE_OUT_2_MASK;
+    }
+    else {
+      MCP41HVExtender_SetTerminals(11, SPIpotTCONSettings[10]); //Reset all terminals on Pot 11
+      status_buffer_1[HBRIDGE_LOC] &= ~TWELVE_OUT_2_MASK; //Clear the bit
+    }
     digitalWrite(IH2Pin,IH2State);
     if (debugDisplay) {
         connectionString(IH2State);
@@ -1447,9 +1454,16 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 47){
     if (settingValue > -1) IL1State = boolean(settingValue);
-    if (IL1State) PWM4Out = false;
-    else PWM4Out = true; 
+    if (IL1State){
+      PWM4Out = false;
+      status_buffer_1[HBRIDGE_LOC] |= GROUND_OUT_1_MASK; //Set the bit with an OR
+    }
+    else { 
+      PWM4Out = true; 
+      status_buffer_1[HBRIDGE_LOC] &= ~GROUND_OUT_1_MASK; //Clear the bit
+    }
     setPWMSwitches(); //Turn off PWM4
+    delay(1);
     digitalWrite(IL1Pin,IL1State);
     if (debugDisplay) {
         connectionString(IL1State);
@@ -1459,8 +1473,15 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 48) {
     if (settingValue > -1) IL2State = boolean(settingValue);
-    if (IL2State) MCP41HVExtender_SetTerminals(12, 0); //Turn off all terminals on Pot 12
-    else MCP41HVExtender_SetTerminals(12, SPIpotTCONSettings[11]); //Reset all terminals 
+    if (IL2State){
+      MCP41HVExtender_SetTerminals(12, 0); //Turn off all terminals on Pot 12
+      status_buffer_1[HBRIDGE_LOC] |= GROUND_OUT_2_MASK; //Set the bit with an OR
+    }
+    else{
+      MCP41HVExtender_SetTerminals(12, SPIpotTCONSettings[11]); //Reset all terminals 
+      status_buffer_1[HBRIDGE_LOC] &= ~GROUND_OUT_2_MASK; //Clear the bit
+    }
+    delay(1);
     digitalWrite(IL2Pin,IL2State);
     if (debugDisplay) {
         connectionString(IL2State);
