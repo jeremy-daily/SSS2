@@ -93,10 +93,10 @@ void setup() {
   const uint8_t ODR    = 0x00; 
   const uint8_t INTPOL = 0x02;
   
-  Wire.beginTransmission(MCP23017_ADDR); 
-  Wire.write(uint8_t(MCP23017_IOCON)); // sends instruction byte  
-  Wire.write(uint8_t(BANK | MIRROR | SEQOP | DISSLW | HAEN | ODR | INTPOL));     
-  Wire.endTransmission();
+//  Wire.beginTransmission(configExpanderAddr); 
+//  Wire.write(uint8_t(MCP23017_IOCON)); // sends instruction byte  
+//  Wire.write(uint8_t(BANK | MIRROR | SEQOP | DISSLW | HAEN | ODR | INTPOL));     
+//  Wire.endTransmission();
   
   Wire.beginTransmission(potExpanderAddr); 
   Wire.write(uint8_t(MCP23017_IODIRA)); // sends instruction byte  
@@ -104,6 +104,16 @@ void setup() {
   Wire.endTransmission();
 
   Wire.beginTransmission(potExpanderAddr); 
+  Wire.write(uint8_t(MCP23017_IODIRB)); // sends instruction byte  
+  Wire.write(uint8_t(0));     
+  Wire.endTransmission();
+
+  Wire.beginTransmission(configExpanderAddr); 
+  Wire.write(uint8_t(MCP23017_IODIRA)); // sends instruction byte  
+  Wire.write(uint8_t(0));     
+  Wire.endTransmission();
+
+  Wire.beginTransmission(configExpanderAddr); 
   Wire.write(uint8_t(MCP23017_IODIRB)); // sends instruction byte  
   Wire.write(uint8_t(0));     
   Wire.endTransmission();

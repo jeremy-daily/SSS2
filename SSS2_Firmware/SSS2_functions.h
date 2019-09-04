@@ -662,8 +662,9 @@ void setConfigSwitches() {
   Wire.beginTransmission(configExpanderAddr); 
   Wire.write(uint8_t(MCP23017_GPIOA)); // sends instruction byte  
   Wire.write(uint8_t(configSwitchSettingsA));     // sends potentiometer value byte  
-  Wire.endTransmission();
-
+  byte ret_val = Wire.endTransmission();
+  
+  
   uint8_t configSwitchSettingsB =  
               U1U2P0ASwitch |  U3U4P0ASwitch  << 1 |  U5U6P0ASwitch  << 2 | U7U8P0ASwitch << 3 |
               U9U10P0ASwitch << 4 | U11U12P0ASwitch << 5 | U13U14P0ASwitch << 6 | U15U16P0ASwitch << 7;
@@ -1332,7 +1333,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     return U15U16P0ASwitch;
   }
   else if (settingNum >= 33 && settingNum <= 36 ){
-    if (settingValue > -1) pwmValue[settingNum - 33] = uint16_t(settingValue);
+    if (settingValue > -1) pwmValue[settingNum - 33] = uint16_t(constrain(settingValue,0,4096));
     for (uint8_t i = 0; i < numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
     uint16_t result = pwmValue[settingNum - 33];
     if (debugDisplay) {
@@ -1660,7 +1661,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     return terminalConnection;
   }
   else if (settingNum >= 81 && settingNum <= 85 ){
-    if (settingValue > -1)  pwmFrequency[settingNum-81] = uint16_t(settingValue);
+    if (settingValue > -1)  pwmFrequency[settingNum-81] = uint16_t(constrain(settingValue,0,4096));
     analogWriteFrequency(PWMPins[settingNum-81], float(pwmFrequency[settingNum-81]));
     for (uint8_t i = 0; i<numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
     if (debugDisplay) {
@@ -1705,7 +1706,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 88){ //PWM6
     if (settingValue > -1) pwmValue[5] = uint16_t(settingValue);
-    analogWriteFrequency(PWMPins[5],pwmFrequency[5]);
+    analogWriteFrequency(PWMPins[5],pwmFrequency[4]);
     for (uint8_t i = 0; i<numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
     if (debugDisplay) Serial.println(pwmValue[5]);
     memcpy(&status_buffer_1[PWM6_LOC],&pwmValue[5],2);
