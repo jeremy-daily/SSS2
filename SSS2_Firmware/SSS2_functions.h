@@ -76,6 +76,8 @@ unsigned char len = 0;
 unsigned char rxBuf[8];
 char msgString[128];        
 
+uint16_t configSwitchSettings;
+
 //set up a display buffer
 char displayBuffer[100];
 
@@ -1234,6 +1236,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   if (settingNum > 0 && settingNum <= 16){
     if (settingValue > -1) SPIpotWiperSettings[settingNum - 1] = settingValue; 
+    else                   SPIpotWiperSettings[settingNum - 1] = status_buffer_1[settingNum];
     uint8_t w_position = MCP41HVExtender_SetWiper(settingNum - 1, 
                                                 SPIpotWiperSettings[settingNum - 1]);
     MCP41HVExtender_SetTerminals(settingNum - 1, SPIpotTCONSettings[settingNum - 1]);
@@ -1245,90 +1248,120 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     return w_position;
   }
   else if (settingNum > 16 && settingNum <= 24) {
-    if (settingValue > -1) DAC2value[settingNum - 17] = settingValue;
-    setDAC(DAC2value[settingNum - 17], settingNum - 17, Vout2address);
-    if (debugDisplay) {
-      Serial.println(DAC2value[settingNum - 17]); 
+    uint8_t DACchannel = settingNum - 17;
+    if (settingValue > -1) DAC2value[DACchannel] = settingValue;
+    else {
+      uint16_t data_from_memory;
+      memcpy(&data_from_memory,&status_buffer_1[DACchannel*2 + 17],2);
+      DAC2value[DACchannel] = data_from_memory;                    
     }
-    return DAC2value[settingNum - 17];
+    setDAC(DAC2value[DACchannel], DACchannel, Vout2address);
+    if (debugDisplay) {
+      Serial.println(DAC2value[DACchannel]); 
+    }
+    return DAC2value[DACchannel];
   }
   else if (settingNum == 25){
     if (settingValue > -1) U1U2P0ASwitch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(U1U2P0ASwitch);
         Serial.println(displayBuffer);
-        ;
     }
     return U1U2P0ASwitch;
   }
   else if (settingNum == 26){
     if (settingValue > -1) U3U4P0ASwitch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(U3U4P0ASwitch);
         Serial.println(displayBuffer);
-        ;
     }
     return U3U4P0ASwitch;
   }
   else if (settingNum == 27){
     if (settingValue > -1) U5U6P0ASwitch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(U5U6P0ASwitch);
         Serial.println(displayBuffer);
-        ;
     }
     return U5U6P0ASwitch;
   }
   else if (settingNum == 28){
     if (settingValue > -1) U7U8P0ASwitch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(U7U8P0ASwitch);
         Serial.println(displayBuffer);
-        ;
     }
     return U7U8P0ASwitch;
   } 
   else if (settingNum == 29){
     if (settingValue > -1) U9U10P0ASwitch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(U9U10P0ASwitch);
         Serial.println(displayBuffer);
-        ;
     }
     return U9U10P0ASwitch;
   }  
   else if (settingNum == 30){
     if (settingValue > -1) U11U12P0ASwitch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(U11U12P0ASwitch);
         Serial.println(displayBuffer);
-        ;
     }
     return U11U12P0ASwitch;
   }  
   else if (settingNum == 31){
     if (settingValue > -1) U13U14P0ASwitch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(U13U14P0ASwitch);
         Serial.println(displayBuffer);
-        ;
     }
     return U13U14P0ASwitch;
   }   
   else if (settingNum == 32){
     if (settingValue > -1) U15U16P0ASwitch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(U15U16P0ASwitch);
         Serial.println(displayBuffer);
-        ;
     }
     return U15U16P0ASwitch;
   }
@@ -1344,6 +1377,10 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 37){
     if (settingValue > -1) P10or19Switch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(P10or19Switch);
@@ -1353,6 +1390,10 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 38){
     if (settingValue > -1) P15or18Switch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(P15or18Switch);
@@ -1362,6 +1403,10 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 39){
     if (settingValue > -1) CAN1Switch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(CAN1Switch);
@@ -1371,6 +1416,10 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }  
   else if (settingNum == 40 || settingNum == 92 ){
     if (settingValue > -1) CAN2Switch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(CAN2Switch);

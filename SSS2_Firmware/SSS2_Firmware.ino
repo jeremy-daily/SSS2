@@ -132,7 +132,8 @@ void setup() {
   button.setClickTicks(250);
  
   initializeDACs(Vout2address);
-    
+
+  load_settings();
   for (int i = 1; i < numSettings; i++) {
     currentSetting = setSetting(i, -1,DEBUG_OFF);
     setSetting(i, currentSetting, DEBUG_OFF);
