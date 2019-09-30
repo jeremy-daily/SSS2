@@ -45,7 +45,7 @@
 char serial_buffer[64];
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*1.2*master*348f71545b30f9d84195847128dfa4baaf6ff4b4"; //Hash of the previous git commit
+String softwareVersion = "SSS2*REV" + revision + "*2.0.0";
 
 void listSoftware(){
   Serial.print("FIRMWARE ");
