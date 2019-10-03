@@ -1,5 +1,5 @@
 # Reflashing the SSS2
-The firmware on the Smart Sensor Simulator 2 can be upgraded using the Arduino and Teensyduino enviroment. This repository contains the firmware binaries (`.hex`) files.
+The firmware on the Smart Sensor Simulator 2 can be upgraded using the Arduino and Teensyduino enviroment. This repository contains the firmware binaries (`.hex`) files inthe binary directories. They are labeled with their version and the date of creation.
 
 To update the firmware, you will need the Teensyduino loader available from the PJRC website:
 
