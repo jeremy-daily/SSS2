@@ -40,12 +40,12 @@
 #include "SSS2_board_defs_rev_5.h"
 #include "SSS2_functions.h"
 #include "SSS2_LIN_functions.h"
-
+#include "version.h"
 
 char serial_buffer[64];
 
 //softwareVersion
-String softwareVersion = "SSS2*REV" + revision + "*2.0.0";
+String softwareVersion = "SSS2*REV" + revision + "*" + VERSION;
 
 void listSoftware(){
   Serial.print("FIRMWARE ");
@@ -319,12 +319,12 @@ void loop() {
       while (pch != NULL)
       {
         commandPrefix = String(pch);
-        Serial.print("commandPrefix: ");
-        Serial.println(commandPrefix);
+        //Serial.print("commandPrefix: ");
+        //Serial.println(commandPrefix);
         pch = strtok(NULL,", .");
         commandString =  String(pch);   
-        Serial.print("commandString: ");
-        Serial.println(commandString);
+        //Serial.print("commandString: ");
+        //Serial.println(commandString);
         pch = strtok(NULL,", .");
         if      (commandPrefix.toInt() > 0)                   fastSetSetting();  
         else if (commandPrefix.equalsIgnoreCase("AI"))        displayVoltage();

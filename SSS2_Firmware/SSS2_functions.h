@@ -1367,6 +1367,9 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum >= 33 && settingNum <= 36 ){
     if (settingValue > -1) pwmValue[settingNum - 33] = uint16_t(constrain(settingValue,0,4096));
+    else{
+      memcpy(&pwmValue[settingNum - 33],&status_buffer_1[(settingNum - 33)*2 + 35],2);
+    }
     for (uint8_t i = 0; i < numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
     uint16_t result = pwmValue[settingNum - 33];
     if (debugDisplay) {
@@ -1568,9 +1571,12 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     return ignitionCtlState;
   } 
   else if (settingNum >  50 && settingNum <= 66) {
+    // Terminal connections on the potentiometers
     if (settingValue > -1) SPIpotTCONSettings[settingNum - 51] = uint8_t(settingValue);
-    MCP41HVExtender_SetWiper(settingNum - 51, 
-                                                SPIpotWiperSettings[settingNum - 51]);
+    else {
+      SPIpotTCONSettings[settingNum - 51] = status_buffer_2[settingNum - 50];
+    }
+    // MCP41HVExtender_SetWiper(settingNum - 51, SPIpotWiperSettings[settingNum - 51]);
     uint8_t terminalConnection = MCP41HVExtender_SetTerminals(settingNum - 51, SPIpotTCONSettings[settingNum - 51]);
     if (debugDisplay) {
         Serial.print(SPIpotTCONSettings[settingNum - 51]);
