@@ -618,7 +618,7 @@ uint8_t setTerminationSwitches() {
   digitalWrite(CSconfigAPin, LOW);
   SPI.transfer(terminationSettings);
   digitalWrite(CSconfigAPin, HIGH);
-  status_buffer_2[TERMINATION_SETTINGS_LOC] = terminationSettings;
+  status_buffer_1[TERMINATION_SETTINGS_LOC] = terminationSettings;
   return terminationSettings;
 }
 
@@ -907,7 +907,7 @@ uint16_t setDAC(uint16_t setting, uint8_t DACchannel, uint8_t address) {
  */
 
 
-char settingNames[numSettings][40] = {
+char settingNames[numSettings][50] = {
   "Nothing Selected", //0
   "Digital Potentiometer  1 Wiper", //1
   "Digital Potentiometer  2 Wiper",
@@ -1018,7 +1018,7 @@ char settingNames[numSettings][40] = {
   "CAN2 Resistor 2",
 };
 
-char settingPins[numSettings][40] = {
+char settingPins[numSettings][50] = {
   "\n",
   "Port  1 (J24- 1)",
   "Port  2 (J24- 2)",
@@ -1032,8 +1032,8 @@ char settingPins[numSettings][40] = {
   "Port 10 (J24-10)",
   "Port 11 (J24-11)",
   "Port 12 (J24-12)",
-  "Port 13 (J18-11)",
-  "Port 14 (J18-12)",
+  "Port 13 (J24-13)",
+  "Port 14 (J24-14)",
   "Port 15 (J24-15)",
   "Port 16 (J24-16)",
 
@@ -1234,12 +1234,11 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     Serial.print(settingPins[settingNum]);
     Serial.print(" = ");
   }
-  if (settingNum > 0 && settingNum <= 16){
+  if (settingNum >= 1 && settingNum <= 16){
     if (settingValue > -1) SPIpotWiperSettings[settingNum - 1] = settingValue; 
     else                   SPIpotWiperSettings[settingNum - 1] = status_buffer_1[settingNum];
     uint8_t w_position = MCP41HVExtender_SetWiper(settingNum - 1, 
                                                 SPIpotWiperSettings[settingNum - 1]);
-    MCP41HVExtender_SetTerminals(settingNum - 1, SPIpotTCONSettings[settingNum - 1]);
     if (debugDisplay) {
         Serial.print(SPIpotWiperSettings[settingNum - 1]);
         Serial.print(", ");
@@ -1432,6 +1431,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 41){
     if (settingValue > -1) CAN0term = boolean(settingValue);
+    else getPWMSwitches(status_buffer_1[PWM_SETTINGS_LOC]);
     setPWMSwitches();
     if (debugDisplay) {
         connectionString(CAN0term);
@@ -1441,6 +1441,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 42) {
     if (settingValue > -1) CAN1term = boolean(settingValue);
+    else getPWMSwitches(status_buffer_1[PWM_SETTINGS_LOC]);
     setPWMSwitches();
     if (debugDisplay) {
         connectionString(CAN1term);
@@ -1450,6 +1451,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 43){
     if (settingValue > -1) CAN2term = boolean(settingValue);
+    else getPWMSwitches(status_buffer_1[PWM_SETTINGS_LOC]);
     setPWMSwitches();
     if (debugDisplay) {
         connectionString(CAN2term);
@@ -1459,6 +1461,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }  
   else if (settingNum == 44) {
     if (settingValue > -1) LINmaster = boolean(settingValue);
+    else getPWMSwitches(status_buffer_1[PWM_SETTINGS_LOC]);
     setPWMSwitches();
     if (debugDisplay) {
         connectionString(LINmaster);
@@ -1467,8 +1470,14 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     return LINmaster;
   }  
   else if (settingNum == 45 || settingNum == 69)  {
-    if (settingValue > -1 && settingNum == 45) IH1State = boolean(settingValue);
-    if (settingValue > -1 && settingNum == 69) IH1State = !boolean(settingValue);
+    if (settingNum == 45){ 
+      if (settingValue > -1) IH1State = boolean(settingValue);
+      else IH1State = boolean(status_buffer_1[HBRIDGE_LOC] & TWELVE_OUT_1_MASK);
+    }
+    else if (settingNum == 69){
+      if (settingValue > -1) IH1State = !boolean(settingValue);
+      else IH1State = !boolean(status_buffer_1[HBRIDGE_LOC] & TWELVE_OUT_1_MASK);
+    }
     if (IH1State){
       PWM3Out = false;
       status_buffer_1[HBRIDGE_LOC] |= TWELVE_OUT_1_MASK; 
@@ -1477,7 +1486,6 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
       status_buffer_1[HBRIDGE_LOC] &= ~TWELVE_OUT_1_MASK;
       PWM3Out = true;
     }
-    
     setPWMSwitches();
     delay(1);
     digitalWrite(IH1Pin,IH1State);
@@ -1485,17 +1493,17 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
         connectionString(IH1State);
         Serial.println(displayBuffer);
     }
-    
     return IH1State;
   }
   else if (settingNum == 46) {
     if (settingValue > -1) IH2State = boolean(settingValue);
+    else IH2State = boolean(status_buffer_1[HBRIDGE_LOC] & TWELVE_OUT_2_MASK);
     if (IH2State){
-      MCP41HVExtender_SetTerminals(11, 0); //Turn off all terminals on Pot 11
+      MCP41HVExtender_SetTerminals(10, 0); //Turn off all terminals on Pot 11
       status_buffer_1[HBRIDGE_LOC] |= TWELVE_OUT_2_MASK;
     }
     else {
-      MCP41HVExtender_SetTerminals(11, SPIpotTCONSettings[10]); //Reset all terminals on Pot 11
+      MCP41HVExtender_SetTerminals(10, SPIpotTCONSettings[10]); //Reset all terminals on Pot 11
       status_buffer_1[HBRIDGE_LOC] &= ~TWELVE_OUT_2_MASK; //Clear the bit
     }
     digitalWrite(IH2Pin,IH2State);
@@ -1507,6 +1515,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 47){
     if (settingValue > -1) IL1State = boolean(settingValue);
+    else IL1State = boolean(status_buffer_1[HBRIDGE_LOC] & GROUND_OUT_1_MASK);
     if (IL1State){
       PWM4Out = false;
       status_buffer_1[HBRIDGE_LOC] |= GROUND_OUT_1_MASK; //Set the bit with an OR
@@ -1526,12 +1535,13 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 48) {
     if (settingValue > -1) IL2State = boolean(settingValue);
+    else IL2State = boolean(status_buffer_1[HBRIDGE_LOC] & GROUND_OUT_2_MASK);
     if (IL2State){
-      MCP41HVExtender_SetTerminals(12, 0); //Turn off all terminals on Pot 12
+      MCP41HVExtender_SetTerminals(11, 0); //Turn off all terminals on Pot 12
       status_buffer_1[HBRIDGE_LOC] |= GROUND_OUT_2_MASK; //Set the bit with an OR
     }
     else{
-      MCP41HVExtender_SetTerminals(12, SPIpotTCONSettings[11]); //Reset all terminals 
+      MCP41HVExtender_SetTerminals(11, SPIpotTCONSettings[11]); //Reset all terminals 
       status_buffer_1[HBRIDGE_LOC] &= ~GROUND_OUT_2_MASK; //Clear the bit
     }
     delay(1);
@@ -1544,6 +1554,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 49) {
     if (settingValue > -1) HVoutAdjValue = uint8_t(settingValue);
+    else HVoutAdjValue = status_buffer_1[HVADJOUT_LOC];
     uint8_t ret_value = MCP41HVI2C_SetWiper(HVoutAdjAddr,HVoutAdjValue);
     if (debugDisplay) {
         Serial.print(HVoutAdjValue);
@@ -1566,17 +1577,13 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
     if (debugDisplay) {
         connectionString(ignitionCtlState);
         Serial.println(displayBuffer);
-    }
-    
+    } 
     return ignitionCtlState;
   } 
   else if (settingNum >  50 && settingNum <= 66) {
     // Terminal connections on the potentiometers
     if (settingValue > -1) SPIpotTCONSettings[settingNum - 51] = uint8_t(settingValue);
-    else {
-      SPIpotTCONSettings[settingNum - 51] = status_buffer_2[settingNum - 50];
-    }
-    // MCP41HVExtender_SetWiper(settingNum - 51, SPIpotWiperSettings[settingNum - 51]);
+    else SPIpotTCONSettings[settingNum - 51] = status_buffer_2[settingNum - 50]; 
     uint8_t terminalConnection = MCP41HVExtender_SetTerminals(settingNum - 51, SPIpotTCONSettings[settingNum - 51]);
     if (debugDisplay) {
         Serial.print(SPIpotTCONSettings[settingNum - 51]);
@@ -1584,11 +1591,11 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
         terminalString(terminalConnection);
         Serial.println(displayBuffer);
     }
-    //return terminalConnection;
     return SPIpotTCONSettings[settingNum - 51];
   }
   else if (settingNum == 67){
     if (settingValue > -1) PWM1Out = boolean(settingValue);
+    else getPWMSwitches(status_buffer_1[PWM_SETTINGS_LOC]);
     setPWMSwitches();
     if (debugDisplay) {
         connectionString(PWM1Out);
@@ -1598,6 +1605,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 68){
     if (settingValue > -1) PWM2Out = boolean(settingValue);
+    else getPWMSwitches(status_buffer_1[PWM_SETTINGS_LOC]);
     setPWMSwitches();
     if (debugDisplay) {
         connectionString(PWM2Out);
@@ -1607,6 +1615,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }  
   else if (settingNum == 70) {
     if (settingValue > -1) PWM4Out = boolean(settingValue);
+    else getPWMSwitches(status_buffer_1[PWM_SETTINGS_LOC]);
     setPWMSwitches();
     if (debugDisplay) {
         connectionString(PWM4Out);
@@ -1616,6 +1625,10 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 71) {
     if (settingValue > -1) LIN1Switch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(LIN1Switch);
@@ -1625,8 +1638,12 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 72) {
     if (settingValue > -1) LIN2Switch = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
-    if (LIN2Switch) MCP41HVExtender_SetTerminals(15, 0);
+    if (LIN2Switch) MCP41HVExtender_SetTerminals(15, 0); //Setting 66
     else MCP41HVExtender_SetTerminals(15, SPIpotTCONSettings[15]);
     if (debugDisplay) {
         connectionString(LIN2Switch);
@@ -1636,6 +1653,10 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 73) {
     if (settingValue > -1) U1though8Enable = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(U1though8Enable);
@@ -1645,6 +1666,10 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 74){
     if (settingValue > -1) U9though16Enable = boolean(settingValue);
+    else {
+      memcpy(&configSwitchSettings,&status_buffer_1[CONFIG_SWITCH_SETTINGS_LOC],2);
+      getConfigSwitches(configSwitchSettings);
+    }
     setConfigSwitches();
     if (debugDisplay) {
         connectionString(U9though16Enable);
@@ -1654,6 +1679,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 75){
     if (settingValue > -1) I2CpotWiperSettings[0] = uint8_t(settingValue);
+    else I2CpotWiperSettings[0] = status_buffer_1[U34_WIPER_LOC];
     uint8_t terminalConnection = MCP41HVI2C_SetWiper(I2CpotAddr[0],I2CpotWiperSettings[0]);
     if (debugDisplay) {
         Serial.print(I2CpotWiperSettings[0]);
@@ -1664,6 +1690,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 76){
     if (settingValue > -1) I2CpotWiperSettings[1] = uint8_t(settingValue);
+    else I2CpotWiperSettings[1] = status_buffer_1[U36_WIPER_LOC];
     uint8_t terminalConnection = MCP41HVI2C_SetWiper(I2CpotAddr[1],I2CpotWiperSettings[1]);
     if (debugDisplay) {
         Serial.print(I2CpotWiperSettings[1]);
@@ -1674,6 +1701,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 77){
     if (settingValue > -1) I2CpotWiperSettings[2] = uint8_t(settingValue);
+    else I2CpotWiperSettings[2] = status_buffer_1[U37_WIPER_LOC];
     uint8_t terminalConnection = MCP41HVI2C_SetWiper(I2CpotAddr[2],I2CpotWiperSettings[2]);
     if (debugDisplay) {
         Serial.print(I2CpotWiperSettings[2]);
@@ -1684,6 +1712,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 78){
     if (settingValue > -1) I2CpotTCONSettings[0] = uint8_t(settingValue);
+    else I2CpotTCONSettings[0] = status_buffer_2[U34_TCON_LOC];
     uint8_t terminalConnection = MCP41HVI2C_SetTerminals(I2CpotAddr[0],I2CpotTCONSettings[0]);
     if (debugDisplay) {
         Serial.print(I2CpotTCONSettings[0]);
@@ -1695,6 +1724,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 79){
     if (settingValue > -1) I2CpotTCONSettings[1] = uint8_t(settingValue);
+    else I2CpotTCONSettings[1] = status_buffer_2[U36_TCON_LOC];
     uint8_t terminalConnection = MCP41HVI2C_SetTerminals(I2CpotAddr[1],I2CpotTCONSettings[1]);
     if (debugDisplay) {
         Serial.print(I2CpotTCONSettings[1]);
@@ -1706,6 +1736,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 80){
     if (settingValue > -1) I2CpotTCONSettings[2] = uint8_t(settingValue);
+    else I2CpotTCONSettings[2] = status_buffer_2[U37_TCON_LOC];
     uint8_t terminalConnection = MCP41HVI2C_SetTerminals(I2CpotAddr[2],I2CpotTCONSettings[2]);
     if (debugDisplay) {
         Serial.print(I2CpotTCONSettings[2]);
@@ -1717,6 +1748,13 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum >= 81 && settingNum <= 85 ){
     if (settingValue > -1)  pwmFrequency[settingNum-81] = uint16_t(constrain(settingValue,0,4096));
+    else {
+      if      (settingNum == 81) memcpy(&pwmFrequency[0],&status_buffer_1[PWM1_FREQ_LOC],2);
+      else if (settingNum == 82) memcpy(&pwmFrequency[1],&status_buffer_1[PWM1_FREQ_LOC],2);
+      else if (settingNum == 83) memcpy(&pwmFrequency[2],&status_buffer_1[PWM3_FREQ_LOC],2);
+      else if (settingNum == 84) memcpy(&pwmFrequency[3],&status_buffer_1[PWM3_FREQ_LOC],2);
+      else if (settingNum == 85) memcpy(&pwmFrequency[4],&status_buffer_1[PWM5_FREQ_LOC],2);
+    }
     analogWriteFrequency(PWMPins[settingNum-81], float(pwmFrequency[settingNum-81]));
     for (uint8_t i = 0; i<numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
     if (debugDisplay) {
@@ -1745,6 +1783,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 86) {
     if (settingValue > -1) PWM4Out_28 = boolean(settingValue);
+    else  getTerminationSwitches(status_buffer_1[TERMINATION_SETTINGS_LOC]);
     setTerminationSwitches();
     if (debugDisplay) {
         connectionString(PWM4Out_28);
@@ -1754,6 +1793,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 87){ //PWM5
     if (settingValue > -1) pwmValue[4] = uint16_t(settingValue);
+    else  memcpy(&pwmValue[4],&status_buffer_1[PWM5_LOC],2);
     for (uint8_t i = 0; i<numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
     if (debugDisplay) Serial.println(pwmValue[4]);
     memcpy(&status_buffer_1[PWM5_LOC],&pwmValue[4],2);
@@ -1761,6 +1801,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 88){ //PWM6
     if (settingValue > -1) pwmValue[5] = uint16_t(settingValue);
+    else  memcpy(&pwmValue[5],&status_buffer_1[PWM6_LOC],2);
     analogWriteFrequency(PWMPins[5],pwmFrequency[4]);
     for (uint8_t i = 0; i<numPWMs; i++) analogWrite(PWMPins[i],pwmValue[i]);
     if (debugDisplay) Serial.println(pwmValue[5]);
@@ -1769,6 +1810,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 89) {
     if (settingValue > -1) PWM5Out = boolean(settingValue);
+    else  getTerminationSwitches(status_buffer_1[TERMINATION_SETTINGS_LOC]);
     setTerminationSwitches();
     if (debugDisplay) {
         connectionString(PWM5Out);
@@ -1778,6 +1820,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 90) {
     if (settingValue > -1) PWM6Out = boolean(settingValue);
+    else  getTerminationSwitches(status_buffer_1[TERMINATION_SETTINGS_LOC]);
     setTerminationSwitches();
     if (debugDisplay) {
         connectionString(PWM6Out);
@@ -1787,7 +1830,7 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   } 
   else if (settingNum == 91) {
     if (settingValue > -1) CAN1out = boolean(settingValue);
-    
+    else  getTerminationSwitches(status_buffer_1[TERMINATION_SETTINGS_LOC]);
     if (CAN1out) {
       MCP41HVExtender_SetTerminals(2, 0);
       MCP41HVExtender_SetTerminals(3, 0);
@@ -1805,30 +1848,33 @@ int16_t setSetting(uint8_t settingNum, int settingValue, bool debugDisplay) {
   }
   else if (settingNum == 93){
     if (settingValue > -1) CAN0term1 = boolean(settingValue);
+    else  getTerminationSwitches(status_buffer_1[TERMINATION_SETTINGS_LOC]);
     setTerminationSwitches();
     if (debugDisplay) {
         connectionString(CAN0term1);
         Serial.println(displayBuffer);
     }
-    return CAN0term;
+    return CAN0term1;
   }
   else if (settingNum == 94){
     if (settingValue > -1) CAN1term1 = boolean(settingValue);
+    else  getTerminationSwitches(status_buffer_1[TERMINATION_SETTINGS_LOC]);
     setTerminationSwitches();
     if (debugDisplay) {
         connectionString(CAN1term1);
         Serial.println(displayBuffer);
     }
-    return CAN1term;
+    return CAN1term1;
   }
   else if (settingNum == 95){
     if (settingValue > -1) CAN2term1 = boolean(settingValue);
+    else  getTerminationSwitches(status_buffer_1[TERMINATION_SETTINGS_LOC]);
     setTerminationSwitches();
     if (debugDisplay) {
         connectionString(CAN2term1);
         Serial.println(displayBuffer);
     }
-    return CAN0term;
+    return CAN2term1;
   }     
   else return -1;
 }
