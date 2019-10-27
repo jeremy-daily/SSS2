@@ -76,6 +76,11 @@ unsigned char len = 0;
 unsigned char rxBuf[8];
 char msgString[128];        
 
+uint8_t can_buffer[62];
+elapsedMillis can_send_time;
+
+    
+
 uint16_t configSwitchSettings;
 
 //set up a display buffer
@@ -2247,9 +2252,30 @@ void parseJ1939(CAN_message_t &rxmsg ){
 //A generic CAN Frame print function for the Serial terminal
 void printFrame(CAN_message_t rxmsg, uint8_t can_channel, uint32_t RXCount)
 { 
-  uint32_t timestamp=uint32_t(now());
-  //21 Byte frame
-  Serial.print("CAN");
+  uint32_t timestamp = uint32_t(now());
+  //21 Byte frame, three per HID message
+   
+  uint8_t can_message_index = (can_buffer[0] & 0x03) * CAN_FRAME_LENGTH + 1;
+  can_buffer[0]++; // Normally CAN buffer will start with a value of 0x20 CAN_MESSAGE_BASE
+  memcpy(&can_buffer[can_message_index + TIMESTAMP_OFFSET],&timestamp,4);
+  can_buffer[can_message_index + CHANNEL_DLC_OFFSET] = (can_channel << 4) + rxmsg.len;
+  uint32_t microsecond_value = uint32_t(microsecondsPerSecond);
+  memcpy(&can_buffer[can_message_index + MICROSECONDS_OFFSET],&microsecond_value,3);
+  uint32_t ID = (rxmsg.ext << 31) | (rxmsg.id);
+  memcpy(&can_buffer[can_message_index + CAN_ID_OFFSET],&ID,4);
+  memcpy(&can_buffer[can_message_index + CAN_DATA_OFFSET],&rxmsg.buf,8);
+
+  if ((can_buffer[0] & 0x03) == 0x03 || can_send_time > CAN_SEND_MS){
+    can_send_time = 0;
+    can_buffer[61]++; // increment the counter
+    uint16_t can_checksum = CRC16.ccitt(can_buffer, 62);
+    memcpy(&can_buffer[62], &can_checksum, 2);
+    byte ret_val = RawHID.send(can_buffer, timeout);
+    memset(can_buffer,0xFF,61);
+    can_buffer[0] = 0x20;
+    //Serial.println(ret_val);
+  }
+/*  Serial.print("CAN");
   Serial.write((timestamp & 0xFF000000) >> 24);
   Serial.write((timestamp & 0x00FF0000) >> 16);
   Serial.write((timestamp & 0x0000FF00) >> 8);
@@ -2272,6 +2298,7 @@ void printFrame(CAN_message_t rxmsg, uint8_t can_channel, uint32_t RXCount)
   Serial.write(rxmsg.buf[6]);
   Serial.write(rxmsg.buf[7]);
   Serial.print("\n");
+  */
 }
 
 time_t getTeensy3Time(){

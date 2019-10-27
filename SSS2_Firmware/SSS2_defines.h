@@ -98,3 +98,14 @@
 #define PWM5_FREQ_LOC 58
 
 #define HVADJOUT_LOC 48
+
+#define CAN_MESSAGE_BASE 0x20
+#define TIMESTAMP_OFFSET 0
+#define CHANNEL_DLC_OFFSET 4
+#define MICROSECONDS_OFFSET 5
+#define CAN_ID_OFFSET 8
+#define CAN_DATA_OFFSET 12
+#define CAN_SEND_MS 3
+#define CAN_FRAME_LENGTH 20
+
+uint8_t timeout = 0;

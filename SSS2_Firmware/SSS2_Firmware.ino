@@ -56,7 +56,7 @@ elapsedMillis usb_tx_timer;
 int8_t ret_val;
 uint8_t usb_buffer[65];
 uint8_t usb_hid_rx_buffer[65];
-uint8_t timeout = 0;
+
 
 void setup() {
   SPI.begin();
@@ -181,6 +181,8 @@ void setup() {
   setEnableComponentInfo();
   reloadCAN();
   listSettings();
+  
+  can_buffer[0] = 0x20; // declare this message type
 }
 
 void loop() {
