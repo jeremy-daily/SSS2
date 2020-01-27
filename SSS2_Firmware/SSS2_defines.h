@@ -108,4 +108,16 @@
 #define CAN_SEND_MS 3
 #define CAN_FRAME_LENGTH 20
 
+#define NET_STATUS_LOC     59
+#define STREAM_CAN0_MASK  0x01
+#define STREAM_CAN1_MASK  0x02
+#define STREAM_CAN2_MASK  0x04
+#define STREAM_J1708_MASK 0x08
+#define SEND_LIN_MASK     0x10
+#define SEND_VOLTAGE_MASK 0x20
+#define SEND_COMPONENT_ID 0x40
+#define SUPPRESS_LIN_MASK 0x80
+
+
+
 uint8_t timeout = 0;

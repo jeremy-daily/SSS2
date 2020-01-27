@@ -25,22 +25,22 @@ bool printLIN;
 void displayLIN(){
   if (commandString.toInt() > 0){
     printLIN = true;
-    Serial.println("SET Stream LIN data on.");
+    status_buffer_2[NET_STATUS_LOC] |= SEND_LIN_MASK; 
   }
   else {
-    Serial.println("SET Stream LIN data off.");
     printLIN  = false;
+    status_buffer_2[NET_STATUS_LOC] &= ~SEND_LIN_MASK;
   }
 }
 
 void sendLINselect(){
   if (commandString.toInt() > 0){
     sendLIN = true;    
-    Serial.println("SET Turn on LIN data.");
+    status_buffer_2[NET_STATUS_LOC] |= SUPPRESS_LIN_MASK;
   }
   else {
-    Serial.println("SET Turn off LIN data.");
     sendLIN  = false;
+    status_buffer_2[NET_STATUS_LOC] &= ~SUPPRESS_LIN_MASK;
   }
 }
 

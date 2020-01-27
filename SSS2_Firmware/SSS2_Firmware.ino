@@ -41,6 +41,7 @@
 #include "SSS2_functions.h"
 #include "SSS2_LIN_functions.h"
 #include "version.h"
+#include "base64.hpp"
 
 char serial_buffer[64];
 
@@ -178,10 +179,13 @@ void setup() {
   getCompIdEEPROMdata();
  
   commandString="1";
-  setEnableComponentInfo();
   reloadCAN();
   listSettings();
-  
+
+  memcpy(&status_buffer_2[CAN0_RX_COUNT_LOC],&RXCount0,4);
+  memcpy(&status_buffer_2[CAN1_RX_COUNT_LOC],&RXCount1,4);
+  memcpy(&status_buffer_2[CAN2_RX_COUNT_LOC],&RXCount2,4);
+
   can_buffer[0] = 0x20; // declare this message type
 }
 
@@ -189,7 +193,7 @@ void loop() {
   //Check CAN messages
   if (Can0.available()) {
     Can0.read(rxmsg);
-    //parseJ1939(rxmsg);
+    parseJ1939(rxmsg);
     RXCount0++;
     memcpy(&status_buffer_2[CAN0_RX_COUNT_LOC],&RXCount0,4);
     RXCAN0timer = 0;
@@ -209,13 +213,14 @@ void loop() {
     }
   }
   //!digitalRead(INTCANPin) &&
-  if(MCPCAN.readMsgBuf(&rxId, &len, rxBuf) == CAN_OK){      // Read data: len = data length, buf = data byte(s)
+  if(MCPCAN.readMsgBuf(&rxId, &extended, &len, rxBuf) == CAN_OK){      // Read data: len = data length, buf = data byte(s)
       RXCount2++;
       memcpy(&status_buffer_2[CAN2_RX_COUNT_LOC],&RXCount2,4);  
-      if(displayCAN2)  // If low, read receive buffer
+      if(displayCAN2)  // 
       {
         rxmsg.id = (rxId & 0x1FFFFFFF);
         rxmsg.len = len;
+        rxmsg.ext = extended;
         for(byte i = 0; i<len; i++) rxmsg.buf[i] = rxBuf[i];
         printFrame(rxmsg, 2, RXCount2);
       }
@@ -229,7 +234,7 @@ void loop() {
     J1708_index++;
     if (J1708_index > sizeof(J1708RXbuffer)) J1708_index = 0;
   }
-  if (newJ1708Char && J1708RXtimer > 1150) { //At least 11 bit times must pass
+  if (newJ1708Char && J1708RXtimer > 1100) { //At least 11 bit times must pass
     //Check to see if this is the first displayed message. If so, discard and start showing subsequent messages.
     if (firstJ1708) firstJ1708 = false; 
     else{
@@ -315,25 +320,20 @@ void loop() {
     if ((usb_hid_rx_buffer[USB_FRAME_TYPE_LOC] & USB_FRAME_TYPE_MASK) == COMMAND_TYPE
          && crc_message == crc){
       uint8_t myByteArray[61];
-      memcpy(&myByteArray,&usb_hid_rx_buffer[1],61);
+      memcpy(&myByteArray[0],&usb_hid_rx_buffer[1],61);
       char * pch;
-      pch = strtok((char *)myByteArray,", .");
+      pch = strtok((char *)myByteArray,", ."); //tokenize the strings based on comma, space and period
       while (pch != NULL)
       {
         commandPrefix = String(pch);
-        //Serial.print("commandPrefix: ");
-        //Serial.println(commandPrefix);
         pch = strtok(NULL,", .");
         commandString =  String(pch);   
-        //Serial.print("commandString: ");
-        //Serial.println(commandString);
         pch = strtok(NULL,", .");
         if      (commandPrefix.toInt() > 0)                   fastSetSetting();  
         else if (commandPrefix.equalsIgnoreCase("AI"))        displayVoltage();
         else if (commandPrefix.equalsIgnoreCase("B0"))        autoBaud0();
         else if (commandPrefix.equalsIgnoreCase("B1"))        autoBaud1();
         else if (commandPrefix.equalsIgnoreCase("BMCP"))      autoBaudMCP();
-        else if (commandPrefix.equalsIgnoreCase("DB"))        displayBaud();
         else if (commandPrefix.equalsIgnoreCase("CANCOMP"))   setEnableComponentInfo();
         else if (commandPrefix.equalsIgnoreCase("ID"))        print_uid();
         else if (commandPrefix.equalsIgnoreCase("C0"))        startStopCAN0Streaming();
@@ -355,6 +355,7 @@ void loop() {
         else if (commandPrefix.equalsIgnoreCase("SOFT"))      listSoftware();
         else if (commandPrefix.equalsIgnoreCase("J1708"))     displayJ1708();
         else if (commandPrefix.equalsIgnoreCase("SM"))        setupPeriodicCANMessage();
+        else if (commandPrefix.equalsIgnoreCase("CS"))        sendMessage();
         else if (commandPrefix.equalsIgnoreCase("CANSEND"))   sendMessage();
         else if (commandPrefix.equalsIgnoreCase("RELOAD"))    reloadCAN();
         else if (commandPrefix.equalsIgnoreCase("TIME"))      displayTime();
@@ -442,5 +443,12 @@ void loop() {
     uint16_t checksum3 = CRC16.ccitt(status_buffer_3, 62);
     memcpy(&status_buffer_3[62], &checksum3, 2);
     ret_val = RawHID.send(status_buffer_3, timeout);
+
+    make_buffer_4();
+    status_buffer_4[61]++;
+    uint16_t checksum4 = CRC16.ccitt(status_buffer_4, 62);
+    memcpy(&status_buffer_4[62], &checksum4, 2);
+    ret_val = RawHID.send(status_buffer_4, timeout);
+
   }
 }

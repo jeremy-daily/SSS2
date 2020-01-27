@@ -59,6 +59,7 @@
 #include "FastCRC.h"
 #include "Thread.h"
 #include "ThreadController.h"
+#include "base64.hpp"
 
 
 FastCRC16 CRC16; 
@@ -66,15 +67,21 @@ FastCRC16 CRC16;
 uint8_t status_buffer_1[64];
 uint8_t status_buffer_2[64];
 uint8_t status_buffer_3[64];
+uint8_t status_buffer_4[64];
+uint16_t buffer4_message_index;
+uint16_t buffer4_index;
 
 #define STATUS_BUFFER_1_ADDR 64 
 #define STATUS_BUFFER_2_ADDR 128 
 #define STATUS_BUFFER_3_ADDR 192 
-
+#define STATUS_BUFFER_4_ADDR 256 //CAN Threads
+ 
 long unsigned int rxId;
 unsigned char len = 0;
+unsigned char extended = 1;
 unsigned char rxBuf[8];
 char msgString[128];        
+unsigned char base64[64];
 
 uint8_t can_buffer[62];
 elapsedMillis can_send_time;
@@ -212,8 +219,8 @@ void displayVoltage(){
 //Setup messages
 #define num_default_messages  21
 String default_messages[num_default_messages] = {
- F("DDEC MCM 01,                   1,1,0,2,  10,   0,0,1, 8FF0001,8, 0, 0, 0, 0, 0, 0, 0, 0"), //DDEC 13 MCM message, CAN1
- F("DDEC TCM 01,                   2,1,0,2,  10,   0,0,1, CF00203,8, 0, 0, 0, 0, 0, 0, 0, 0"), //DDEC13 Transmission controler message, CAN1
+ F("DDEC MCM 01,                   1,1,0,2,  10,   0,0,1, 8FF0001,8,01,02,03,04,05,06,07,08\n"), //DDEC 13 MCM message, CAN1
+ F("DDEC TCM 01,                   2,1,0,2,  10,   0,0,1, CF00203,8, 9, a, b, c, d, e, f, 0\n"), //DDEC13 Transmission controler message, CAN1
  F("DDEC TCM 02,                   3,1,0,2,  10,   0,0,1, 8FF0303,8, 0, 0, 0, 0, 0, 0, 0, 0"), //DDEC 13 TCM message, CAN1
  F("DDEC TCM 03,                   4,1,0,2, 100,   0,0,1,18F00503,8, 0, 0, 0, 0, 0, 0, 0, 0"), //Transmission on DDEC 13
  F("HRW from Brake Controller,     5,1,0,0,  20,   0,0,1, CFE6E0B,8, 0, 0, 0, 0, 0, 0, 0, 0"), //High Resolution wheel speed message from SA=11 (brake controller)
@@ -264,7 +271,6 @@ void runCANthreads(){
   can_thread_controller.run();
 }
 
-
 class CanThread: public Thread
 {
 public:
@@ -273,13 +279,14 @@ public:
   boolean ok_to_send = true;
   uint32_t loop_cycles = 0; 
   uint32_t cycle_count = 0;
-  
+  uint32_t tx_period = 0;
   uint8_t channel = 0;
  
   CAN_message_t txmsg;
     
   uint8_t num_messages = 1; 
   uint8_t message_index = 0;
+  uint8_t len_list[256] = {};
   uint8_t message_list[256][8] = {};
   uint32_t id_list[256]={};
   
@@ -294,6 +301,7 @@ public:
   void run(){
     //Set the CAN message data to the next one in the list.
     txmsg.id = id_list[message_index];
+    txmsg.len = len_list[message_index];
     memcpy(txmsg.buf,message_list[message_index],8);
 
     //Write the data to the CAN bus.
@@ -353,17 +361,19 @@ void getThreadSize(){
 int setupPeriodicCANMessage(){
   CANTimer.end();
   CanThread* can_message;
-  int index;
-  int sub_index;
-  int channel;
+  int16_t index;
+  int16_t sub_index;
+  uint8_t channel;
   uint32_t tx_period;
   uint32_t tx_delay;
   uint8_t num_messages = 1;
   uint32_t stop_after_count;
-   
-  int threadSize =  can_thread_controller.size(false);
-  char commandBytes[256];
-  commandString.toCharArray(commandBytes,256);
+
+  Serial.println(commandString);
+  
+  uint16_t threadSize =  can_thread_controller.size(false);
+  char commandBytes[64];
+  commandString.toCharArray(commandBytes,sizeof(commandBytes));
   char delimiter[] = ",";
   char* commandValues;
 
@@ -372,7 +382,7 @@ int setupPeriodicCANMessage(){
   
   commandValues = strtok(NULL, delimiter);
   if (commandValues != NULL) {
-    index = constrain(atoi(commandValues),0,threadSize);
+    index = constrain(atoi(commandValues),0,threadSize+1);
   }
   else {
     Serial.println(("ERROR SM command is missing arguments.")); 
@@ -461,7 +471,6 @@ int setupPeriodicCANMessage(){
     temp_txmsg.len = 8;
   }
  
-  //memset(temp_txmsg.buf,allFFs,8);
   for (int i = 0; i < temp_txmsg.len; i++){
     commandValues = strtok(NULL, delimiter);
     if (commandValues != NULL) {
@@ -472,8 +481,8 @@ int setupPeriodicCANMessage(){
       Serial.printf("WARNING SM command not able to set CAN data byte in position %d.\n",i);
     }
   }
-  char threadNameChars[256]; 
-  threadName.toCharArray(threadNameChars,threadName.length()+1);
+  char threadNameChars[30]; //Thirty is the size of the message frame space for the thread name 
+  threadName.toCharArray(threadNameChars,sizeof(threadNameChars));
   
   if (index >= threadSize) { //Create a new entry
     index = threadSize;
@@ -506,6 +515,7 @@ int setupPeriodicCANMessage(){
   can_messages[index]->cycle_count = 0;
   can_messages[index]->message_index = 0;
   can_messages[index]->num_messages = num_messages;  
+  can_messages[index]->tx_period = tx_period;
   can_messages[index]->setInterval(tx_period);
   can_messages[index]->loop_cycles =  tx_delay ;
   can_messages[index]->ThreadName = threadName;
@@ -1908,7 +1918,14 @@ void getCompIdEEPROMdata () {
 }
 
 void displayJ1708(){
-  showJ1708 = bool(commandString.toInt());
+  if (commandString.toInt() > 0) {
+    showJ1708 = true;
+    status_buffer_2[NET_STATUS_LOC] |= STREAM_J1708_MASK; 
+  }
+  else {
+    showJ1708 = false;
+    status_buffer_2[NET_STATUS_LOC] &= ~STREAM_J1708_MASK;
+  }
   //clear the RX buffer on start. 
   J1708.clear();
   J1708_index = 0;
@@ -2036,113 +2053,94 @@ void longPressStop() {}
 
 
 void startStopCAN0Streaming(){
-  if (commandString.toInt() > 0) displayCAN0 = true;
-  else  displayCAN0 = false;
+  if (commandString.toInt() > 0) {
+    displayCAN0 = true;
+    status_buffer_2[NET_STATUS_LOC] |= STREAM_CAN0_MASK; 
+  }
+  else {
+    displayCAN0 = false;
+    status_buffer_2[NET_STATUS_LOC] &= ~STREAM_CAN0_MASK;
+  }
 }
 
 void startStopCAN1Streaming(){
-  if (commandString.toInt() > 0) displayCAN1 = true;
-  else  displayCAN1 = false;
+  if (commandString.toInt() > 0) {
+    displayCAN1 = true;
+    status_buffer_2[NET_STATUS_LOC] |= STREAM_CAN1_MASK; 
+  }
+  else {
+    displayCAN1 = false;
+    status_buffer_2[NET_STATUS_LOC] &= ~STREAM_CAN1_MASK;
+  }
 }
 
 void startStopCAN2Streaming(){
-  if (commandString.toInt() > 0) displayCAN2 = true;
-  else  displayCAN2 = false;
+  if (commandString.toInt() > 0) {
+    displayCAN2 = true;
+    status_buffer_2[NET_STATUS_LOC] |= STREAM_CAN2_MASK; 
+  }
+  else {
+    displayCAN2 = false;
+    status_buffer_2[NET_STATUS_LOC] &= ~STREAM_CAN2_MASK;
+  }
 }
 
 void sendMessage(){
-  /* Sends a CAN message from the following string fields:
-   *  channel,id,data
+  /* Sends a CAN message from the following byte fields:
+   *  extended/channel id dlc data
    *  channel is 0 for CAN0 and 1 for CAN1
    *  id is the CAN ID. if the ID is less than 11 bits and the first bit is set, then it will be transmitted as an extended id
-   *  data length code is determined by the length of the data
-   *  data is the hex representation in ascii with no spaces. there will be 16 hex characters for 8 bytes. Data longer than 8 bytes will be ignored. 
-   */
+  */
   boolean goodID = false;
   boolean goodData = false;
-  
-  //Serial.println(("CANSEND - Send Message."));
-  //Serial.println(commandString);
-  char commandCharBuffer[100];
-  char IdCharBuffer[9];
-  char dataCharBuffer[17];
-  char *endptr;
+  memset(base64,0,sizeof(base64));
+  char commandCharBuffer[64];
   if (commandString.length() > 0) {
-    commandString.toCharArray(commandCharBuffer,commandString.length());
-    int8_t can_channel;
-    if (commandCharBuffer[0]=='1') can_channel = 1;
-    else if (commandCharBuffer[0]=='0') can_channel = 0;
-    else if (commandCharBuffer[0]=='2') can_channel = 2;
-    else can_channel = -1;
-    
-    //Serial.print(channel);  
-    
-    int commaIndex0 = commandString.indexOf(',');
-    int commaIndex1 = commandString.indexOf(',',commaIndex0+1);
-    if (commaIndex0 > 0 && commaIndex1 > 1){
-      String idString = commandString.substring(commaIndex0+1,commaIndex1);
-      //Serial.print("idString = ");
-      //Serial.println(idString);
-      idString.toCharArray(IdCharBuffer,9);
-      for (uint8_t i = 0; i < strlen(IdCharBuffer) ; i++){
-        //Serial.print(IdCharBuffer[i]);
-        if (isxdigit(IdCharBuffer[i])) goodID = true; 
-        else { goodID = false; break; }
-      }
-      if (goodID){
-        uint32_t tempID = strtoul(IdCharBuffer,&endptr,16);
-        //Serial.print(" ");
-        //Serial.print(tempID,HEX);
-        if (  (tempID >> 11) > 0){
-          txmsg.ext = 1;
-          txmsg.id = (0x3FFFFFFF & tempID); //29 bit ID
-        }
-        else {
-          txmsg.ext = 0;
-          txmsg.id = (0x7FF & tempID); //11 bit ID
-        }
-        //Serial.print(" ");
-        //Serial.print(txmsg.id,HEX);
-      }
-      else Serial.println("ERROR Invalid ID format");
+    commandString.toCharArray(base64,commandString.length());
+    uint8_t binary_length = decode_base64(base64, commandCharBuffer);
+    uint8_t i = 0;
+    while (i < binary_length){
+      int8_t can_channel = commandCharBuffer[i] & 0x0F;
+      if (can_channel > 2) return;
+      Serial.printf("CS %d ",can_channel);  
       
-      String dataString = commandString.substring(commaIndex1+1);
-      
-      dataString.toCharArray(dataCharBuffer,17);
-      txmsg.len = strlen(dataCharBuffer)/2;
-      //Serial.print(" ");
-      //Serial.print(txmsg.len,HEX);
-      // Serial.print(" ");
-      for (uint8_t i = 0; i < txmsg.len*2 ; i++){
-        if (isxdigit(dataCharBuffer[i])) goodData = true; 
-        else { goodData = false; Serial.println("ERROR Non Hex Characters or Odd number of nibbles or ID is too long"); break; }
-      } 
-      if (goodData){
-        for (int i = 0; i <  txmsg.len ; i++){
-          char byteStringChars[3] = {dataCharBuffer[2*i],dataCharBuffer[2*i+1],0x00};
-          txmsg.buf[i] = strtol(byteStringChars,&endptr,16);
-          //Serial.print(txmsg.buf[i],HEX);
-          //Serial.print(" ");
-        }
+      boolean extended = bool(commandCharBuffer[i] & 0xF0);
+      i+=1; 
+      if (extended){
+        uint32_t tempID;
+        memcpy(&tempID,&commandCharBuffer[i],4);
+        i+=4;
+        txmsg.ext = 1;
+        txmsg.id = (0x3FFFFFFF & tempID); //29 bit ID
+        Serial.printf("%08X ",txmsg.id);
       }
-    }
-    
-    if (goodData && goodID ){
+      else {
+        uint16_t tempID;
+        memcpy(&tempID,&commandCharBuffer[i],2);
+        i+=2;
+        txmsg.ext = 0;
+        txmsg.id = (0x7FF & tempID); //11 bit ID
+        Serial.printf("%03X ",txmsg.id);
+      }
+      txmsg.len = constrain(commandCharBuffer[i],0,8);
+      i+=1;
+      Serial.printf("%X ",txmsg.len);
+      
+      memset(txmsg.buf,0xff,sizeof(txmsg.buf));
+      for (int j = 0; j < txmsg.len; j++){
+        txmsg.buf[j] = commandCharBuffer[i];
+        i+=1;
+        Serial.printf("%02X ",txmsg.buf[j]);
+      }
+      Serial.println();
+      // Send out the data 
       if      (can_channel == 0) Can0.write(txmsg);
       else if (can_channel == 1) Can1.write(txmsg);
       else if (can_channel == 2) MCPCAN.sendMsgBuf(txmsg.id,txmsg.ext,txmsg.len,txmsg.buf);
-      else Serial.println("ERROR Invalid Channel for CANSEND.");
+      txmsg.ext = 1; //set default
+      txmsg.len = 8;
     }
-    
-    else
-      Serial.println(("ERROR Invalid input data for CANSEND. Input should be using hex characters with no spaces in the form SM,channel,ID,data/n"));
   }
-  else
-  {
-    Serial.println(("ERROR Missing or invalid data to send."));
-  }
-  txmsg.ext = 1; //set default
-  txmsg.len = 8;
 }
 
 void setupComponentInfo(){
@@ -2166,7 +2164,6 @@ void setupComponentInfo(){
    commandString += ",0,";
    commandString += frames_to_send;
    commandString += ",FF,EB,FE,00";
-   Serial.println(commandString);
    
    setupPeriodicCANMessage();
    
@@ -2191,13 +2188,9 @@ void setupComponentInfo(){
        else sprintf(byteEntry,"%02X,",0xFF);
        commandString += byteEntry;
      }
-     Serial.println(commandString);
-   
      comp_id_index = setupPeriodicCANMessage();
    }
    shortest_period = old_shortest_period;
-  
-    
 }       
 
 void reloadCAN(){
@@ -2465,16 +2458,31 @@ uint32_t setBAUD(uint8_t baudindex){
 }
 
 void autoBaud0(){
-  Can0.begin(0);
-  Serial.print("SET CAN0 baudrate set to ");
-  Serial.println(Can0.baud_rate);
+  char baudstring[9];
+  if (commandString.length() > 0){
+    commandString.toCharArray(baudstring,9);
+    uint32_t tempBAUDRATE = strtoul(baudstring,0,10);
+    Can0.begin(tempBAUDRATE); 
+  } 
+  else {
+    //Auto baud
+    Can0.begin(0);
+  }
   status_buffer_2[CAN0_BAUD_LOC] = getBAUD(Can0.baud_rate);
 }
 
 void autoBaud1(){
-  Can1.begin(0);
-  Serial.print("SET CAN1 baudrate set to ");
-  Serial.println(Can1.baud_rate);
+  char baudstring[9];
+  if (commandString.length() > 0){
+    commandString.toCharArray(baudstring,9);
+    uint32_t tempBAUDRATE = strtoul(baudstring,0,10);
+    Can1.begin(tempBAUDRATE);  
+  }
+  else {
+    //Auto baud
+    Can1.begin(0);  
+  }
+  
   status_buffer_2[CAN1_BAUD_LOC] = getBAUD(Can1.baud_rate);
 }
 
@@ -2495,15 +2503,6 @@ void autoBaudMCP(){
   Serial.print("SET MCPCAN baudrate set to ");
   Serial.println(BAUDRATE_MCP);
   status_buffer_2[CAN2_BAUD_LOC] = getBAUD(BAUDRATE_MCP);
-}
-
-void displayBaud(){
-  Serial.print("INFO CAN0 Baudrate ");
-  Serial.println(BAUDRATE0);
-  Serial.print("INFO CAN1 Baudrate ");
-  Serial.println(BAUDRATE1);  
-  Serial.print("INFO MCPCAN Baudrate ");
-  Serial.println(BAUDRATE_MCP);  
 }
 
 void setEnableComponentInfo(){
@@ -2534,4 +2533,29 @@ void getTeensyTime(){
 
 void checkAgainstUID(){
   Serial.println("OK:Authenticated");
+}
+
+void make_buffer_4(){
+  //Set the CAN message data to the next one in the list.
+  status_buffer_4[1] = can_messages[buffer4_index]->channel;
+  memcpy(&status_buffer_4[2],&buffer4_index,2);
+  memcpy(&status_buffer_4[4],&buffer4_message_index,2);
+  status_buffer_4[6] = can_messages[buffer4_index]->txmsg.len;
+  memcpy(&status_buffer_4[7],&can_messages[buffer4_index]->tx_period,4);
+  memcpy(&status_buffer_4[11],&can_messages[buffer4_index]->loop_cycles,4);
+  status_buffer_4[15] = can_messages[buffer4_index]->num_messages;
+  memcpy(&status_buffer_4[16],&can_messages[buffer4_index]->stop_after_count,4);
+  memcpy(&status_buffer_4[20],&can_messages[buffer4_index]->id_list[buffer4_message_index],4);   
+  memcpy(&status_buffer_4[24],&can_messages[buffer4_index]->message_list[buffer4_message_index],8);   
+  status_buffer_4[32] = can_messages[buffer4_index]->ok_to_send;
+  memcpy(&status_buffer_4[33],&can_messages[buffer4_index]->transmit_number,4);   
+  memset(&status_buffer_4[37],0x00,24); //Clear string
+  memcpy(&status_buffer_4[37],&can_messages[buffer4_index]->ThreadName[0],24);   
+  buffer4_message_index++;
+  if (buffer4_message_index >= can_messages[buffer4_index]->num_messages ) {
+    buffer4_message_index = 0;
+    buffer4_index++;
+    if (buffer4_index > can_thread_controller.size(false)) buffer4_index = 0; 
+  }
+
 }
