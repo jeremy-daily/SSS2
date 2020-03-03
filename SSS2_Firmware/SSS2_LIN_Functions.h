@@ -134,15 +134,15 @@ void sendLINResponse(){
      
       readyForLINchecksum = false;
       LINfinished = true;
-      if (printLIN) Serial.printf("LIN %lu,%02X,",micros(),LIN_ID);
-      for (LINindex = 0; LINindex < LINlength; LINindex++){
-        if (printLIN) Serial.printf("%02X,",LINbuffer[LINindex]);
-      }
-      if (printLIN) Serial.printf("%02X,%02X\n",LINchecksum,checksumValue); 
+//      if (printLIN) Serial.printf("LIN %lu,%02X,",micros(),LIN_ID);
+//      for (LINindex = 0; LINindex < LINlength; LINindex++){
+//        if (printLIN) Serial.printf("%02X,",LINbuffer[LINindex]);
+//      }
+//      if (printLIN) Serial.printf("%02X,%02X\n",LINchecksum,checksumValue); 
     }
     else {
-      if (printLIN) Serial.printf("LIN -1,%02X\n",LIN.read());
-      else LIN.read();
+//      if (printLIN) Serial.printf("LIN -1,%02X\n",LIN.read());
+//      else LIN.read();
     }
   }
 

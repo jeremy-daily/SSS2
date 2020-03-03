@@ -142,12 +142,7 @@ void setup() {
   delayMicroseconds(100000);
   listInfo();
 
- 
-  if(MCPCAN.begin(MCP_ANY, getBAUD(BAUDRATE_MCP), MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
-  else Serial.println("Error Initializing MCP2515...");
-  MCPCAN.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
-  status_buffer_2[CAN2_BAUD_LOC] = getBAUD(BAUDRATE_MCP);
-  
+  autoBaudMCP();
   
   //Start FlexCAN with Auto Baud
   Can0.begin(0);
@@ -162,7 +157,7 @@ void setup() {
   txmsg.ext = 1;
   txmsg.len = 8;
  
-
+  buffer4_index = 1;
     
   LIN.begin(19200,SERIAL_8N2);
 
@@ -212,20 +207,19 @@ void loop() {
       digitalWrite(greenLEDpin, greenLEDstate);
     }
   }
-  //!digitalRead(INTCANPin) &&
-  if(MCPCAN.readMsgBuf(&rxId, &extended, &len, rxBuf) == CAN_OK){      // Read data: len = data length, buf = data byte(s)
-      RXCount2++;
-      memcpy(&status_buffer_2[CAN2_RX_COUNT_LOC],&RXCount2,4);  
-      if(displayCAN2)  // 
-      {
-        rxmsg.id = (rxId & 0x1FFFFFFF);
-        rxmsg.len = len;
-        rxmsg.ext = extended;
-        for(byte i = 0; i<len; i++) rxmsg.buf[i] = rxBuf[i];
-        printFrame(rxmsg, 2, RXCount2);
-      }
-  }
-  
+//  if(MCPCAN.readMsgBuf(&rxId, &extended, &len, rxBuf) == CAN_OK){      // Read data: len = data length, buf = data byte(s)
+//      RXCount2++;
+//      memcpy(&status_buffer_2[CAN2_RX_COUNT_LOC],&RXCount2,4);  
+//      if(displayCAN2)  // 
+//      {
+//        rxmsg.id = (rxId & 0x1FFFFFFF);
+//        rxmsg.len = len;
+//        rxmsg.ext = extended;
+//        for(byte i = 0; i<len; i++) rxmsg.buf[i] = rxBuf[i];
+//        printFrame(rxmsg, 2, RXCount2);
+//      }
+//  }
+//  
   //Check J1708
   if (J1708.available()){
     J1708RXbuffer[J1708_index] = J1708.read();
@@ -290,6 +284,7 @@ void loop() {
     n=1;
     while (n < 64){
       char c = Serial.read();
+      delayMicroseconds(100);
       if (c == '\n'){
         n=64;
       }
@@ -297,7 +292,7 @@ void loop() {
         serial_buffer[n] = c;
         n++;
       }
-      Serial.write(c);
+      //Serial.write(c);
     }
     memset(usb_hid_rx_buffer,0,64);
     memcpy(&usb_hid_rx_buffer,&serial_buffer,64);
@@ -315,8 +310,8 @@ void loop() {
 //    Serial.print(crc_message);
 //    Serial.print(" ?=? ");
 //    Serial.println(crc);
-//    for (uint8_t i = 0; i < n; i++) Serial.write(usb_hid_rx_buffer[i]);
-//    Serial.println();
+    for (uint8_t i = 0; i < n; i++) Serial.write(usb_hid_rx_buffer[i]);
+    Serial.println();
     if ((usb_hid_rx_buffer[USB_FRAME_TYPE_LOC] & USB_FRAME_TYPE_MASK) == COMMAND_TYPE
          && crc_message == crc){
       uint8_t myByteArray[61];
@@ -326,9 +321,9 @@ void loop() {
       while (pch != NULL)
       {
         commandPrefix = String(pch);
-        pch = strtok(NULL,", .");
+        pch = strtok(NULL,",");
         commandString =  String(pch);   
-        pch = strtok(NULL,", .");
+        pch = strtok(NULL,",");
         if      (commandPrefix.toInt() > 0)                   fastSetSetting();  
         else if (commandPrefix.equalsIgnoreCase("AI"))        displayVoltage();
         else if (commandPrefix.equalsIgnoreCase("B0"))        autoBaud0();
@@ -344,14 +339,14 @@ void loop() {
         else if (commandPrefix.equalsIgnoreCase("STOPCAN"))   stopCAN();
         else if (commandPrefix.equalsIgnoreCase("STARTCAN"))  goCAN();
         else if (commandPrefix.equalsIgnoreCase("CLEARCAN"))  clearCAN();
-        else if (commandPrefix.equalsIgnoreCase("STATS"))     displayStats();
+        //else if (commandPrefix.equalsIgnoreCase("STATS"))     displayStats();
         else if (commandPrefix.equalsIgnoreCase("CLEARSTATS"))clearStats();
         else if (commandPrefix.equalsIgnoreCase("CI"))        changeComponentID();
         else if (commandPrefix.equalsIgnoreCase("LS"))        listSettings();
         else if (commandPrefix.equalsIgnoreCase("OK"))        checkAgainstUID();
-        else if (commandPrefix.equalsIgnoreCase("CANNAME"))   getThreadName();
-        else if (commandPrefix.equalsIgnoreCase("CANSIZE"))   getThreadSize();
-        else if (commandPrefix.equalsIgnoreCase("THREADS"))   getAllThreadNames();
+        //else if (commandPrefix.equalsIgnoreCase("CANNAME"))   getThreadName();
+        //else if (commandPrefix.equalsIgnoreCase("CANSIZE"))   getThreadSize();
+        //else if (commandPrefix.equalsIgnoreCase("THREADS"))   getAllThreadNames();
         else if (commandPrefix.equalsIgnoreCase("SOFT"))      listSoftware();
         else if (commandPrefix.equalsIgnoreCase("J1708"))     displayJ1708();
         else if (commandPrefix.equalsIgnoreCase("SM"))        setupPeriodicCANMessage();
@@ -365,7 +360,7 @@ void loop() {
         else if (commandPrefix.equalsIgnoreCase("LOAD"))      load_settings();
         else if (commandPrefix.equalsIgnoreCase("SAVE"))      save_settings();
         else {
-          Serial.println(("ERROR Unrecognized Command Characters."));
+          //Serial.println(("ERROR Unrecognized Command Characters."));
         }
       }
     }
@@ -426,7 +421,6 @@ void loop() {
   /*
    * Send USB RawHID Status
    */
-
   if (usb_tx_timer >= 200){
     usb_tx_timer = 0;
     status_buffer_1[61]++;
@@ -450,5 +444,7 @@ void loop() {
     memcpy(&status_buffer_4[62], &checksum4, 2);
     ret_val = RawHID.send(status_buffer_4, timeout);
 
+    
+    RawHID.available();
   }
 }
