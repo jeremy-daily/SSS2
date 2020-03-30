@@ -42,7 +42,7 @@
 
 String make = "SYNER";
 String model = "SSS2";
-String revision = "05";
+String revision = "05a";
 String serial_number ="XXXX";
 String componentID = make + "*" + model + "-" + revision + "*" + serial_number + "*UNIVERSAL";
 
@@ -72,11 +72,11 @@ const int8_t ignitionCtlPin    = 39;
 const uint8_t numPWMs = 6;
 const int8_t PWMPins[numPWMs]     = {16,17,22,23,29,30};
 uint16_t pwmValue[numPWMs] = {500,1000,1500,2000,2500,3000};
-uint16_t pwmFrequency[numPWMs] = {200,210,220,230,240,250};
+uint16_t pwmFrequency[numPWMs] = {245,245,200,200,100,100};
 
 const uint8_t numADCs = 6;
 const int8_t analogInPins[numADCs]= {A21,A1,A0,A6,A11,A22};
-int analog_display_period = 100;
+uint32_t analog_display_period = 100;
 
 //int analogPeriod = 100; //milliseconds
 
@@ -90,7 +90,7 @@ uint8_t  SPIpotTCONSettings[numSPIpots] ={3,3,3,7,7,3,3,7,7,7,0,0,7,7,7,0};
 const uint8_t numI2Cpots = 3;
 uint8_t  I2CpotWiperSettings[numI2Cpots] = {75,150,225};
 uint8_t  I2CpotTCONSettings[numI2Cpots] = {7,7,7};
-const uint8_t I2CpotAddr[numI2Cpots] = {0x3C,0x3F,0x3D};
+const uint8_t I2CpotAddr[numI2Cpots] = {U34_I2C_ADDR,U36_I2C_ADDR,U37_I2C_ADDR};
 
 const uint8_t numDACs = 8;
 uint16_t DAC2value[numDACs] = {0,0,0,0,512,512,0,0};
@@ -106,8 +106,8 @@ const uint8_t HVoutAdjAddr = 0x3E;
 //i2C Device Addresses
 const uint8_t Vout2address = 0x49;
 
-const uint8_t potExpanderAddr = 7;
-const uint8_t configExpanderAddr = 3;
+const uint8_t potExpanderAddr = 7 | 0x20;
+const uint8_t configExpanderAddr = 3 | 0x20;
 
 /*
  * End Default Settings
@@ -202,6 +202,3 @@ bool PWM4Out_28         = false;
 bool CAN1out            = false;
 bool CAN2out            = false;
 bool ignitionCtlState   = false;
-
-
-
