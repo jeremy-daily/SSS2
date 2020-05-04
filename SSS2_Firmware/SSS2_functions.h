@@ -83,7 +83,7 @@ unsigned char rxBuf[8];
 char msgString[128];
 unsigned char base64[64];
 
-uint8_t can_buffer[62];
+uint8_t can_buffer[64];
 elapsedMillis can_send_time;
 
 
@@ -2271,7 +2271,7 @@ void printFrame(CAN_message_t rxmsg, uint8_t can_channel, uint32_t RXCount)
   uint32_t timestamp = uint32_t(now());
   //21 Byte frame, three per HID message
 
-  uint8_t can_message_index = (can_buffer[0] & 0x03) * CAN_FRAME_LENGTH + 1;
+  uint8_t can_message_index = (can_buffer[0] & 0x0F) * CAN_FRAME_LENGTH + 1;
   can_buffer[0]++; // Normally CAN buffer will start with a value of 0x20 CAN_MESSAGE_BASE
   memcpy(&can_buffer[can_message_index + TIMESTAMP_OFFSET], &timestamp, 4);
   can_buffer[can_message_index + CHANNEL_DLC_OFFSET] = (can_channel << 4) + rxmsg.len;
@@ -2281,6 +2281,7 @@ void printFrame(CAN_message_t rxmsg, uint8_t can_channel, uint32_t RXCount)
   memcpy(&can_buffer[can_message_index + CAN_ID_OFFSET], &ID, 4);
   memcpy(&can_buffer[can_message_index + CAN_DATA_OFFSET], &rxmsg.buf, 8);
 
+  // after 3 messages, send
   if ((can_buffer[0] & 0x03) == 0x03 || can_send_time > CAN_SEND_MS) {
     can_send_time = 0;
     can_buffer[61]++; // increment the counter

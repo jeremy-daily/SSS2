@@ -63,9 +63,7 @@ void setup() {
   SPI.begin();
   SPI1.begin();
   //while(!Serial); //Uncomment for testing
-  status_buffer_1[0] = 1;
-  status_buffer_2[0] = 2;
-  status_buffer_3[0] = 3;
+  
     
   LIN.begin(19200);
    
@@ -93,36 +91,29 @@ void setup() {
   const uint8_t HAEN   = 0x08; 
   const uint8_t ODR    = 0x00; 
   const uint8_t INTPOL = 0x02;
-  
-//  Wire.beginTransmission(configExpanderAddr); 
-//  Wire.write(uint8_t(MCP23017_IOCON)); // sends instruction byte  
-//  Wire.write(uint8_t(BANK | MIRROR | SEQOP | DISSLW | HAEN | ODR | INTPOL));     
-//  Wire.endTransmission();
-  
-  Wire.beginTransmission(potExpanderAddr); 
-  Wire.write(uint8_t(MCP23017_IODIRA)); // sends instruction byte  
-  Wire.write(uint8_t(0));     
-  Wire.endTransmission();
-
-  Wire.beginTransmission(potExpanderAddr); 
-  Wire.write(uint8_t(MCP23017_IODIRB)); // sends instruction byte  
-  Wire.write(uint8_t(0));     
-  Wire.endTransmission();
-
-  Wire.beginTransmission(configExpanderAddr); 
-  Wire.write(uint8_t(MCP23017_IODIRA)); // sends instruction byte  
-  Wire.write(uint8_t(0));     
-  Wire.endTransmission();
-
-  Wire.beginTransmission(configExpanderAddr); 
-  Wire.write(uint8_t(MCP23017_IODIRB)); // sends instruction byte  
-  Wire.write(uint8_t(0));     
-  Wire.endTransmission();
-
  
-  setTerminationSwitches();
-  setPWMSwitches();
-  setConfigSwitches();
+  Wire.beginTransmission(potExpanderAddr); 
+  Wire.write(uint8_t(MCP23017_IODIRA)); // sends instruction byte  
+  Wire.write(uint8_t(0));     
+  Wire.endTransmission();
+
+  Wire.beginTransmission(potExpanderAddr); 
+  Wire.write(uint8_t(MCP23017_IODIRB)); // sends instruction byte  
+  Wire.write(uint8_t(0));     
+  Wire.endTransmission();
+
+  Wire.beginTransmission(configExpanderAddr); 
+  Wire.write(uint8_t(MCP23017_IODIRA)); // sends instruction byte  
+  Wire.write(uint8_t(0));     
+  Wire.endTransmission();
+
+  Wire.beginTransmission(configExpanderAddr); 
+  Wire.write(uint8_t(MCP23017_IODIRB)); // sends instruction byte  
+  Wire.write(uint8_t(0));     
+  Wire.endTransmission();
+
+  getCompIdEEPROMdata();
+ 
   
   button.attachClick(myClickFunction);
   button.attachDoubleClick(myDoubleClickFunction);
@@ -133,7 +124,7 @@ void setup() {
   button.setClickTicks(250);
  
   initializeDACs(Vout2address);
-
+  
   load_settings();
   for (int i = 1; i < numSettings; i++) {
     currentSetting = setSetting(i, -1,DEBUG_OFF);
@@ -141,7 +132,11 @@ void setup() {
   }
   delayMicroseconds(100000);
   listInfo();
-
+  
+  setTerminationSwitches();
+  setPWMSwitches();
+  setConfigSwitches();
+  
   autoBaudMCP();
   
   //Start FlexCAN with Auto Baud
@@ -171,8 +166,7 @@ void setup() {
   knobHighLimit = numSettings - 1;
 
   LINfinished = true;
-  getCompIdEEPROMdata();
- 
+  
   commandString="1";
   reloadCAN();
   listSettings();
@@ -182,6 +176,10 @@ void setup() {
   memcpy(&status_buffer_2[CAN2_RX_COUNT_LOC],&RXCount2,4);
 
   can_buffer[0] = 0x20; // declare this message type
+  status_buffer_1[0] = 1;
+  status_buffer_2[0] = 2;
+  status_buffer_3[0] = 3;
+  stopCAN();
 }
 
 void loop() {
@@ -421,7 +419,7 @@ void loop() {
   /*
    * Send USB RawHID Status
    */
-  if (usb_tx_timer >= 200){
+  if (usb_tx_timer >= 300){
     usb_tx_timer = 0;
     status_buffer_1[61]++;
     uint16_t checksum1 = CRC16.ccitt(status_buffer_1, 62);
