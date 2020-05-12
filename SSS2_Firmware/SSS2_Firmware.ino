@@ -182,6 +182,7 @@ void setup() {
   memcpy(&status_buffer_2[CAN2_RX_COUNT_LOC],&RXCount2,4);
 
   can_buffer[0] = 0x20; // declare this message type
+  stopCAN();
 }
 
 void loop() {
