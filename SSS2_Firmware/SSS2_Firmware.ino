@@ -43,6 +43,8 @@
 #include "version.h"
 #include "base64.hpp"
 
+
+
 char serial_buffer[64];
 
 //softwareVersion
@@ -183,6 +185,7 @@ void setup() {
 
   can_buffer[0] = 0x20; // declare this message type
   stopCAN();
+  Serial.println("Ended Setup");
 }
 
 void loop() {
@@ -365,35 +368,135 @@ void loop() {
         }
       }
     }
+
+    /***************************************************************/
+    /*            CAN Threads Command Processing                   */
+
+    if ((usb_hid_rx_buffer[USB_FRAME_TYPE_LOC] & USB_FRAME_TYPE_MASK) == CAN_THREAD_TYPE && crc_message == crc)
+    {
+      Serial.println("Entered CAN Thread Process");
+      // uint8_t myByteArray[61];
+      // memcpy(&myByteArray[0], &usb_hid_rx_buffer[1], 61);
+      // char *pch;
+      // pch = strtok((char *)myByteArray, ", ."); //tokenize the strings based on comma, space and period
+      
+      //   while (pch != NULL)
+      //   {
+      //     commandPrefix = String(pch);
+      //     pch = strtok(NULL, ",");
+      //     commandString = String(pch);
+      //     pch = strtok(NULL, ",");
+      //     if (commandPrefix.toInt() > 0)
+      //       fastSetSetting();
+      //     else if (commandPrefix.equalsIgnoreCase("AI"))
+      //       displayVoltage();
+      //     else if (commandPrefix.equalsIgnoreCase("B0"))
+      //       autoBaud0();
+      //     else if (commandPrefix.equalsIgnoreCase("B1"))
+      //       autoBaud1();
+      //     else if (commandPrefix.equalsIgnoreCase("BMCP"))
+      //       autoBaudMCP();
+      //     else if (commandPrefix.equalsIgnoreCase("CANCOMP"))
+      //       setEnableComponentInfo();
+      //     else if (commandPrefix.equalsIgnoreCase("ID"))
+      //       print_uid();
+      //     else if (commandPrefix.equalsIgnoreCase("C0"))
+      //       startStopCAN0Streaming();
+      //     else if (commandPrefix.equalsIgnoreCase("C1"))
+      //       startStopCAN1Streaming();
+      //     else if (commandPrefix.equalsIgnoreCase("C2"))
+      //       startStopCAN2Streaming();
+      //     else if (commandPrefix.equalsIgnoreCase("GO"))
+      //       startCAN();
+      //     else if (commandPrefix.equalsIgnoreCase("SP"))
+      //       set_shortest_period();
+      //     else if (commandPrefix.equalsIgnoreCase("STOPCAN"))
+      //       stopCAN();
+      //     else if (commandPrefix.equalsIgnoreCase("STARTCAN"))
+      //       goCAN();
+      //     else if (commandPrefix.equalsIgnoreCase("CLEARCAN"))
+      //       clearCAN();
+      //     //else if (commandPrefix.equalsIgnoreCase("STATS"))     displayStats();
+      //     else if (commandPrefix.equalsIgnoreCase("CLEARSTATS"))
+      //       clearStats();
+      //     else if (commandPrefix.equalsIgnoreCase("CI"))
+      //       changeComponentID();
+      //     else if (commandPrefix.equalsIgnoreCase("LS"))
+      //       listSettings();
+      //     else if (commandPrefix.equalsIgnoreCase("OK"))
+      //       checkAgainstUID();
+      //     //else if (commandPrefix.equalsIgnoreCase("CANNAME"))   getThreadName();
+      //     //else if (commandPrefix.equalsIgnoreCase("CANSIZE"))   getThreadSize();
+      //     //else if (commandPrefix.equalsIgnoreCase("THREADS"))   getAllThreadNames();
+      //     else if (commandPrefix.equalsIgnoreCase("SOFT"))
+      //       listSoftware();
+      //     else if (commandPrefix.equalsIgnoreCase("J1708"))
+      //       displayJ1708();
+      //     else if (commandPrefix.equalsIgnoreCase("SM"))
+      //       setupPeriodicCANMessage();
+      //     else if (commandPrefix.equalsIgnoreCase("CS"))
+      //       sendMessage();
+      //     else if (commandPrefix.equalsIgnoreCase("CANSEND"))
+      //       sendMessage();
+      //     else if (commandPrefix.equalsIgnoreCase("RELOAD"))
+      //       reloadCAN();
+      //     else if (commandPrefix.equalsIgnoreCase("TIME"))
+      //       displayTime();
+      //     else if (commandPrefix.equalsIgnoreCase("GETTIME"))
+      //       getTeensyTime();
+      //     else if (commandPrefix.equalsIgnoreCase("LIN"))
+      //       displayLIN();
+      //     else if (commandPrefix.equalsIgnoreCase("SENDLIN"))
+      //       sendLINselect();
+      //     else if (commandPrefix.equalsIgnoreCase("LOAD"))
+      //       load_settings();
+      //     else if (commandPrefix.equalsIgnoreCase("SAVE"))
+      //       save_settings();
+      //     else
+      //     {
+      //       //Serial.println(("ERROR Unrecognized Command Characters."));
+      //     }
+      //   }
+    }
   }
-  /*              End Serial Command Processing                   */
+  /*              End CAN Threads Command Processi                */
   /****************************************************************/
 
-  /****************************************************************/
-  /*            Begin Quadrature Knob Processing                  */
-  button.tick() ; //check for presses
-  int32_t newKnob = knob.read(); //check for turns
-  if (newKnob != currentKnob) {
-    if (newKnob >= knobHighLimit) {  //note: knob limits are for each input parameter
-      knob.write(knobHighLimit);
-      currentKnob = knobHighLimit;
-    }
-    else if (newKnob <= knobLowLimit) {
-      knob.write(knobLowLimit);
-      currentKnob = knobLowLimit;
-    }
-    else
-    {
-      currentKnob = newKnob;
-    }
-    //Place function calls to execute when the knob turns.
-    if (ADJUST_MODE_ON) {
-      setSetting(currentSetting, currentKnob,DEBUG_ON);
-    }
-    else {
-      currentSetting = currentKnob;
-      setSetting(currentSetting,-1,DEBUG_ON);
-    }
+
+
+/*              End Serial Command Processing                   */
+/****************************************************************/
+
+/****************************************************************/
+/*            Begin Quadrature Knob Processing                  */
+button.tick();                 //check for presses
+int32_t newKnob = knob.read(); //check for turns
+if (newKnob != currentKnob)
+{
+  if (newKnob >= knobHighLimit)
+  { //note: knob limits are for each input parameter
+    knob.write(knobHighLimit);
+    currentKnob = knobHighLimit;
+  }
+  else if (newKnob <= knobLowLimit)
+  {
+    knob.write(knobLowLimit);
+    currentKnob = knobLowLimit;
+  }
+  else
+  {
+    currentKnob = newKnob;
+  }
+  //Place function calls to execute when the knob turns.
+  if (ADJUST_MODE_ON)
+  {
+    setSetting(currentSetting, currentKnob, DEBUG_ON);
+  }
+  else
+  {
+    currentSetting = currentKnob;
+    setSetting(currentSetting, -1, DEBUG_ON);
+  }
   }
   /*            End Quadrature Knob Processing                    */
   /****************************************************************/

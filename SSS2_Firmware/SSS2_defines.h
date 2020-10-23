@@ -3,6 +3,7 @@
 #define STATUS_TYPE         0x00
 #define COMMAND_TYPE        0x10
 #define MESSAGE_TYPE        0x20
+#define CAN_THREAD_TYPE     0x40
 #define ESCAPE_TYPE         0x80
 
 
