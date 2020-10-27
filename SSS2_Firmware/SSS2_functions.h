@@ -356,23 +356,23 @@ CanThread* can_messages[MAX_THREADS] = {};
 void set_shortest_period() {
   if (commandString.length() > 0) {
     shortest_period = commandString.toInt();
-    //Serial.printf("SET Shortest CAN Broadcast Period to %lu milliseconds.\n",shortest_period);
+    Serial.printf("SET Shortest CAN Broadcast Period to %lu milliseconds.\n",shortest_period);
   }
   //else
-  //Serial.printf("INFO Shortest CAN Broadcast Period is %lu milliseconds.\n",shortest_period);
+  // Serial.printf("INFO Shortest CAN Broadcast Period is %lu milliseconds.\n",shortest_period);
 }
 
 void getThreadName() {
   int index = commandString.toInt();
-  //Serial.printf("NAME of CAN Thread %d: ",index);
-  //Serial.println(can_messages[index]->ThreadName);
+  Serial.printf("NAME of CAN Thread %d: ",index);
+  Serial.println(can_messages[index]->ThreadName);
 }
 
 void getAllThreadNames() {
   int threadSize =  can_thread_controller.size(false);
   for (int i = 0; i < threadSize; i++) {
-    //Serial.printf("NAME of CAN Thread %d: ",i);
-    //Serial.println(can_messages[i]->ThreadName);
+    Serial.printf("NAME of CAN Thread %d: ",i);
+    Serial.println(can_messages[i]->ThreadName);
   }
 }
 
@@ -391,8 +391,8 @@ int setupPeriodicCANMessage() {
   uint32_t tx_delay;
   uint8_t num_messages = 1;
   uint32_t stop_after_count;
-
-  //Serial.println(commandString);
+  Serial.println("***************Entered setupPeriodicCANMessage*******************");
+  Serial.println(commandString);
 
   uint16_t threadSize =  can_thread_controller.size(false);
   char commandBytes[128];
@@ -519,8 +519,8 @@ int setupPeriodicCANMessage() {
     Serial.printf("THREAD %lu, %s (EXISTING)\n",index,threadNameChars);
   }
 
-  Serial.printf("SET CAN name=%s, i=%d, n=%d, j=%d, c=%d, p=%d, d=%d, t=%d, e=%d, ID=%08X, DLC=%d, DATA=[",
-                 threadNameChars,index, num_messages, sub_index, channel, tx_period, tx_delay, stop_after_count, temp_txmsg.ext, temp_txmsg.id,temp_txmsg.len);
+  Serial.printf("SET CAN name=%s \n index=%d\n num_messages=%d\n sub_index=%d\n channel=%d\n tx_period=%d\n tx_delay=%d\n stop_after_count=%d\n temp_txmsg.ext=%d\n ID=%08X\n DLC=%d\n DATA=[",
+                threadNameChars, index, num_messages, sub_index, channel, tx_period, tx_delay, stop_after_count, temp_txmsg.ext, temp_txmsg.id, temp_txmsg.len);
   for (int i = 0; i < temp_txmsg.len - 1; i++) {
     Serial.printf("%02X, ",temp_txmsg.buf[i]);
   }
@@ -568,7 +568,7 @@ void goCAN() {
   int threadSize =  can_thread_controller.size(false);
   for (int i = 0; i < threadSize; i++) {
     can_messages[i]->enabled = true;
-    can_messages[i]->transmit_number = 0;
+    can_messages[i]->transmit_number =0;
     can_messages[i]->message_index = 0;
     can_messages[i]->cycle_count = 0;
   }
@@ -578,16 +578,28 @@ void goCAN() {
 void startCAN () {
   int threadSize =  can_thread_controller.size(false);
   if (threadSize > 0) {
-    char commandBytes[10];
-    commandString.toCharArray(commandBytes, 10);
-    char delimiter[] = ";,";
+    char commandBytes[40];
+    commandString.toCharArray(commandBytes, 100);
+    Serial.print("Command Bytes:   ");
+    Serial.println(commandBytes);
+    char delimiter[] = ";";
     char* commandValues;
-    commandValues = strtok(commandBytes, delimiter);
-    int index = constrain(atoi(commandValues), 0, threadSize - 1);
+    // commandValues = strtok(commandBytes, delimiter);
+    commandValues = strtok(NULL, delimiter);
+    Serial.print("Command Values:   ");
+    Serial.println(commandValues);
 
+    commandValues = strtok(commandBytes, delimiter);
+    Serial.print("Command Values:   ");
+    Serial.println(commandValues);
+
+    int index = constrain(atoi(commandValues), 0, threadSize - 1);
+    Serial.print("index: ");
+    Serial.println(index);
     commandValues = strtok(NULL, delimiter);
     int setting = atoi(commandValues);
-
+    Serial.print("setting: ");
+    Serial.println(setting);
     if (setting > 0) {
       can_messages[index]->enabled = true;
       can_messages[index]->transmit_number = 0;
@@ -605,6 +617,77 @@ void startCAN () {
     //Serial.println("ERROR No CAN Messages Setup to turn on.");
   }
 }
+
+void setupComponentInfo()
+{
+  char byteEntry[4];
+  uint8_t old_shortest_period = shortest_period;
+  shortest_period = 1;
+  uint16_t id_length = constrain(componentID.length(), 0, 7 * 256 - 1);
+  char id[7 * 256];
+  componentID.toCharArray(id, id_length + 1);
+  uint8_t num_frames = id_length / 7;
+  if (id_length % 7 > 0)
+    num_frames++;
+  char bytes_to_send[4];
+  sprintf(bytes_to_send, "%02X", id_length);
+  char frames_to_send[3];
+  sprintf(frames_to_send, "%02X", num_frames);
+  commandString = "CI from SSS2;0;1;0;0;1;0;1;1;18ECFF";
+  sprintf(byteEntry, "%02X;", source_address);
+  commandString += byteEntry;
+  commandString += "8;20;";
+  commandString += bytes_to_send;
+  commandString += ";0;";
+  commandString += frames_to_send;
+  commandString += ";FF;EB;FE;00";
+
+  setupPeriodicCANMessage();
+
+  for (int i = 0; i < num_frames; i++)
+  {
+    commandString = "CI from SSS2;0;";
+    sprintf(byteEntry, "%d;", num_frames + 1);
+    commandString += byteEntry;
+    sprintf(byteEntry, "%d;", i + 1);
+    commandString += byteEntry;
+    commandString += "0;1;0;";
+    sprintf(byteEntry, "%d;", num_frames + 1);
+    commandString += byteEntry;
+    commandString += "1;18EBFF";
+    sprintf(byteEntry, "%02X;", source_address);
+    commandString += byteEntry;
+    commandString += "8;";
+    sprintf(byteEntry, "%02X;", i + 1);
+    commandString += byteEntry;
+    for (int j = 7 * i; j < 7 * i + 7; j++)
+    {
+      if (j < id_length)
+        sprintf(byteEntry, "%02X;", id[j]);
+      else
+        sprintf(byteEntry, "%02X;", 0xFF);
+      commandString += byteEntry;
+    }
+    comp_id_index = setupPeriodicCANMessage();
+  }
+  shortest_period = old_shortest_period;
+}
+
+
+void reloadCAN()
+{
+  setupComponentInfo();
+
+  for (int i = 0; i < num_default_messages; i++)
+  {
+    commandString = default_messages[i];
+    setupPeriodicCANMessage();
+    delayMicroseconds(800);
+  }
+  commandString = "1";
+  goCAN();
+}
+
 /*
  * *************************** END CAN Logic ********************************
 */
@@ -2166,67 +2249,9 @@ void sendMessage() {
 
 
 
-void setupComponentInfo() {
-  char byteEntry[4];
-  uint8_t old_shortest_period = shortest_period;
-  shortest_period = 1;
-  uint16_t id_length = constrain(componentID.length(), 0, 7 * 256 - 1);
-  char id[7 * 256];
-  componentID.toCharArray(id, id_length + 1);
-  uint8_t num_frames = id_length / 7;
-  if (id_length % 7 > 0) num_frames++;
-  char bytes_to_send[4];
-  sprintf(bytes_to_send, "%02X", id_length);
-  char frames_to_send[3];
-  sprintf(frames_to_send, "%02X", num_frames);
-  commandString = "CI from SSS2;0;1;0;0;1;0;1;1;18ECFF";
-  sprintf(byteEntry, "%02X;", source_address);
-  commandString += byteEntry;
-  commandString += "8;20;";
-  commandString += bytes_to_send;
-  commandString += ";0;";
-  commandString += frames_to_send;
-  commandString += ";FF;EB;FE;00";
-
-  setupPeriodicCANMessage();
 
 
-  for (int i = 0; i < num_frames; i++) {
-    commandString = "CI from SSS2;0;";
-    sprintf(byteEntry, "%d;", num_frames + 1);
-    commandString += byteEntry;
-    sprintf(byteEntry, "%d;", i + 1);
-    commandString += byteEntry;
-    commandString += "0;1;0;";
-    sprintf(byteEntry, "%d;", num_frames + 1);
-    commandString += byteEntry;
-    commandString += "1;18EBFF";
-    sprintf(byteEntry, "%02X;", source_address);
-    commandString += byteEntry;
-    commandString += "8;";
-    sprintf(byteEntry, "%02X;", i + 1);
-    commandString += byteEntry;
-    for (int j = 7 * i; j < 7 * i + 7; j++) {
-      if (j < id_length) sprintf(byteEntry, "%02X;", id[j]);
-      else sprintf(byteEntry, "%02X;", 0xFF);
-      commandString += byteEntry;
-    }
-    comp_id_index = setupPeriodicCANMessage();
-  }
-  shortest_period = old_shortest_period;
-}
 
-void reloadCAN() {
-  setupComponentInfo();
-
-  for (int i = 0; i < num_default_messages; i++) {
-    commandString = default_messages[i];
-    setupPeriodicCANMessage();
-    delayMicroseconds(800);
-  }
-  commandString = "1";
-  goCAN();
-}
 void parseJ1939(CAN_message_t &rxmsg ) {
   uint32_t ID = rxmsg.id;
   uint8_t DLC = rxmsg.len;
@@ -2565,4 +2590,18 @@ void make_buffer_4() {
     if (buffer4_index >= can_thread_controller.size(false)) buffer4_index = 0;
   }
 
+}
+
+void PrintHex8(uint8_t *data, uint8_t length) // prints 8-bit data in hex with leading zeroes
+{
+  // Serial.print("0x");
+  for (int i = 0; i < length; i++)
+  {
+    if (data[i] < 0x10)
+    {
+      Serial.print("0");
+    }
+    Serial.print(data[i], HEX);
+    Serial.print(" ");
+  }
 }
