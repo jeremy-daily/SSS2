@@ -129,30 +129,20 @@ The SSS2_functions file is a header file that defines all the functions needed t
   _YYYY_ are the message data in an even number hex digits (up to 16 nibble characters). 
   
   **SM,name,i,n,j,c,p,d,t,e,ID,DLC,b1,b2,b3,b4,b5,b6,b7,b8** Setup a CAN message with the fiollowing arguments. All arguments are required.
-  
-  _name_ is a string to describe the transmitting thread. Suggested naming scheme would use language from J1939. For example: " CCVS1 from Instrument Cluster."
-  
-  _i_ = index, the CAN message index from 0 to 1024. If the position in the array exists, the command will overwrite that spot. If not, it will create the next new one. This means, you can tell i to be 1000, but is may return 1.
-  
-  _n_ = num_messages, the number of total sub messages.
-  
-  _j_ = sub_index, the CAN message sub index. Default should be 0. This places the message in a list the gets sent as a group.
-  
-  _c_ = channel, the CAN Channel 0 or 1.
-  
-  _p_ = tx_period, the period of transmission from one mesage to the next in milliseconds.
-  
-  _d_ = tx_delay, the delay between repeating the message groups from start to start.
-  
-  _t_ = stop_after_count, the total number of message groups to send. Set to 0 for disabling this count.
-  
-  _e_ = temp_txmsg.ext, the extended ID flag set to 0 for 11-bit IDs or 1 for 29-bit IDs.
-  
-  _ID_ = temp_txmsg.id, the CAN ID HEX characters, (e.g. 18FEF100).
-  
-  _DLC_ = temp_txmsg.len, the data length code.
-
-  _b1_ through _b8_ = temp_txmsg.buf[i], the data bytes in HEX. 
+  |Variable|Alias|Description|
+  |--------|-----|-----------|
+  | _name_ | Name|is a string to describe the transmitting thread. Suggested naming scheme would use language from J1939. For example: " CCVS1 from Instrument Cluster."|
+  | _i_ | index| the CAN message index from 0 to 1024. If the position in the array exists, the command will overwrite that spot. If not, it will create the next new one. This means, you can tell i to be 1000, but is may return 1.|
+  | _n_ |num_messages| the number of total sub messages.|
+  |_j_ | sub_index|the CAN message sub index. Default should be 0. This places the message in a list the gets sent as a group.|
+  |_c_ | channel| the CAN Channel 0 or 1.|
+  |_p_ | tx_period| the period of transmission from one mesage to the next in milliseconds.|
+  |_d_ | tx_delay| the delay between repeating the message groups from start to start.|
+  |_t_ | stop_after_count| the total number of message groups to send. Set to 0 for disabling this count.|
+  |_e_| temp_txmsg.ext| the extended ID flag set to 0 for 11-bit IDs or 1 for 29-bit IDs.|
+  |_ID_| temp_txmsg.id| the CAN ID HEX characters, (e.g. 18FEF100).|
+  |_DLC_| temp_txmsg.len| the data length code.|
+  |_b1_ through _b8_ | temp_txmsg.buf[i]| the data bytes in HEX. |
   
   
 ### Examples:
