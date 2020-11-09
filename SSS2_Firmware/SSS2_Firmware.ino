@@ -64,11 +64,11 @@ uint8_t usb_hid_rx_buffer[65];
 void setup() {
   SPI.begin();
   SPI1.begin();
-  //while(!Serial); //Uncomment for testing
-  status_buffer_1[0] = 1;
-  status_buffer_2[0] = 2;
-  status_buffer_3[0] = 3;
-    
+  while(!Serial); //Uncomment for testing
+  status_buffer_1[0] = 0x01;
+  status_buffer_2[0] = 0x02;
+  status_buffer_3[0] = 0x03;
+
   LIN.begin(19200);
    
   commandString.reserve(256);
@@ -574,6 +574,7 @@ if (newKnob != currentKnob)
   if (usb_tx_timer >= 200){
     usb_tx_timer = 0;
     status_buffer_1[61]++;
+    status_buffer_1[0]=0x01;
     uint16_t checksum1 = CRC16.ccitt(status_buffer_1, 62);
     memcpy(&status_buffer_1[62], &checksum1, 2);
     ret_val = RawHID.send(status_buffer_1, timeout);
