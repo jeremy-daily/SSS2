@@ -1,0 +1,3 @@
+[submodule "SSS2_Firmware/src/FlexCAN"]
+	path = SSS2_Firmware/src/FlexCAN
+	url = https://github.com/SystemsCyber/FlexCAN_Library.git

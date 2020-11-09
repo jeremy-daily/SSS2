@@ -64,11 +64,11 @@ uint8_t usb_hid_rx_buffer[65];
 void setup() {
   SPI.begin();
   SPI1.begin();
-  //while(!Serial); //Uncomment for testing
-  status_buffer_1[0] = 1;
-  status_buffer_2[0] = 2;
-  status_buffer_3[0] = 3;
-    
+  while(!Serial); //Uncomment for testing
+  status_buffer_1[0] = 0x01;
+  status_buffer_2[0] = 0x02;
+  status_buffer_3[0] = 0x03;
+
   LIN.begin(19200);
    
   commandString.reserve(256);
@@ -185,10 +185,15 @@ void setup() {
 
   can_buffer[0] = 0x20; // declare this message type
   stopCAN();
+
   Serial.println("Ended Setup");
 }
-
+bool te =1;
 void loop() {
+  if(te)Serial.println("$$$$$$$$$$$$$$$$$$$$$ Started Loop *****************");
+  te=0;
+  // reloadCAN();
+
   //Check CAN messages
   if (Can0.available()) {
     Can0.read(rxmsg);
@@ -372,14 +377,55 @@ void loop() {
     /***************************************************************/
     /*            CAN Threads Command Processing                   */
 
-    if ((usb_hid_rx_buffer[USB_FRAME_TYPE_LOC] & USB_FRAME_TYPE_MASK) == CAN_THREAD_TYPE && crc_message == crc)
+    else if ((usb_hid_rx_buffer[USB_FRAME_TYPE_LOC] & USB_FRAME_TYPE_MASK) == CAN_THREAD_TYPE && crc_message == crc)
     {
       Serial.println("Entered CAN Thread Process");
+      // commandString = "CCVS1 from Cab Display 1;      9;10;0;0; 100;   0;200;1;18FEF128;8; 01; 02; 03; 04; 05; 06; 07; 08";
+
+      uint8_t myByteArray[61];
+      memcpy(&myByteArray[0], &usb_hid_rx_buffer[1], 61);
+      char *pch;
+      pch = strtok((char *)myByteArray, ";"); //tokenize the strings based on comma, space and period
+      for(int i =0;i<28;i++)
+      {
+        if(i>=5 && i<9){
+          PrintHex8(&myByteArray[i],1);
+         
+        }
+        else if(i>=15 && i<19){
+          PrintHex8(&myByteArray[i], 1);
+        }
+        else{
+        Serial.print(myByteArray[i], HEX);
+        Serial.print(" | ");
+
+      }
+      }
+      // extract the Thread name from the last remaining bytes
+      char ThreadName[32];
+      memcpy(&ThreadName[0], &myByteArray[28], 32);
+      Serial.print(ThreadName);
+      Serial.print(" | ");
+      Serial.println("");
+      // while (pch != NULL)
+      // {
+      //   Serial.print(pch);
+      //   Serial.print(" | ");
+      //   pch = strtok(NULL, ";");
+      //   // commandPrefix = String(pch);
+      //   // pch = strtok(NULL, ";");
+      //   // commandString = String(pch);
+      //   // pch = strtok(NULL, ";");
+
+      //   // startCAN();
+      // }
+      // can_messages[1]->enabled = true;
+      // startCAN();
       // uint8_t myByteArray[61];
       // memcpy(&myByteArray[0], &usb_hid_rx_buffer[1], 61);
       // char *pch;
       // pch = strtok((char *)myByteArray, ", ."); //tokenize the strings based on comma, space and period
-      
+
       //   while (pch != NULL)
       //   {
       //     commandPrefix = String(pch);
@@ -457,7 +503,7 @@ void loop() {
       //       //Serial.println(("ERROR Unrecognized Command Characters."));
       //     }
       //   }
-    }
+      }
   }
   /*              End CAN Threads Command Processi                */
   /****************************************************************/
@@ -528,6 +574,7 @@ if (newKnob != currentKnob)
   if (usb_tx_timer >= 200){
     usb_tx_timer = 0;
     status_buffer_1[61]++;
+    status_buffer_1[0]=0x01;
     uint16_t checksum1 = CRC16.ccitt(status_buffer_1, 62);
     memcpy(&status_buffer_1[62], &checksum1, 2);
     ret_val = RawHID.send(status_buffer_1, timeout);

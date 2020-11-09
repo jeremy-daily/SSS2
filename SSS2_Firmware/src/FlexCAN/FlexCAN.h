@@ -8,22 +8,44 @@
 
 #include <Arduino.h>
 
-#if !defined(SIZE_RX_BUFFER)
-#define SIZE_RX_BUFFER  32 // receive incoming ring buffer size
+#define AUTOBAUD_TIMEOUT 150 //milliseconds to look for message
+#define EEPROM_BIT_RATE_INDEX_ADDR 0 //Location in EEPROM for the bitrate index
+#define NUM_BAUD_RATES 5
+#define BAUD_RATE_LIST {250000, 500000, 125000, 666666, 1000000}
+
+#define INCLUDE_FLEXCAN_DEBUG 0
+
+#if(INCLUDE_FLEXCAN_DEBUG)
+  #define dbg_print(fmt, args...)     Serial.print (fmt , ## args)
+  #define dbg_println(fmt, args...)   Serial.println (fmt , ## args)
+#else
+  #define dbg_print(fmt, args...)
+  #define dbg_println(fmt, args...)
 #endif
 
+
+#if !defined(SIZE_RX_BUFFER)
+#define SIZE_RX_BUFFER  512 // receive incoming ring buffer size
+#endif
+
+#define USE_TX_BUFFER 0 //Set to 0 to just write directly to the mailboxes, which gives more predictable results.
 #if !defined(SIZE_TX_BUFFER)
 #define SIZE_TX_BUFFER  16 // transmit ring buffer size
 #endif
 
-#define SIZE_LISTENERS  4  // number of classes that can register as listeners on each CAN bus
-#define NUM_MAILBOXES   16 // architecture specific but all Teensy 3.x boards have 16 mailboxes
-#define IRQ_PRIORITY    64 // 0 = highest, 255 = lowest
+#define SIZE_LISTENERS   4  // number of classes that can register as listeners on each CAN bus
+#define NUM_MAILBOXES    16 // architecture specific but all Teensy 3.x boards have 16 mailboxes
+#define NUM_TX_MAILBOXES 2
+#define IRQ_PRIORITY     64 // 0 = highest, 255 = lowest
+#define IRQ_LOW_PRIORITY 225 // 0 = highest, 255 = lowest
 
-#define COLLECT_CAN_STATS
+#define COLLECT_CAN_STATS 0
+
 
 typedef struct CAN_message_t {
   uint32_t id;          // can identifier
+  uint32_t micros;      // system microseconds
+  uint32_t rxcount;      // number of received messages
   uint16_t timestamp;   // FlexCAN time when message arrived
   struct {
     uint8_t extended:1; // identifier is extended (29-bit)
@@ -96,7 +118,15 @@ private:
 class FlexCAN
 {
 private:
+  bool autobaud;
+  bool report_errors;
+  uint8_t can_channel;
+  uint8_t baud_rate_index;
+  uint32_t baud_rates[NUM_BAUD_RATES] = BAUD_RATE_LIST;
+  
   uint32_t flexcanBase;
+  uint8_t eeprom_RATE_INDEX_ADDR;
+
   struct CAN_filter_t MBFilters[NUM_MAILBOXES];
   static struct CAN_filter_t defaultMask;
   void mailbox_int_handler (uint8_t mb, uint32_t ul_status);
@@ -116,6 +146,10 @@ private:
   bool isRingBufferEmpty (ringbuffer_t &ring);
   uint32_t ringBufferCount (ringbuffer_t &ring);
 
+  void freezeMode(bool mode);
+  bool set_baud_rate(uint32_t baud);
+  uint32_t get_baud_rate(void);
+
 #ifdef COLLECT_CAN_STATS
   CAN_stats_t stats;
 #endif
@@ -126,7 +160,7 @@ protected:
 public:
   FlexCAN (uint8_t id = 0);
   void begin (uint32_t baud = 250000, const CAN_filter_t &mask = defaultMask, uint8_t txAlt = 0, uint8_t rxAlt = 0);
-
+  uint32_t baud_rate;
   void setFilter (const CAN_filter_t &filter, uint8_t n);
   bool getFilter (CAN_filter_t &filter, uint8_t n);
   void setMask (uint32_t mask, uint8_t n);
@@ -143,8 +177,9 @@ public:
   CAN_stats_t getStats (void) { return stats; };
 #endif
 
-  //new functionality added to header but not yet implemented. Fix me
   void setListenOnly (bool mode); //pass true to go into listen only mode, false to be in normal mode
+  void setSelfReception (bool mode); 
+  void setReportErrors (bool mode); 
 
   bool attachObj (CANListener *listener);
   bool detachObj (CANListener *listener);
@@ -162,6 +197,10 @@ public:
   void tx_warn_isr (void);
   void rx_warn_isr (void);
   void wakeup_isr (void);
+
+  uint8_t readTEC ();
+  uint8_t readREC ();
+
 };
 
 extern FlexCAN Can0;

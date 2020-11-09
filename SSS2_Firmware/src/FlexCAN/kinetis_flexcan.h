@@ -57,10 +57,10 @@ typedef volatile uint32_t vuint32_t;
 
 /* Register read/write macros */
 #define FLEXCAN0_MCR                   (*(vuint32_t*)(FLEXCAN0_BASE))
-#define FLEXCAN0_CTRL1                  (*(vuint32_t*)(FLEXCAN0_BASE+4))
+#define FLEXCAN0_CTRL1                 (*(vuint32_t*)(FLEXCAN0_BASE+4))
 #define FLEXCAN0_TIMER                 (*(vuint32_t*)(FLEXCAN0_BASE+8))
 #define FLEXCAN0_TCR                   (*(vuint32_t*)(FLEXCAN0_BASE+0x0C))
-#define FLEXCAN0_RXMGMASK               (*(vuint32_t*)(FLEXCAN0_BASE+0x10))
+#define FLEXCAN0_RXMGMASK              (*(vuint32_t*)(FLEXCAN0_BASE+0x10))
 #define FLEXCAN0_RX14MASK              (*(vuint32_t*)(FLEXCAN0_BASE+0x14))
 #define FLEXCAN0_RX15MASK              (*(vuint32_t*)(FLEXCAN0_BASE+0x18))
 #define FLEXCAN0_ECR                   (*(vuint32_t*)(FLEXCAN0_BASE+0x1C))
@@ -101,7 +101,6 @@ typedef volatile uint32_t vuint32_t;
 /* Rx FIFO ID Filter Table Element 0 to 127 */
 #define FLEXCAN0_IDFLT_TAB0		(*(vuint32_t*)(FLEXCAN0_BASE+0xE0))
 #define FLEXCAN0_IDFLT_TAB(n)		(*(vuint32_t*)(FLEXCAN0_BASE+0xE0+(n*4)))
-//#define FLEXCAN0_IDFLT_TAB(n)		(*(vuint32_t*)(FLEXCAN0_BASE+0xE0+(n<<2)))
 
 /* Memory Error Control Register */
 #define FLEXCAN0_MECR					*(vuint32_t*)(FLEXCAN0_BASE+0x3B70))
@@ -203,6 +202,8 @@ typedef volatile uint32_t vuint32_t;
 
 /* Error Status Register */
 #define FLEXCAN1_ERRSR					*(vuint32_t*)(FLEXCAN1_BASE+0x3B8C))
+
+
 
 /* Bit definitions and macros for FLEXCAN_MCR */
 #define FLEXCAN_MCR_MAXMB(x)           (((x)&0x0000007F)<<0)

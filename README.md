@@ -15,36 +15,22 @@ The Schematics for the boards are available in the docs directory. The revision 
 
 ### Pin Defintions
 All pin defintions are `const int8_t` data types so they can take on a value of -1. If the pins are not used for a particular board revision, they should be set to -1.
-
-`greenLEDpin` - output for the pin that drives the green led.
-
-`redLEDpin` - output for the pin that drives the red led.
-
-`CSCANPin` - output for the chip select pin for the Microchip MCP2515 Stand alone CAN transciever over SPI.
-
-`PWMPins` - output pin array for pulse width modulated signal providing the input for an opamp that converts the 3.3V signal to a 5V signal.
-
-`CSconfigAPin` - output pin for the chip select pin for the first Analog Devices ADG1414 SPI controlled CMOS switching chip.
-
-`CSconfigBPin` - output pin for the chip select pin for the other Analog Devices ADG1414 SPI controlled CMOS switching chip.
-
-`buttonPin` -  input pin that is pulled up for the push button input.
-
-`encoderAPin` - input pin used for the quadrature knob.
-
-`encoderBPin` - input pin used for the quadrature knob.
-
-`IH1Pin` - output pin to drive a high current, high side switch from the Infineon BTM7710 driver chip.
-
-`IH2Pin` - output pin to drive a high current, high side switch from the Infineon BTM7710 driver chip.
-
-`IL1Pin` - output pin to drive a high current, low side switch from the Infineon BTM7710 driver chip.
-
-`IL2Pin` - output pin to drive a high current, low side switch from the Infineon BTM7710 driver chip.
-
-`ignitionCtlPin` - output pin to drive an N-Channel MOSFET that drives a relay solenoid to switch 12 V.
-
-`analogInPins` - An input pin array for the Analog to Digital Converter.
+|Pin Name|Description|
+|--------|-----------|
+|`greenLEDpin` | output for the pin that drives the green led.|
+|`redLEDpin` | output for the pin that drives the red led.|
+|`CSCANPin` | output for the chip select pin for the Microchip MCP2515 Stand alone CAN transciever over SPI.|
+|`PWMPins` | output pin array for pulse width modulated signal providing the input for an opamp that converts the 3.3V signal to a 5V signal.|
+|`CSconfigAPin` | output pin for the chip select pin for the first Analog Devices ADG1414 SPI controlled CMOS switching chip.|
+|`CSconfigBPin` | output pin for the chip select pin for the other Analog Devices ADG1414 SPI controlled CMOS switching chip.|
+|`buttonPin` | input pin that is pulled up for the push button input.|
+|`encoderAPin` | input pin used for the quadrature knob.|
+|`encoderBPin` | input pin used for the quadrature knob.|
+|`IH2Pin` |output pin to drive a high current, high side switch from the Infineon BTM7710 driver chip.|
+|`IL1Pin`| output pin to drive a high current, low side switch from the Infineon BTM7710 driver chip.|
+|`IL2Pin` | output pin to drive a high current, low side switch from the Infineon BTM7710 driver chip.|
+|`ignitionCtlPin` | output pin to drive an N-Channel MOSFET that drives a relay solenoid to switch 12 V.|
+|`analogInPins` | An input pin array for the Analog to Digital Converter.|
 
 This file defines a `setPinModes()` function to use when initializing the board. It sets all the pin modes and writes default values to them. This is what turns on the red LED at the beginning. 
 
@@ -63,96 +49,54 @@ There are also settings for all the switch or boolean variables set up. The PWM 
 The SSS2_functions file is a header file that defines all the functions needed to convert a String command into a setting output. There are 2 setting strings that are used: `commandPrefix` and `commandString`. The command prefix is used but the communications module to call a function. The `commandString` variable is parsed by the function to determine what it needs to do. All command entries end with a newline character ("/n").
 
   **X,Y** where X is one of the SSS2 Settings and Y is its value.
-  
-  **AI,X** where X is a 0 = off or 1 = on. This turns on and off the analog input display.
-  
-  **B0,X** Sets the baudrate for the first FlexCAN controller. If X is ommitted, then the current CAN bit rate is returned. Typical baudrates are 250000, 666000, 500000, and 125000.
-  
-  **B1,X** Sets the baudrate for the second FlexCAN controller. If X is ommitted, then the current CAN bit rate is returned.
-  
-  **BMCP,X** Sets the baudrate for the MCP2515 controller. If X is ommitted or is not valid, then the current CAN bit rate is returned. Possible baudrates are: 250000, 500000, 666666, 125000, 1000000, 5000, 10000, 20000, 31520, 333333, 40000, 50000, 80000, 100000, 200000. 
-  
-  **DB,** Displays the baud rates. 
-   
-  **CANCOMP,X** Turns on the ability for the SSS2 to respond to component ID requests. The value of X is binary: 0 = do not respond or 1 = respond to J1939 request messages.
-  
-  **ID,** Request the unique Chip ID from the Freescale K66 chip on the Teensy 3.6.
-  
-  **C0,X** where X is a 0 or 1. When X is 0, it turns off the display of received CAN messages from the first built-in controller, which is J1939. When X is > 0, it turns on the serial stream. The CAN messages can arrive faster than the USB stack can send.
-  
-  **C1,X** where X is a 0 or 1. When X is 0, it turns off the display of received CAN messages from the first built-in controller, which is J1939. When X is > 0, it turns on the serial stream.
-  
-  **GO,i,X** Starts and stops the can message in the _i_-th slot of the threading queue. The value of X is binary: 0 = stop message or 1 = start message.
-  
-  **SP,X** Sets the shortest period in milliseconds for a periodic CAN transmission. This sets the lower bound of the interthread CAN messages. 
-  
-  **STARTCAN,** Enables all CAN messages that are setup to start. This is like sending the command `GO,i,1` for all i.
-  
-  **STOPCAN,** Disables the transmission of all CAN messages. This is like sending the command `GO,i,0` for all i.
-  
-  **CLEARCAN,** Removes all CAN messages setup with the SM command from the transmitting thread. All messages will be destroyed and need reloaded. 
-  
-  **STATS,** Displays the statistics from the FlexCAN controller for both CAN channels.
-  
-  **CLEARSTATS,** Resets the FlexCAN statisitics.
-  
-  **CI,_string_** Display or change SSS2 Component Information. The component information (_string_) should be similar to `SYNER*SSS2-00*XXXX*UNIVERSAL`. If there are not more than 12 characters for the component ID, then the command will just display the current setting. This command also saves the new component ID in EEPROM for non-volitile storage. 
-  
-  **LS,** List Settings. Displays all the numbered settings in the current configuration.
-  
-  **CANNAME,X**  Display the name of the CAN transmit thread as it was entered in the `SM` command.
-  
-  **CANSIZE,** List the number of CAN transmitting threads. The maximum is 1024. 
-  
-  **THREADS,** Display a list of all indexes and names for the CAN transmitting threads.
-  
-  **SOFT,** Display the firmware version running on the SSS2 unit.
-  
-  **J1708,X** Set the streaming of J1708 traffic to  1 = straming on or 0 = streaming off. The format of the displayed messages are ```J1708 Milliseconds MID PID DATA OK``` where OK is the result of the checksum.
-  
-  **RELOAD,** Resets the threads that send CAN messages.
-  
-  **TIME,X** Sets the time on the SSS2 to _X_, where _X_ the UNIX timestamp (number of seconds from 1 Jan 1970). If _X_ is omitted, then the current time is returned in a human readable form. 
-  
-  **GETTIME,** Displays the time on the SSS2 as a UNIX timestamp (number of seconds from 1 Jan 1970).
-  
-  **LIN,X** Toggles the streaming display of LIN messages. This streams the data on the LIN bus to the USB Serial. The value of X is binary: 0 = stop streaming message. or 1 = start streaming messages.
-  
-  **SENDLIN,X**  Toggles the build in LIN message for a shifter lever on DDEC13 ECUs. The value of X is binary: 0 = disable LIN or 1 = enable LIN.
-  
-  **CANSEND,message** Send a 1 time CAN message with the following structure for _message_: C,XXXX,YYYY
-  
-  _C_ is the channel number, 0 = CAN0 and 1 = CAN1
-    
-  _XXXX_ is the CAN ID in hex. If XXXX is greater than 0x7FF, then it will use an extended id. The most significant bit of the UINT32 is masked away, so if you want an 29-bit ID with a value of 5, then enter the ID field as '80000005'. For an 11-bit ID, just use '5'. 
-    
-  _YYYY_ are the message data in an even number hex digits (up to 16 nibble characters). 
+  |Function | Description | 
+  |---------|-------------|
+   | **AI,X**| where X is a 0 = off or 1 = on. This turns on and off the analog input display.|
+   | **B0,X**| Sets the baudrate for the first FlexCAN controller. If X is ommitted, then the current CAN bit rate is returned. Typical baudrates are 250000, 666000, 500000, and 125000.|
+  | **B1,X**| Sets the baudrate for the second FlexCAN controller. If X is ommitted, then the current CAN bit rate is returned.|
+  |  **BMCP,X**| Sets the baudrate for the MCP2515 controller. If X is ommitted or is not valid, then the current CAN bit rate is returned. Possible baudrates are: 250000, 500000, 666666, 125000, 1000000, 5000, 10000, 20000, 31520, 333333, 40000, 50000, 80000, 100000, 200000. 
+  |  **DB,**| Displays the baud rates. |
+  |  **CANCOMP,X**| Turns on the ability for the SSS2 to respond to component ID requests. The value of X is binary: 0 = do not respond or 1 = respond to J1939 request messages.|
+  |  **ID,**| Request the unique Chip ID from the Freescale K66 chip on the Teensy 3.6.|
+  | **C0,X**| where X is a 0 or 1. When X is 0, it turns off the display of received CAN messages from the first built-in controller, which is J1939. When X is > 0, it turns on the serial stream. The CAN messages can arrive faster than the USB stack can send.|
+   | **C1,X**| where X is a 0 or 1. When X is 0, it turns off the display of received CAN messages from the first built-in controller, which is J1939. When X is > 0, it turns on the serial stream.|
+   | **GO,i,X**| Starts and stops the can message in the _i_-th slot of the threading queue. The value of X is binary: 0 = stop message or 1 = start message.|
+   | **SP,X**| Sets the shortest period in milliseconds for a periodic CAN transmission. This sets the lower bound of the interthread CAN messages. |
+   | **STARTCAN,**| Enables all CAN messages that are setup to start. This is like sending the command `GO,i,1` for all i.|
+   | **STOPCAN,**| Disables the transmission of all CAN messages. This is like sending the command `GO,i,0` for all i.|
+   | **STOPCAN,**| Disables the transmission of all CAN messages. This is like sending the command `GO,i,0` for all i.|
+   | **CLEARCAN,**| Removes all CAN messages setup with the SM command from the transmitting thread. All messages will be destroyed and need reloaded. |
+   | **STATS,**| Displays the statistics from the FlexCAN controller for both CAN channels.|
+   | **CLEARSTATS,**| Resets the FlexCAN statisitics.|
+   | **CI,_string_**| Display or change SSS2 Component Information. The component information (_string_) should be similar to `SYNER*SSS2-00*XXXX*UNIVERSAL`. If there are not more than 12 characters for the component ID, then the command will just display the current setting. This command also saves the new component ID in EEPROM for non-volitile storage. |
+   | **LS,** |List Settings. Displays all the numbered settings in the current configuration.|
+   | **CANNAME,X**|  Display the name of the CAN transmit thread as it was entered in the `SM` command.|
+   | **CANSIZE,**| List the number of CAN transmitting threads. The maximum is 1024. |
+   | **THREADS,**| Display a list of all indexes and names for the CAN transmitting threads.|
+   | **SOFT,**| Display the firmware version running on the SSS2 unit.|
+   | **J1708,X**| Set the streaming of J1708 traffic to  1 = straming on or 0 = streaming off. The format of the displayed messages are ```J1708 Milliseconds MID PID DATA OK``` where OK is the result of the checksum.|
+   | **RELOAD,**| Resets the threads that send CAN messages.|
+   | **TIME,X**| Sets the time on the SSS2 to _X_, where _X_ the UNIX timestamp (number of seconds from 1 Jan 1970). If _X_ is omitted, then the current time is returned in a human readable form. |
+   | **GETTIME,**| Displays the time on the SSS2 as a UNIX timestamp (number of seconds from 1 Jan 1970).|
+   | **LIN,X**| Toggles the streaming display of LIN messages. This streams the data on the LIN bus to the USB Serial. The value of X is binary: 0 = stop streaming message. or 1 = start streaming messages.|
+   | **SENDLIN,X**|  Toggles the build in LIN message for a shifter lever on DDEC13 ECUs. The value of X is binary: 0 = disable LIN or 1 = enable LIN.|
+   | **CANSEND,message**| Send a 1 time CAN message with the following structure for _message_: C,XXXX,YYYY  <br> _C_ is the channel number, 0 = CAN0 and 1 = CAN <br> _XXXX_ is the CAN ID in hex. If XXXX is greater than 0x7FF, then it will use an extended id. The most significant bit of the UINT32 is masked away, so if you want an 29-bit ID with a value of 5, then enter the ID field as '80000005'. For an 11-bit ID, just use '5'. <br> _YYYY_ are the message data in an even number hex digits (up to 16 nibble characters). |
   
   **SM,name,i,n,j,c,p,d,t,e,ID,DLC,b1,b2,b3,b4,b5,b6,b7,b8** Setup a CAN message with the fiollowing arguments. All arguments are required.
-  
-  _name_ is a string to describe the transmitting thread. Suggested naming scheme would use language from J1939. For example: " CCVS1 from Instrument Cluster."
-  
-  _i_ = index, the CAN message index from 0 to 1024. If the position in the array exists, the command will overwrite that spot. If not, it will create the next new one. This means, you can tell i to be 1000, but is may return 1.
-  
-  _n_ = num_messages, the number of total sub messages.
-  
-  _j_ = sub_index, the CAN message sub index. Default should be 0. This places the message in a list the gets sent as a group.
-  
-  _c_ = channel, the CAN Channel 0 or 1.
-  
-  _p_ = tx_period, the period of transmission from one mesage to the next in milliseconds.
-  
-  _d_ = tx_delay, the delay between repeating the message groups from start to start.
-  
-  _t_ = stop_after_count, the total number of message groups to send. Set to 0 for disabling this count.
-  
-  _e_ = temp_txmsg.ext, the extended ID flag set to 0 for 11-bit IDs or 1 for 29-bit IDs.
-  
-  _ID_ = temp_txmsg.id, the CAN ID HEX characters, (e.g. 18FEF100).
-  
-  _DLC_ = temp_txmsg.len, the data length code.
-
-  _b1_ through _b8_ = temp_txmsg.buf[i], the data bytes in HEX. 
+  |Variable|Alias|Description|
+  |--------|-----|-----------|
+  | _name_ | Name|is a string to describe the transmitting thread. Suggested naming scheme would use language from J1939. For example: " CCVS1 from Instrument Cluster."|
+  | _i_ | index| the CAN message index from 0 to 1024. If the position in the array exists, the command will overwrite that spot. If not, it will create the next new one. This means, you can tell i to be 1000, but is may return 1.|
+  | _n_ |num_messages| the number of total sub messages.|
+  |_j_ | sub_index|the CAN message sub index. Default should be 0. This places the message in a list the gets sent as a group.|
+  |_c_ | channel| the CAN Channel 0 or 1.|
+  |_p_ | tx_period| the period of transmission from one mesage to the next in milliseconds.|
+  |_d_ | tx_delay| the delay between repeating the message groups from start to start.|
+  |_t_ | stop_after_count| the total number of message groups to send. Set to 0 for disabling this count.|
+  |_e_| temp_txmsg.ext| the extended ID flag set to 0 for 11-bit IDs or 1 for 29-bit IDs.|
+  |_ID_| temp_txmsg.id| the CAN ID HEX characters, (e.g. 18FEF100).|
+  |_DLC_| temp_txmsg.len| the data length code.|
+  |_b1_ through _b8_ | temp_txmsg.buf[i]| the data bytes in HEX. |
   
   
 ### Examples:
