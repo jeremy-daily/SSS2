@@ -45,7 +45,8 @@ jobs:
         - name: Install Additional Libraries
           run: |
                 cd $HOME/arduino_ide/arduino-$ARDUINO_IDE_VERSION/
-                ./arduino --install-library "base64"
+                ./arduino --install-library "base64" 
+                ./arduino --install-library "OneButton"
         - name: Verify-Code 
           run: |
             cd SSS2_Firmware
