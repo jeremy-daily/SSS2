@@ -17,7 +17,8 @@ jobs:
     env: 
       ARDUINO_IDE_VERSION: "1.8.13"
       DEVICE: "teensy36"
-      SPEED: "180" 
+      SPEED: "180"
+      USBTYPE: rawhid 
     steps:
         - name: Check out repository 
           uses: actions/checkout@v1
@@ -47,12 +48,15 @@ jobs:
                 ./arduino --install-library "base64"
         - name: Verify-Code 
           run: |
+            cd SSS2_Firmware
             wget  https://raw.githubusercontent.com/gannaramu/Teensy-Github-Action/master/check-status.py
             wget  https://raw.githubusercontent.com/gannaramu/Teensy-Github-Action/master/build-sketches.sh
             bash build-sketches.sh
+        - name: Chekcing Files
+          run: ls    
         
         - name: upload-Code 
           uses: actions/upload-artifact@v2
           with:
             name: my-artifact
-            path: error.txt
+            path: SSS2_Firmware/Final.txt
