@@ -29,6 +29,6 @@ jobs:
         export DISPLAY=:1.0
         ./TeensyduinoInstall.linux64 --dir=$HOME/arduino_ide/arduino-$ARDUINO_IDE_VERSION
         echo "Another message or command"
-        source build-sketches.sh
+        ls
      - run: echo "One last message"
      
