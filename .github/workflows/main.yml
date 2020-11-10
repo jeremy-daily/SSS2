@@ -34,7 +34,7 @@ jobs:
   
 #       - name: Download Arduino IDE installer
       - uses: numtide/action-cli@v0.7.0
-      - run: action-cli wget --quiet https://downloads.arduino.cc/arduino-$ARDUINO_IDE_VERSION-linux64.tar.xz
+      - run: action-cli issue-command wget --quiet https://downloads.arduino.cc/arduino-$ARDUINO_IDE_VERSION-linux64.tar.xz
         
       - name: Create Arduino Folder
         run: mkdir $HOME/arduino_ide
