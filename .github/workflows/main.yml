@@ -7,6 +7,7 @@ name: Build
 on:
   push:
     branches: [ master ]
+    paths: 'SSS2_Firmware/**'
   pull_request:
     branches: [ master ]
 
@@ -62,9 +63,10 @@ jobs:
             name: my-artifact
             path: SSS2_Firmware/Final.txt
         - id: status
-          run: echo "##[set-output name=data;]$(cat SSS2_Firmware/Final.txt | grep SSS2_Firmware.ino:✓ || exit 120)"
+          run: cat SSS2_Firmware/Final.txt | grep SSS2_Firmware.ino:✓ || exit 120
          
-#         - name: Time badge
+#echo "##[set-output name=data;]$(
+#        - name: Time badge
 #           uses: RubbaBoy/BYOB@v1.1.0
 #           with:
 #              NAME: time
