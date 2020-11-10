@@ -47,7 +47,8 @@ jobs:
                 ./arduino --install-library "base64"
         - name: Verify-Code 
           run: |
-            git clone https://github.com/gannaramu/Teensy-Github-Action.git
+            wget  https://raw.githubusercontent.com/gannaramu/Teensy-Github-Action/master/check-status.py
+            wget  https://raw.githubusercontent.com/gannaramu/Teensy-Github-Action/master/build-sketches.sh
             bash build-sketches.sh
         
         - name: upload-Code 
