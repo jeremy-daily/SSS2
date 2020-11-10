@@ -61,3 +61,11 @@ jobs:
           with:
             name: my-artifact
             path: SSS2_Firmware/Final.txt
+        - name: Time badge
+          uses: RubbaBoy/BYOB@v1.1.0
+          with:
+             NAME: time
+             LABEL: 'SSS2_Firnware.ino'
+             STATUS: Pass
+             COLOR: 00EEFF
+             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
