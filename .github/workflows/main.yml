@@ -41,6 +41,6 @@ jobs:
         ls
      - id: Verify-Code 
        run: |
-        source build-sketches.sh
+        $HOME/arduino_ide/arduino-1.8.13/arduino --verify --board "teensy:avr:teensy36:usb=serial,speed=180,opt=o2std,keys=en-us" SSS2_Firmware/SSS2_Firmware.ino> error.txt > output.txt
      - run: echo "One last message"
      
