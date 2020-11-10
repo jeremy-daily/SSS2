@@ -51,7 +51,7 @@ jobs:
             wget  https://raw.githubusercontent.com/gannaramu/Teensy-Github-Action/master/check-status.py
             wget  https://raw.githubusercontent.com/gannaramu/Teensy-Github-Action/master/build-sketches.sh
             bash build-sketches.sh
-        `
+        
         - name: upload-Code 
           uses: actions/upload-artifact@v2
           with:
