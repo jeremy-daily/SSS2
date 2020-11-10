@@ -43,8 +43,6 @@
 #include "version.h"
 #include "base64.hpp"
 
-
-
 char serial_buffer[64];
 
 //softwareVersion
