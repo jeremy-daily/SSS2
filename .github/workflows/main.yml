@@ -16,8 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     env: 
       ARDUINO_IDE_VERSION: "1.8.13"
-      DEVICE: "teensy40"
-      SPEED: "600" 
+      DEVICE: "teensy36"
+      SPEED: "180" 
     steps:
         - name: Check out repository 
           uses: actions/checkout@v1
@@ -46,7 +46,9 @@ jobs:
                 cd $HOME/arduino_ide/arduino-$ARDUINO_IDE_VERSION/
                 ./arduino --install-library "base64"
         - name: Verify-Code 
-          run: bash build-sketches.sh
+          run: |
+            git cloen https://github.com/gannaramu/Teensy-Github-Action.git
+            bash build-sketches.sh
         
         - name: upload-Code 
           uses: actions/upload-artifact@v2
