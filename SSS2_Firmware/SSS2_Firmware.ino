@@ -45,7 +45,7 @@
 
 
 
-char serial_buffer[64];
+char serial_buffer[64]
 
 //softwareVersion
 String softwareVersion = "SSS2*REV" + revision + "*" + VERSION;
