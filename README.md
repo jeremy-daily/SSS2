@@ -1,4 +1,4 @@
-![CI](https://github.com/gannaramu/SSS2/workflows/CI/badge.svg?branch=master)
+![Build](https://github.com/gannaramu/SSS2/workflows/Build/badge.svg)
 ![](https://byob.yarr.is/gannaramu/SSS2/time)
 
 
