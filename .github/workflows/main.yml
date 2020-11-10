@@ -61,11 +61,14 @@ jobs:
           with:
             name: my-artifact
             path: SSS2_Firmware/Final.txt
+        - id: status
+          run: echo "##[set-output name=data;]$(cat SSS2_Firmware/Final.txt | grep SSS2_Firmware)"
+         
         - name: Time badge
           uses: RubbaBoy/BYOB@v1.1.0
           with:
              NAME: time
              LABEL: 'SSS2_Firnware.ino'
-             STATUS: Pass
-             COLOR: 00EEFF
+             STATUS: ${{ steps.status.outputs.data }}
+             COLOR: 43B00D
              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
