@@ -29,6 +29,10 @@ jobs:
       - name: Run a one-line script
         run: export ARDUINO_IDE_VERSION="1.8.13"
         
+      - name: Install action-cli
+        uses: numtide/action-cli@v0.3.0
+        run: wget --quiet https://downloads.arduino.cc/arduino-$ARDUINO_IDE_VERSION-linux64.tar.xz
+  
       - name: Download Arduino IDE installer
         run: wget --quiet https://downloads.arduino.cc/arduino-$ARDUINO_IDE_VERSION-linux64.tar.xz
         
