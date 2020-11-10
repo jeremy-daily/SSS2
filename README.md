@@ -1,5 +1,4 @@
-![Build](https://github.com/gannaramu/SSS2/workflows/Build/badge.svg)
-![](https://byob.yarr.is/gannaramu/SSS2/time)
+![Build-Ram-USB-HID](https://github.com/SystemsCyber/SSS2/workflows/Build-Ram-USB-HID/badge.svg?branch=Ram-USB-HID)
 
 
 # SSS2
