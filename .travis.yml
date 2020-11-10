@@ -20,9 +20,9 @@ addons:
 # Optional, will default to "$TRAVIS_BUILD_DIR/Doxyfile"
 #    - DOXYFILE: $TRAVIS_BUILD_DIR/Doxyfile
 
-before_install:
-   - source <(curl -SLs https://raw.githubusercontent.com/adafruit/travis-ci-arduino/master/install.sh)
-   - curl -SLs https://raw.githubusercontent.com/adafruit/travis-ci-arduino/master/run-clang-format.py > run-clang-format.py
+# before_install:
+#    - source <(curl -SLs https://raw.githubusercontent.com/adafruit/travis-ci-arduino/master/install.sh)
+#    - curl -SLs https://raw.githubusercontent.com/adafruit/travis-ci-arduino/master/run-clang-format.py > run-clang-format.py
 
 install:
 
@@ -40,7 +40,7 @@ install:
     #- $HOME/arduino_ide/arduino-$ARDUINO_IDE_VERSION/arduino --install-library "Adafruit ST7735 and ST7789 Library"
 #     script:
 #     #- $HOME/arduino_ide/arduino-$ARDUINO_IDE_VERSION/arduino --verify --verbose --board "teensy:avr:teensy36:usb=serial,speed=180,opt=o2std,keys=en-us" blink/blink.ino
-#     - source build-sketches.sh
+    - source build-sketches.sh
 
 # script:
 # #    - python run-clang-format.py -r .
