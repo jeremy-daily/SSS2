@@ -14,8 +14,8 @@ addons:
       - key_url: 'http://apt.llvm.org/llvm-snapshot.gpg.key'
     packages:
       - clang-format-5.0
-env:
-  global:
+# env:
+#   global:
 #    - ARDUINO_IDE_VERSION="1.8.13"
 #      - PRETTYNAME="Adafruit FT6206 Arduino Library"
 # Optional, will default to "$TRAVIS_BUILD_DIR/Doxyfile"
@@ -39,9 +39,9 @@ install:
     - export DISPLAY=:1.0
     - ./TeensyduinoInstall.linux64 --dir=$HOME/arduino_ide/arduino-$ARDUINO_IDE_VERSION
     #- $HOME/arduino_ide/arduino-$ARDUINO_IDE_VERSION/arduino --install-library "Adafruit ST7735 and ST7789 Library"
-    script:
-    #- $HOME/arduino_ide/arduino-$ARDUINO_IDE_VERSION/arduino --verify --verbose --board "teensy:avr:teensy36:usb=serial,speed=180,opt=o2std,keys=en-us" blink/blink.ino
-    - source build-sketches.sh
+#     script:
+#     #- $HOME/arduino_ide/arduino-$ARDUINO_IDE_VERSION/arduino --verify --verbose --board "teensy:avr:teensy36:usb=serial,speed=180,opt=o2std,keys=en-us" blink/blink.ino
+#     - source build-sketches.sh
 
 # script:
 # #    - python run-clang-format.py -r .
