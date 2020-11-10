@@ -5,7 +5,7 @@ examples=($(find $HOME/work -name "*.pde" -o -name "*.ino"))
 for example in "${examples[@]}"; do
   echo -n $example:
   $HOME/arduino_ide/arduino-1.8.13/arduino --verify --board "teensy:avr:teensy36:usb=serial,speed=180,opt=o2std,keys=en-us" $example 2> error.txt > output.txt
-  platform_switch=${PIPESTATUS[0]}
+  local platform_switch=${PIPESTATUS[0]}
   # notify if the platform switch failed
   if [ $platform_switch -ne 0 ]; then
     # heavy X
