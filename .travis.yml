@@ -1,6 +1,6 @@
 matrix:
   include:
-    - dist: bionic
+    - dist: xenial
     - language: c
       install:
         #- set -v
