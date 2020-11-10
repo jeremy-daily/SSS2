@@ -20,48 +20,15 @@ jobs:
         echo "A initial message"
         export ARDUINO_IDE_VERSION="1.8.13"
         wget --quiet https://downloads.arduino.cc/arduino-$ARDUINO_IDE_VERSION-linux64.tar.xz
+        mkdir $HOME/arduino_ide
+        tar xf arduino-$ARDUINO_IDE_VERSION-linux64.tar.xz -C $HOME/arduino_ide/
+        curl -fsSL https://www.pjrc.com/teensy/td_145/TeensyduinoInstall.linux64 -o TeensyduinoInstall.linux64
+        chmod +x TeensyduinoInstall.linux64
+        /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_1.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :1 -ac -screen 0 1280x1024x16
+        sleep 3
+        export DISPLAY=:1.0
+        ./TeensyduinoInstall.linux64 --dir=$HOME/arduino_ide/arduino-$ARDUINO_IDE_VERSION
         echo "Another message or command"
-        python myscript.py
-        bash some-shell-script-file.sh -xe
+        source build-sketches.sh
      - run: echo "One last message"
      
-  # This workflow contains a single job called "build"
-  Arduino:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
-
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
-        
-      - name: Run a one-line script
-        run: export ARDUINO_IDE_VERSION="1.8.13"
-        
-      - uses: numtide/action-cli@v0.7.0
-      - run: action-cli warning --file Cargo.toml --line 2 --col 2 "Ooops"
-  
-#       - name: Download Arduino IDE installer
-      - uses: numtide/action-cli@v0.7.0
-      - run: action-cli issue-command wget --quiet https://downloads.arduino.cc/arduino-$ARDUINO_IDE_VERSION-linux64.tar.xz
-        
-      - name: Create Arduino Folder
-        run: mkdir $HOME/arduino_ide
-        
-      - name: Install Arduino
-        run: tar xf arduino-$ARDUINO_IDE_VERSION-linux64.tar.xz -C $HOME/arduino_ide/
-        
-      - name: Download Teensyduino
-        run: curl -fsSL https://www.pjrc.com/teensy/td_145/TeensyduinoInstall.linux64 -o TeensyduinoInstall.linux64
-      
-      - name: Install Teensyduino
-        run: chmod +x TeensyduinoInstall.linux64
-                
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
-        run: |
-          echo ls.
