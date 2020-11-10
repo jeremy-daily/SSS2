@@ -12,6 +12,18 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
+  runMultipleCommands:
+    runs-on: ubuntu-latest
+    steps:
+     - uses: actions/checkout@v1
+     - run: |
+        echo "A initial message"
+        wget --quiet https://downloads.arduino.cc/arduino-$ARDUINO_IDE_VERSION-linux64.tar.xz
+        echo "Another message or command"
+        python myscript.py
+        bash some-shell-script-file.sh -xe
+     - run: echo "One last message":
+     
   # This workflow contains a single job called "build"
   Arduino:
     # The type of runner that the job will run on
