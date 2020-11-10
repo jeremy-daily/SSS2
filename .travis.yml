@@ -1,7 +1,7 @@
 matrix:
   include:
+    - dist: bionic
     - language: c
-      sudo: false
       install:
         #- set -v
         - export ARDUINO_IDE_VERSION="1.8.8"
