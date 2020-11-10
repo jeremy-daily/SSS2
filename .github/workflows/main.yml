@@ -22,7 +22,7 @@ jobs:
         echo "Another message or command"
         python myscript.py
         bash some-shell-script-file.sh -xe
-     - run: echo "One last message":
+     - run: echo "One last message"
      
   # This workflow contains a single job called "build"
   Arduino:
