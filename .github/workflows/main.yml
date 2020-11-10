@@ -56,5 +56,3 @@ jobs:
           with:
             name: my-artifact
             path: error.txt
-        - name: Check-Status 
-          run: python3 check-status.py
