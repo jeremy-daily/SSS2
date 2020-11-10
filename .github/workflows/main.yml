@@ -1,15 +1,27 @@
 # This is a basic workflow to help you get started with Actions
 
-name: Build
+name: Build-Ram-USB-HID
 
 # Controls when the action will run. Triggers the workflow on push or pull request
 # events but only for the master branch
 on:
   push:
-    branches: [ master ]
+    branches: 
+      - master
+      - Ram-USB-HID
     paths: 'SSS2_Firmware/**'
   pull_request:
     branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      name:
+        description: 'Person to greet'
+        required: true
+        default: 'Mona the Octocat'
+      home:
+        description: 'location'
+        required: false
+        default: 'The Octoverse'
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
