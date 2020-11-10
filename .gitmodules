@@ -1,0 +1,6 @@
+[submodule "SSS2_Firmware/src/FlexCAN"]
+	path = SSS2_Firmware/src/FlexCAN
+	url = https://github.com/SystemsCyber/FlexCAN_Library.git
+[submodule "SSS2_Firmware/src/base64_arduino"]
+	path = SSS2_Firmware/src/base64_arduino
+	url = https://github.com/Densaugeo/base64_arduino.git
