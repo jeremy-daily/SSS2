@@ -59,7 +59,7 @@
 #include "FastCRC.h"
 #include "src/ArduinoThread/Thread.h"
 #include "src/ArduinoThread/ThreadController.h"
-#include "base64.hpp"
+#include "src/base64_arduino/base64.hpp"
 
 
 FastCRC16 CRC16;
