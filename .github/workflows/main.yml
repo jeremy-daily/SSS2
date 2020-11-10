@@ -30,5 +30,6 @@ jobs:
         ./TeensyduinoInstall.linux64 --dir=$HOME/arduino_ide/arduino-$ARDUINO_IDE_VERSION
         echo "Another message or command"
         ls
+        $HOME/arduino_ide/arduino-$ARDUINO_IDE_VERSION/arduino --verify --verbose --board "teensyduino:avr:teensy36:usb=serial,speed=180,opt=o2std,keys=en-us" SSS2_Firmware/SSS2_Firmware.ino
      - run: echo "One last message"
      
