@@ -59,4 +59,4 @@ jobs:
           uses: actions/upload-artifact@v2
           with:
             name: my-artifact
-            path: Final.txt
+            path: SSS2_Firmware/Final.txt
