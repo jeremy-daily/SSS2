@@ -547,6 +547,199 @@ int setupPeriodicCANMessage() {
   return index;
 }
 
+int UpdatePeriodicCANMessage()
+{
+  CANTimer.end();
+  CanThread *can_message;
+  int16_t index;
+  int16_t sub_index;
+  uint8_t channel;
+  uint32_t tx_period;
+  uint32_t tx_delay;
+  uint8_t num_messages = 1;
+  uint32_t stop_after_count;
+  Serial.println("***************Entered Update Periodic CANMessage*******************");
+  Serial.println(commandString);
+
+  uint16_t threadSize = can_thread_controller.size(false);
+  char commandBytes[128];
+  commandString.toCharArray(commandBytes, sizeof(commandBytes));
+  char delimiter[] = ";";
+  char *commandValues;
+
+  // commandValues = strtok(commandBytes, delimiter);
+  // String threadName = commandValues;
+
+  commandValues = strtok(commandBytes, delimiter);
+  if (commandValues != NULL)
+  {
+    index = constrain(atoi(commandValues), 0, threadSize + 1);
+  }
+  else
+  {
+    Serial.println(("ERROR SM command is missing arguments."));
+    return -1;
+  }
+  String threadName = can_messages[index]->ThreadName;
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL)
+  {
+    num_messages = constrain(atoi(commandValues), 1, 255);
+  }
+  else
+  {
+    Serial.println(("ERROR SM command not able to determine the number of sub messages."));
+    return -2;
+  }
+
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL)
+  {
+    //constrain the sub_index to be one larger than the
+    sub_index = constrain(atoi(commandValues), 0, num_messages - 1);
+  }
+  else
+  {
+    Serial.println(("ERROR SM command missing sub_index."));
+    return -3;
+  }
+
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL)
+  {
+    channel = constrain(atoi(commandValues), 0, 2);
+  }
+  else
+  {
+    Serial.println(("ERROR SM command not able to set CAN Channel."));
+    return -4;
+  }
+
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL)
+  {
+    tx_period = constrain(strtoul(commandValues, NULL, 10), shortest_period, 0xFFFFFFFF);
+  }
+  else
+  {
+    Serial.println(("ERROR SM command not able to set period information."));
+    return -5;
+  }
+
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL)
+  {
+    tx_delay = strtoul(commandValues, NULL, 10);
+  }
+  else
+  {
+    Serial.println(("ERROR SM command not able to set delay information."));
+    return -6;
+  }
+
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL)
+  {
+    stop_after_count = strtoul(commandValues, NULL, 10);
+  }
+  else
+  {
+    Serial.println(("ERROR SM command not able to set the total number count."));
+    return -7;
+  }
+
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL)
+  {
+    temp_txmsg.ext = constrain(atoi(commandValues), 0, 1);
+  }
+  else
+  {
+    Serial.println(("ERROR SM command not able to set extended ID flag."));
+    temp_txmsg.ext = 1;
+  }
+
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL)
+  {
+    temp_txmsg.id = strtoul(commandValues, NULL, 16);
+  }
+  else
+  {
+    Serial.println(("WARNING SM command not able to set CAN ID information."));
+    temp_txmsg.id = 0x3FFFFFFF;
+  }
+
+  commandValues = strtok(NULL, delimiter);
+  if (commandValues != NULL)
+  {
+    temp_txmsg.len = constrain(atoi(commandValues), 0, 8);
+  }
+  else
+  {
+    Serial.println(("WARNING SM command not able to set CAN data length code."));
+    temp_txmsg.len = 8;
+  }
+
+  for (int i = 0; i < temp_txmsg.len; i++)
+  {
+    commandValues = strtok(NULL, delimiter);
+    if (commandValues != NULL)
+    {
+      temp_txmsg.buf[i] = constrain(strtol(commandValues, NULL, 16), 0, 255);
+    }
+    else
+    {
+      temp_txmsg.buf[i] = 0xFF;
+      Serial.printf("WARNING SM command not able to set CAN data byte in position %d.\n", i);
+    }
+  }
+  char threadNameChars[25]; //25 (24 chars + /00) is the size of the message frame space for the thread name
+  threadName.toCharArray(threadNameChars, sizeof(threadNameChars));
+  Serial.printf("THREAD %lu, %s (EXISTING)\n", index, threadNameChars);
+    Serial.printf("SET CAN name=%s \n index=%d\n num_messages=%d\n sub_index=%d\n channel=%d\n tx_period=%d\n tx_delay=%d\n stop_after_count=%d\n temp_txmsg.ext=%d\n ID=%08X\n DLC=%d\n DATA=[",
+                threadNameChars, index, num_messages, sub_index, channel, tx_period, tx_delay, stop_after_count, temp_txmsg.ext, temp_txmsg.id, temp_txmsg.len);
+  for (int i = 0; i < temp_txmsg.len - 1; i++)
+  {
+    Serial.printf("%02X, ", temp_txmsg.buf[i]);
+  }
+  Serial.printf("%02X]\n", temp_txmsg.buf[temp_txmsg.len - 1]);
+
+  can_messages[index]->channel = channel;
+  can_messages[index]->txmsg.ext = temp_txmsg.ext;
+  can_messages[index]->txmsg.len = temp_txmsg.len;
+  can_messages[index]->id_list[sub_index] = temp_txmsg.id;
+  for (int i = 0; i < temp_txmsg.len; i++)
+  {
+    can_messages[index]->message_list[sub_index][i] = temp_txmsg.buf[i];
+  }
+  can_messages[index]->stop_after_count = stop_after_count;
+  can_messages[index]->transmit_number = 0;
+  can_messages[index]->cycle_count = 0;
+  can_messages[index]->message_index = 0;
+  can_messages[index]->num_messages = num_messages;
+  can_messages[index]->tx_period = tx_period;
+  can_messages[index]->setInterval(tx_period);
+  can_messages[index]->loop_cycles = tx_delay;
+  can_messages[index]->ThreadName = threadName;
+
+  CANTimer.begin(runCANthreads, 500);
+  return index;
+}
+
+int createNewCANThread()
+{
+  uint16_t threadSize = can_thread_controller.size(false);
+  String threadName = "New Thread;";
+  String empty_messages =";1;0;0; 100;   0;0;1;18E00021;8; 0; 0; 0; 0; 0; 0; 0; 0"; //DDEC 13 MCM message; CAN1
+  int16_t index = threadSize+1;
+  String Final = threadName + index + empty_messages;
+  commandString = Final;
+  setupPeriodicCANMessage();
+  delayMicroseconds(800);
+}
+
+
 void stopCAN() {
   int threadSize =  can_thread_controller.size(false);
   for (int i = 0; i < threadSize; i++) {

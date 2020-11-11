@@ -357,7 +357,8 @@ void loop() {
         //else if (commandPrefix.equalsIgnoreCase("THREADS"))   getAllThreadNames();
         else if (commandPrefix.equalsIgnoreCase("SOFT"))      listSoftware();
         else if (commandPrefix.equalsIgnoreCase("J1708"))     displayJ1708();
-        else if (commandPrefix.equalsIgnoreCase("SM"))        setupPeriodicCANMessage();
+        else if (commandPrefix.equalsIgnoreCase("SM"))        UpdatePeriodicCANMessage();
+        else if (commandPrefix.equalsIgnoreCase("CT"))        createNewCANThread();
         else if (commandPrefix.equalsIgnoreCase("CS"))        sendMessage();
         else if (commandPrefix.equalsIgnoreCase("CANSEND"))   sendMessage();
         else if (commandPrefix.equalsIgnoreCase("RELOAD"))    reloadCAN();
