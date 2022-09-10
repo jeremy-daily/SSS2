@@ -1,1 +1,4 @@
 RawHID/~$Frame Definitions.xlsx
+SSS2_rev6/.pio/*
+*.elf
+*.o
